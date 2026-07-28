@@ -1,49 +1,117 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
+import { apiRequest } from "../services/api";
 import { loadStoredValue, saveStoredValue } from "../services/storage";
 
 const AuthContext = createContext(null);
 
-const DEMO_USER = {
-  id: "team_owner",
-  name: "Michael Triumph",
-  email: "owner@stockflow.demo",
-  role: "owner",
-};
+// Maps the Django user shape to the existing frontend user shape.
+function normalizeUser(account) {
+  if (!account) return null;
+
+  return {
+    id: account.id,
+    name: account.full_name ?? account.name ?? "StockFlow User",
+    email: account.email ?? "",
+    phone: account.phone ?? "",
+    role: account.role ?? "account",
+    isActive: account.is_active ?? true,
+    dateJoined: account.date_joined ?? null,
+  };
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => loadStoredValue("auth_user", null));
+  const [user, setUser] = useState(() =>
+    loadStoredValue("auth_user", null),
+  );
   const [pendingRegistration, setPendingRegistration] = useState(() =>
     loadStoredValue("pending_registration", null),
   );
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  function login({ email, password }) {
+  // Clears all authentication state without depending on the API response.
+  function clearAuthentication() {
+    setUser(null);
+    saveStoredValue("auth_user", null);
+    window.localStorage.removeItem("stockflow_access_token");
+    window.localStorage.removeItem("stockflow_refresh_token");
+  }
+
+  // Verifies a saved access token before protected routes are displayed.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreSession() {
+      const accessToken = window.localStorage.getItem(
+        "stockflow_access_token",
+      );
+
+      if (!accessToken) {
+        if (!cancelled) {
+          clearAuthentication();
+          setIsInitializing(false);
+        }
+        return;
+      }
+
+      try {
+        const account = await apiRequest("/auth/me/");
+
+        if (!cancelled) {
+          const nextUser = normalizeUser(account);
+          setUser(nextUser);
+          saveStoredValue("auth_user", nextUser);
+        }
+      } catch {
+        if (!cancelled) clearAuthentication();
+      } finally {
+        if (!cancelled) setIsInitializing(false);
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Authenticates with Django and stores both JWT tokens safely in this browser.
+  async function login({ email, password }) {
     if (!email?.trim() || !password?.trim()) {
       throw new Error("Enter your email and password.");
     }
 
-    if (email.trim().toLowerCase() === DEMO_USER.email && password !== "password123") {
-      throw new Error("The demo password is password123.");
-    }
+    const response = await apiRequest("/auth/login/", {
+      method: "POST",
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
+    });
 
-    const nextUser =
-      email.trim().toLowerCase() === DEMO_USER.email
-        ? DEMO_USER
-        : {
-            id: `user_${Date.now()}`,
-            name: email.split("@")[0],
-            email: email.trim().toLowerCase(),
-            role: "owner",
-          };
+    window.localStorage.setItem("stockflow_access_token", response.access);
+    window.localStorage.setItem("stockflow_refresh_token", response.refresh);
 
+    const nextUser = normalizeUser(response.user);
     setUser(nextUser);
     saveStoredValue("auth_user", nextUser);
-    window.localStorage.setItem("stockflow_access_token", "demo-access-token");
     return nextUser;
   }
 
-  function register(payload) {
-    if (!payload.name?.trim() || !payload.email?.trim() || !payload.password?.trim()) {
+  // Creates the real account before the user configures the first business.
+  async function register(payload) {
+    if (
+      !payload.name?.trim() ||
+      !payload.email?.trim() ||
+      !payload.password?.trim()
+    ) {
       throw new Error("Complete all required registration fields.");
     }
 
@@ -53,34 +121,59 @@ export function AuthProvider({ children }) {
 
     const registration = {
       ...payload,
+      name: payload.name.trim(),
+      businessName: payload.businessName?.trim() ?? "",
       email: payload.email.trim().toLowerCase(),
     };
 
+    const response = await apiRequest("/auth/register/", {
+      method: "POST",
+      body: JSON.stringify({
+        email: registration.email,
+        full_name: registration.name,
+        phone: registration.phone?.trim() ?? "",
+        password: registration.password,
+        password_confirm: registration.password,
+      }),
+    });
+
+    window.localStorage.setItem("stockflow_access_token", response.access);
+    window.localStorage.setItem("stockflow_refresh_token", response.refresh);
+
+    const nextUser = normalizeUser(response.user);
+    setUser(nextUser);
+    saveStoredValue("auth_user", nextUser);
     setPendingRegistration(registration);
     saveStoredValue("pending_registration", registration);
     return registration;
   }
 
-  function completeOnboarding(business) {
-    const nextUser = {
-      id: `user_${Date.now()}`,
-      name: pendingRegistration?.name ?? business.ownerName ?? "Business Owner",
-      email: pendingRegistration?.email ?? business.email,
-      role: "owner",
-    };
-
-    setUser(nextUser);
+  // Finalizes the local onboarding state after Django creates the business.
+  function completeOnboarding() {
     setPendingRegistration(null);
-    saveStoredValue("auth_user", nextUser);
     saveStoredValue("pending_registration", null);
-    window.localStorage.setItem("stockflow_access_token", "demo-access-token");
-    return nextUser;
   }
 
-  function logout() {
-    setUser(null);
-    saveStoredValue("auth_user", null);
-    window.localStorage.removeItem("stockflow_access_token");
+  // Blacklists the refresh token and always removes local credentials.
+  async function logout() {
+    const refreshToken = window.localStorage.getItem(
+      "stockflow_refresh_token",
+    );
+
+    try {
+      if (refreshToken) {
+        await apiRequest("/auth/logout/", {
+          method: "POST",
+          body: JSON.stringify({ refresh: refreshToken }),
+        });
+      }
+    } catch {
+      // Local logout still succeeds when the token is already invalid.
+    } finally {
+      clearAuthentication();
+      setPendingRegistration(null);
+      saveStoredValue("pending_registration", null);
+    }
   }
 
   const value = useMemo(
@@ -88,12 +181,13 @@ export function AuthProvider({ children }) {
       user,
       pendingRegistration,
       isAuthenticated: Boolean(user),
+      isInitializing,
       login,
       register,
       completeOnboarding,
       logout,
     }),
-    [pendingRegistration, user],
+    [isInitializing, pendingRegistration, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

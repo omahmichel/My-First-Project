@@ -135,3 +135,18 @@
   clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important;
 }
+
+/* Keeps the selected workspace visible in every browser state. */
+.app-sidebar .sidebar-business-select-label select {
+  background-color: #0b261b !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+  color-scheme: dark;
+}
+
+.app-sidebar .sidebar-business-select-label select:focus,
+.app-sidebar .sidebar-business-select-label select:hover {
+  background-color: #0d3022 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+}

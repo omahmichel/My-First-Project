@@ -59,6 +59,13 @@ export default function Sidebar({ open, onClose }) {
   } = useStore();
   const navigate = useNavigate();
 
+  // Logs out through Django, clears JWT tokens and returns to Login.
+  async function handleLogout() {
+    await logout();
+    onClose();
+    navigate("/login", { replace: true });
+  }
+
   // Switches the complete workspace and returns to a safe shared route.
   function handleBusinessSwitch(event) {
     switchBusiness(event.target.value);
@@ -147,7 +154,7 @@ export default function Sidebar({ open, onClose }) {
           ))}
         </nav>
 
-        <button type="button" className="sidebar-logout" onClick={logout}>
+        <button type="button" className="sidebar-logout" onClick={handleLogout}>
           <LogOut size={19} />
           Log out
         </button>

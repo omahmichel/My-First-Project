@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   seedBusiness,
@@ -8,6 +15,8 @@ import {
   seedStockMovements,
   seedTeam,
 } from "../data/seedData";
+import { useAuth } from "./AuthContext";
+import { apiRequest } from "../services/api";
 import { loadStoredValue, saveStoredValue } from "../services/storage";
 import { createId } from "../utils/formatters";
 
@@ -34,6 +43,30 @@ const DEFAULT_BUSINESSES = [
     receiptPrefix: "KRC",
   },
 ];
+
+
+// Maps a Django business response to the existing frontend business shape.
+function normalizeBusiness(record) {
+  return {
+    id: record.id,
+    name: record.name,
+    slug: record.slug,
+    type: record.business_type,
+    businessType: record.business_type,
+    phone: record.phone ?? "",
+    email: record.email ?? "",
+    location: record.location ?? "",
+    invoicePrefix: record.invoicePrefix ?? "INV",
+    receiptPrefix: record.receiptPrefix ?? "RCT",
+    status: record.status ?? "active",
+    ownerName: record.owner_name ?? "",
+    ownerEmail: record.owner_email ?? "",
+    currentUserRole: record.current_user_role ?? "account",
+    activeTeamMembers: record.active_team_members ?? 0,
+    createdAt: record.created_at ?? null,
+    updatedAt: record.updated_at ?? null,
+  };
+}
 
 // Resolves old business-type records into stable business IDs during migration.
 function resolveRecordBusinessId(record, fallbackBusinessId = "business_phildial") {
@@ -78,7 +111,10 @@ function loadBusinessRecords(storageKey, seedRecords, fallbackBusinessId) {
 }
 
 export function StoreProvider({ children }) {
+  const { user, isInitializing: authInitializing } = useAuth();
   const [businesses, setBusinesses] = useState(loadInitialBusinesses);
+  const [businessesLoading, setBusinessesLoading] = useState(true);
+  const [businessesError, setBusinessesError] = useState("");
   const [activeBusinessId, setActiveBusinessId] = useState(() => {
     const legacyBusiness = loadStoredValue("business", seedBusiness);
     const fallbackId =
@@ -117,6 +153,68 @@ export function StoreProvider({ children }) {
       DEFAULT_BUSINESSES[0],
     [activeBusinessId, businesses],
   );
+
+
+
+  // Loads only the authenticated user's real Django business workspaces.
+  const loadBusinesses = useCallback(async (preferredBusinessId = null) => {
+    setBusinessesLoading(true);
+    setBusinessesError("");
+
+    try {
+      const response = await apiRequest("/businesses/");
+      const records = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+      const nextBusinesses = records
+        .map(normalizeBusiness)
+        .sort(
+          (first, second) =>
+            new Date(first.createdAt ?? 0).getTime() -
+            new Date(second.createdAt ?? 0).getTime(),
+        );
+
+      setBusinesses(nextBusinesses);
+      setActiveBusinessId((currentBusinessId) => {
+        if (
+          preferredBusinessId &&
+          nextBusinesses.some((item) => item.id === preferredBusinessId)
+        ) {
+          return preferredBusinessId;
+        }
+
+        if (nextBusinesses.some((item) => item.id === currentBusinessId)) {
+          return currentBusinessId;
+        }
+
+        return nextBusinesses[0]?.id ?? "";
+      });
+
+      return nextBusinesses;
+    } catch (error) {
+      setBusinessesError(error.message);
+      throw error;
+    } finally {
+      setBusinessesLoading(false);
+    }
+  }, []);
+
+  // Restores real businesses after a saved JWT session is verified.
+  useEffect(() => {
+    if (authInitializing) return;
+
+    if (!user) {
+      setBusinessesLoading(false);
+      setBusinessesError("");
+      return;
+    }
+
+    loadBusinesses().catch(() => {
+      // The exposed error state allows the UI to report the failure later.
+    });
+  }, [authInitializing, loadBusinesses, user]);
 
   useEffect(() => saveStoredValue("businesses", businesses), [businesses]);
   useEffect(
@@ -793,6 +891,9 @@ export function StoreProvider({ children }) {
       business,
       businesses,
       activeBusinessId,
+      businessesLoading,
+      businessesError,
+      loadBusinesses,
       products: currentProducts,
       customers: currentCustomers,
       sales: currentSales,
@@ -818,6 +919,8 @@ export function StoreProvider({ children }) {
       activeBusinessId,
       business,
       businesses,
+      businessesError,
+      businessesLoading,
       currentCustomers,
       currentProducts,
       currentSales,

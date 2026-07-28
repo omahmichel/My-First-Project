@@ -1,6 +1,27 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
-// This wrapper is prepared for the Django REST API integration phase.
+// Extracts a useful DRF validation message from detail or field errors.
+function resolveApiErrorMessage(errorData) {
+  if (typeof errorData === "string") return errorData;
+  if (!errorData || typeof errorData !== "object") {
+    return "The request could not be completed.";
+  }
+
+  if (typeof errorData.detail === "string") return errorData.detail;
+
+  for (const value of Object.values(errorData)) {
+    if (Array.isArray(value) && value.length > 0) {
+      return String(value[0]);
+    }
+
+    if (typeof value === "string") return value;
+  }
+
+  return "The request could not be completed.";
+}
+
+// Sends an authenticated JSON request to the Django REST API.
 export async function apiRequest(path, options = {}) {
   const accessToken = window.localStorage.getItem("stockflow_access_token");
   const headers = new Headers(options.headers ?? {});
@@ -20,7 +41,10 @@ export async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail ?? "The request could not be completed.");
+    const error = new Error(resolveApiErrorMessage(errorData));
+    error.status = response.status;
+    error.data = errorData;
+    throw error;
   }
 
   if (response.status === 204) return null;

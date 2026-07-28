@@ -49,7 +49,7 @@ export default function DashboardPage() {
       
           <PageHeader
   eyebrow="Business overview"
-  title={`${greeting}, ${business?.ownerName || "Business Owner"}`}
+  title={`${greeting}, ${business?.name || "Your business"}`}
   description="Here is what is happening across your business today."
   actions={
     <Link

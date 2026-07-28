@@ -2,6 +2,7 @@ import { Bell, Menu, Search } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
+import { useStore } from "../../context/StoreContext";
 
 const titles = {
   "/app/dashboard": "Dashboard",
@@ -20,6 +21,7 @@ const titles = {
 
 export default function Topbar({ onOpenSidebar }) {
   const { user } = useAuth();
+  const { business } = useStore();
   const location = useLocation();
   const title = titles[location.pathname] ?? "StockFlow";
 
@@ -50,7 +52,7 @@ export default function Topbar({ onOpenSidebar }) {
           <div className="topbar-avatar">{user?.name?.slice(0, 2).toUpperCase() ?? "BO"}</div>
           <div>
             <strong>{user?.name ?? "Business Owner"}</strong>
-            <span>{user?.role ?? "owner"}</span>
+            <span>{business?.currentUserRole ?? user?.role ?? "account"}</span>
           </div>
         </div>
       </div>
