@@ -1,0 +1,61 @@
+/* Export controls used only on the Sales History page. */
+
+.sales-history-export-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sales-history-export-options button {
+  min-height: 42px;
+  padding: 9px 13px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.sales-history-export-options button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.sales-history-export-feedback {
+  padding: 10px 13px;
+  border: 1px solid #cfe4d8;
+  border-radius: 11px;
+  background: #f0f8f3;
+  color: #215f43;
+  font-size: 0.7rem;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.sales-history-export-feedback-error {
+  border-color: #efcece;
+  background: #fff4f4;
+  color: #a33c3c;
+}
+
+.sales-history-empty {
+  padding: 38px 18px !important;
+  color: var(--muted) !important;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .sales-history-export-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .sales-history-export-options button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .sales-history-export-options {
+    grid-template-columns: 1fr;
+  }
+}

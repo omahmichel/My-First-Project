@@ -1,0 +1,550 @@
+from decimal import Decimal
+
+from rest_framework import serializers
+
+from .models import Payment, Sale, SaleItem
+
+
+class CheckoutItemSerializer(serializers.Serializer):
+    # Accepts one product line from the React point-of-sale cart.
+
+    productId = serializers.UUIDField()
+    quantity = serializers.IntegerField(min_value=1)
+    unitPrice = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        min_value=Decimal("0.00"),
+    )
+
+
+class CreateSaleSerializer(serializers.Serializer):
+    # Validates the checkout payload before the transactional service runs.
+
+    items = CheckoutItemSerializer(many=True, allow_empty=False)
+    customerId = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+    discount = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        min_value=Decimal("0.00"),
+        required=False,
+        default=Decimal("0.00"),
+    )
+    amountPaid = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        min_value=Decimal("0.00"),
+        required=False,
+        default=Decimal("0.00"),
+    )
+    paymentMethod = serializers.ChoiceField(
+        choices=Sale.PaymentMethod.choices,
+    )
+    amountPaidMethod = serializers.ChoiceField(
+        choices=Payment.Method.choices,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    mobileMoneyNetwork = serializers.CharField(
+        max_length=40,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    mobileMoneyNumber = serializers.RegexField(
+        regex=r"^\+?[0-9][0-9\s-]{7,23}$",
+        max_length=25,
+        required=False,
+        allow_blank=True,
+        default="",
+        error_messages={
+            "invalid": "Enter a valid mobile-money phone number.",
+        },
+    )
+
+    def validate_items(self, value):
+        # Rejects duplicate product lines before stock is locked.
+        product_ids = [item["productId"] for item in value]
+
+        if len(product_ids) != len(set(product_ids)):
+            raise serializers.ValidationError(
+                "Each product can appear only once in a sale."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        # Validates full payments and any money received on a credit sale.
+        payment_method = attrs["paymentMethod"]
+        amount_paid = attrs.get("amountPaid", Decimal("0.00"))
+        amount_paid_method = attrs.get("amountPaidMethod", "")
+        customer_id = attrs.get("customerId")
+        network = attrs.get("mobileMoneyNetwork", "").strip()
+        phone = attrs.get("mobileMoneyNumber", "").strip()
+
+        if payment_method == Sale.PaymentMethod.CREDIT:
+            if not customer_id:
+                raise serializers.ValidationError(
+                    {
+                        "customerId": (
+                            "Select a customer for a credit or part-payment sale."
+                        )
+                    }
+                )
+
+            if amount_paid > Decimal("0.00") and not amount_paid_method:
+                raise serializers.ValidationError(
+                    {
+                        "amountPaidMethod": (
+                            "Select how the initial payment was received."
+                        )
+                    }
+                )
+        else:
+            # Full-payment methods are determined by paymentMethod itself.
+            attrs["amountPaidMethod"] = ""
+            amount_paid_method = ""
+
+        uses_mobile_money = (
+            payment_method == Sale.PaymentMethod.MOBILE_MONEY
+            or amount_paid_method == Payment.Method.MOBILE_MONEY
+        )
+
+        if uses_mobile_money:
+            if not network:
+                raise serializers.ValidationError(
+                    {
+                        "mobileMoneyNetwork": (
+                            "Select the customer's mobile-money network."
+                        )
+                    }
+                )
+
+            if not phone:
+                raise serializers.ValidationError(
+                    {
+                        "mobileMoneyNumber": (
+                            "Enter the customer's mobile-money number."
+                        )
+                    }
+                )
+        else:
+            network = ""
+            phone = ""
+
+        # Keeps the phone number consistent before it reaches a gateway.
+        normalized_phone = phone.replace(" ", "").replace("-", "")
+
+        attrs["mobileMoneyNetwork"] = network.lower()
+        attrs["mobileMoneyNumber"] = normalized_phone
+        return attrs
+
+
+class DebtPaymentSerializer(serializers.Serializer):
+    # Validates a later payment against one unpaid customer invoice.
+
+    amount = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+    )
+    saleId = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+    paymentMethod = serializers.ChoiceField(
+        choices=Payment.Method.choices,
+        default=Payment.Method.CASH,
+    )
+    reference = serializers.CharField(
+        max_length=180,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    mobileMoneyNetwork = serializers.CharField(
+        max_length=40,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    mobileMoneyNumber = serializers.RegexField(
+        regex=r"^\+?[0-9][0-9\s-]{7,23}$",
+        max_length=25,
+        required=False,
+        allow_blank=True,
+        default="",
+        error_messages={
+            "invalid": "Enter a valid mobile-money phone number.",
+        },
+    )
+
+    def validate(self, attrs):
+        # Mobile Money details are required only for a real gateway prompt.
+        method = attrs["paymentMethod"]
+        network = attrs.get("mobileMoneyNetwork", "").strip()
+        phone = attrs.get("mobileMoneyNumber", "").strip()
+
+        if method == Payment.Method.MOBILE_MONEY:
+            if not network:
+                raise serializers.ValidationError(
+                    {
+                        "mobileMoneyNetwork": (
+                            "Select the customer's mobile-money network."
+                        )
+                    }
+                )
+
+            if not phone:
+                raise serializers.ValidationError(
+                    {
+                        "mobileMoneyNumber": (
+                            "Enter the customer's mobile-money number."
+                        )
+                    }
+                )
+        else:
+            network = ""
+            phone = ""
+
+        attrs["reference"] = attrs.get("reference", "").strip()
+        attrs["note"] = attrs.get("note", "").strip()
+        attrs["mobileMoneyNetwork"] = network.lower()
+        attrs["mobileMoneyNumber"] = (
+            phone.replace(" ", "").replace("-", "")
+        )
+        return attrs
+
+
+class SaleItemSerializer(serializers.ModelSerializer):
+    # Returns immutable product and pricing snapshots in React field names.
+
+    productId = serializers.UUIDField(
+        source="product_id",
+        read_only=True,
+    )
+    name = serializers.CharField(
+        source="product_name",
+        read_only=True,
+    )
+    designCode = serializers.CharField(
+        source="design_code",
+        read_only=True,
+    )
+    unitPrice = serializers.DecimalField(
+        source="unit_price",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+    )
+    costPrice = serializers.DecimalField(
+        source="cost_price",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+    )
+    total = serializers.DecimalField(
+        source="line_total",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+    )
+
+    def get_fields(self):
+        # Hides cost information from cashier accounts.
+        fields = super().get_fields()
+
+        if self.context.get("current_role") == "cashier":
+            fields.pop("costPrice", None)
+
+        return fields
+
+    class Meta:
+        model = SaleItem
+        fields = (
+            "id",
+            "productId",
+            "name",
+            "sku",
+            "designCode",
+            "quantity",
+            "unit",
+            "unitPrice",
+            "costPrice",
+            "total",
+        )
+        read_only_fields = fields
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    # Exposes payment status without exposing private gateway credentials.
+
+    businessId = serializers.UUIDField(
+        source="business_id",
+        read_only=True,
+    )
+    businessType = serializers.CharField(
+        source="business.business_type",
+        read_only=True,
+    )
+    saleNumber = serializers.CharField(
+        source="sale.sale_number",
+        read_only=True,
+        allow_null=True,
+    )
+    invoiceNumber = serializers.CharField(
+        source="sale.invoice_number",
+        read_only=True,
+        allow_null=True,
+    )
+    customerName = serializers.SerializerMethodField()
+    paymentMethod = serializers.CharField(
+        source="method",
+        read_only=True,
+    )
+    type = serializers.CharField(
+        source="payment_type",
+        read_only=True,
+    )
+    saleId = serializers.UUIDField(
+        source="sale_id",
+        read_only=True,
+        allow_null=True,
+    )
+    customerId = serializers.UUIDField(
+        source="customer_id",
+        read_only=True,
+        allow_null=True,
+    )
+    paymentType = serializers.CharField(
+        source="payment_type",
+        read_only=True,
+    )
+    mobileMoneyNetwork = serializers.CharField(
+        source="mobile_money_network",
+        read_only=True,
+    )
+    mobileMoneyNumber = serializers.CharField(
+        source="mobile_money_number",
+        read_only=True,
+    )
+    gatewayReference = serializers.CharField(
+        source="gateway_reference",
+        read_only=True,
+    )
+    providerReference = serializers.CharField(
+        source="provider_reference",
+        read_only=True,
+    )
+    receiptNumber = serializers.CharField(
+        source="receipt_number",
+        read_only=True,
+    )
+    initiatedBy = serializers.CharField(
+        source="initiated_by_name",
+        read_only=True,
+    )
+    failureReason = serializers.CharField(
+        source="failure_reason",
+        read_only=True,
+    )
+    verifiedAt = serializers.DateTimeField(
+        source="verified_at",
+        read_only=True,
+    )
+    createdAt = serializers.DateTimeField(
+        source="created_at",
+        read_only=True,
+    )
+    updatedAt = serializers.DateTimeField(
+        source="updated_at",
+        read_only=True,
+    )
+
+    def get_customerName(self, obj):
+        # Returns the linked customer name or the sale snapshot.
+        if obj.customer_id:
+            return obj.customer.name
+
+        if obj.sale_id:
+            return obj.sale.customer_name
+
+        return "Walk-in customer"
+
+    class Meta:
+        model = Payment
+        fields = (
+            "id",
+            "businessId",
+            "businessType",
+            "saleId",
+            "saleNumber",
+            "invoiceNumber",
+            "customerId",
+            "customerName",
+            "paymentType",
+            "type",
+            "method",
+            "paymentMethod",
+            "status",
+            "amount",
+            "mobileMoneyNetwork",
+            "mobileMoneyNumber",
+            "gateway",
+            "gatewayReference",
+            "providerReference",
+            "receiptNumber",
+            "reference",
+            "note",
+            "failureReason",
+            "initiatedBy",
+            "verifiedAt",
+            "createdAt",
+            "updatedAt",
+        )
+        read_only_fields = fields
+
+
+class SaleSerializer(serializers.ModelSerializer):
+    # Returns the complete invoice-ready sale in React field names.
+
+    businessId = serializers.UUIDField(
+        source="business_id",
+        read_only=True,
+    )
+    businessType = serializers.CharField(
+        source="business.business_type",
+        read_only=True,
+    )
+    customerId = serializers.UUIDField(
+        source="customer_id",
+        read_only=True,
+        allow_null=True,
+    )
+    customerName = serializers.CharField(
+        source="customer_name",
+        read_only=True,
+    )
+    customerPhone = serializers.CharField(
+        source="customer_phone",
+        read_only=True,
+    )
+    saleNumber = serializers.CharField(
+        source="sale_number",
+        read_only=True,
+    )
+    invoiceNumber = serializers.CharField(
+        source="invoice_number",
+        read_only=True,
+    )
+    receiptNumber = serializers.SerializerMethodField()
+    latestReceiptNumber = serializers.SerializerMethodField()
+    paymentMethod = serializers.CharField(
+        source="payment_method",
+        read_only=True,
+    )
+    amountPaid = serializers.DecimalField(
+        source="amount_paid",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+    )
+    outstandingBalance = serializers.DecimalField(
+        source="outstanding_balance",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+    )
+    cashier = serializers.CharField(
+        source="cashier_name",
+        read_only=True,
+    )
+    reservationExpiresAt = serializers.DateTimeField(
+        source="reservation_expires_at",
+        read_only=True,
+    )
+    completedAt = serializers.DateTimeField(
+        source="completed_at",
+        read_only=True,
+    )
+    createdAt = serializers.DateTimeField(
+        source="created_at",
+        read_only=True,
+    )
+    updatedAt = serializers.DateTimeField(
+        source="updated_at",
+        read_only=True,
+    )
+    items = SaleItemSerializer(many=True, read_only=True)
+    payments = PaymentSerializer(many=True, read_only=True)
+    waybill = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Sale
+        fields = (
+            "id",
+            "businessId",
+            "businessType",
+            "customerId",
+            "customerName",
+            "customerPhone",
+            "saleNumber",
+            "invoiceNumber",
+            "receiptNumber",
+            "latestReceiptNumber",
+            "waybill",
+            "items",
+            "subtotal",
+            "discount",
+            "total",
+            "amountPaid",
+            "outstandingBalance",
+            "paymentMethod",
+            "status",
+            "cashier",
+            "reservationExpiresAt",
+            "completedAt",
+            "createdAt",
+            "updatedAt",
+            "payments",
+        )
+        read_only_fields = fields
+
+    def _latest_successful_payment(self, obj):
+        return next(
+            (
+                payment
+                for payment in obj.payments.all()
+                if payment.status == Payment.Status.SUCCESSFUL
+            ),
+            None,
+        )
+
+    def get_receiptNumber(self, obj):
+        # Returns the first receipt issued for the sale.
+        payment = next(
+            (
+                item
+                for item in reversed(list(obj.payments.all()))
+                if item.status == Payment.Status.SUCCESSFUL
+            ),
+            None,
+        )
+        return payment.receipt_number if payment else None
+
+    def get_latestReceiptNumber(self, obj):
+        # Returns the newest successfully issued receipt.
+        payment = self._latest_successful_payment(obj)
+        return payment.receipt_number if payment else None
+
+    def get_waybill(self, obj):
+        # Waybill support will be added without changing the sale response shape.
+        return None

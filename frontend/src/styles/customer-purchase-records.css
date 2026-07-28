@@ -1,0 +1,404 @@
+/* Customer purchase records, invoice, receipt and waybill overview. */
+
+.purchase-records-page {
+  min-width: 0;
+}
+
+.purchase-records-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.purchase-records-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(190px, 260px);
+  gap: 12px;
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--line-soft);
+  background: #fbfdfc;
+}
+
+.purchase-records-toolbar select {
+  width: 100%;
+}
+
+.purchase-records-table {
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+.purchase-records-table th:nth-child(1) { width: 11%; }
+.purchase-records-table th:nth-child(2) { width: 13%; }
+.purchase-records-table th:nth-child(3) { width: 8%; }
+.purchase-records-table th:nth-child(4) { width: 12%; }
+.purchase-records-table th:nth-child(5) { width: 13%; }
+.purchase-records-table th:nth-child(6) { width: 11%; }
+.purchase-records-table th:nth-child(7) { width: 10%; }
+.purchase-records-table th:nth-child(8) { width: 10%; }
+.purchase-records-table th:nth-child(9) { width: 12%; }
+
+.purchase-records-table td {
+  vertical-align: middle;
+}
+
+.purchase-records-table td > strong,
+.purchase-records-table td > small {
+  display: block;
+}
+
+.purchase-records-table td > small {
+  margin-top: 3px;
+  color: var(--subtle);
+}
+
+.purchase-document-missing {
+  color: var(--subtle);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.purchase-record-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.purchase-record-actions button {
+  display: inline-flex;
+  min-width: 76px;
+  min-height: 31px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary-dark);
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
+.purchase-record-actions button:hover {
+  border-color: #9fc8ba;
+  background: var(--primary-soft);
+}
+
+.purchase-records-empty {
+  padding: 34px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.purchase-detail-content {
+  display: grid;
+  gap: 18px;
+}
+
+.purchase-detail-documents {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.purchase-detail-documents div,
+.purchase-detail-summary div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: var(--primary-soft);
+}
+
+.purchase-detail-documents span,
+.purchase-detail-summary span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.purchase-detail-documents strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 0.72rem;
+}
+
+.purchase-detail-items {
+  display: grid;
+  gap: 7px;
+}
+
+.purchase-detail-items article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+.purchase-detail-items article div {
+  min-width: 0;
+}
+
+.purchase-detail-items article strong,
+.purchase-detail-items article small {
+  display: block;
+}
+
+.purchase-detail-items article small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.purchase-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.purchase-detail-summary strong {
+  font-size: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .purchase-records-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .purchase-detail-documents,
+  .purchase-detail-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Receipt and waybill controls for purchase details. */
+
+.purchase-receipt-section,
+.purchase-waybill-section {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: #fbfdfc;
+}
+
+.purchase-detail-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.purchase-detail-section-heading > div:first-child span,
+.purchase-detail-section-heading > div:first-child strong {
+  display: block;
+}
+
+.purchase-detail-section-heading > div:first-child span {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+
+.purchase-detail-section-heading > div:first-child strong {
+  font-size: 0.77rem;
+}
+
+.purchase-receipt-list {
+  display: grid;
+  gap: 7px;
+}
+
+.purchase-receipt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.purchase-receipt-row strong,
+.purchase-receipt-row small {
+  display: block;
+}
+
+.purchase-receipt-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.purchase-receipt-row button,
+.purchase-waybill-actions button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary-dark);
+  font-size: 0.6rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.purchase-receipt-row button:hover,
+.purchase-waybill-actions button:hover {
+  border-color: #9fc8ba;
+  background: var(--primary-soft);
+}
+
+.purchase-waybill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.purchase-waybill-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.purchase-waybill-summary strong {
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.purchase-document-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.waybill-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.waybill-form-grid label {
+  min-width: 0;
+}
+
+.waybill-form-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 620px) {
+  .purchase-detail-section-heading,
+  .purchase-receipt-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .purchase-waybill-actions {
+    justify-content: flex-start;
+  }
+
+  .waybill-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .waybill-form-wide {
+    grid-column: auto;
+  }
+}
+
+/* Purchase Records pagination. */
+
+.purchase-records-pagination {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 17px;
+  border-top: 1px solid var(--line-soft);
+  background: #fbfdfc;
+}
+
+.purchase-pagination-summary,
+.purchase-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.purchase-pagination-summary > span,
+.purchase-pagination-controls > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.purchase-pagination-summary label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.purchase-pagination-summary select {
+  width: auto;
+  min-width: 66px;
+  min-height: 32px;
+  padding: 5px 28px 5px 9px;
+  border-radius: 8px;
+  font-size: 0.66rem;
+}
+
+.purchase-pagination-controls button {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary-dark);
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.purchase-pagination-controls button:hover:not(:disabled) {
+  border-color: #9fc8ba;
+  background: var(--primary-soft);
+}
+
+.purchase-pagination-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 720px) {
+  .purchase-records-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .purchase-pagination-summary,
+  .purchase-pagination-controls {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .purchase-pagination-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
