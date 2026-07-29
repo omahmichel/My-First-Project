@@ -106,6 +106,35 @@ function normalizeProduct(record) {
   };
 }
 
+
+// Maps Django customer decimals into values used by React calculations.
+function normalizeCustomer(record) {
+  const isActive = record.isActive !== false;
+
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(record.businessId),
+    outstandingBalance: Number(record.outstandingBalance ?? 0),
+    totalPurchases: Number(record.totalPurchases ?? 0),
+    isActive,
+    status: isActive ? "active" : "inactive",
+  };
+}
+
+// Maps a real Django payment response into the existing receipt shape.
+function normalizePayment(record) {
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(record.businessId),
+    saleId: record.saleId ? String(record.saleId) : null,
+    customerId: record.customerId ? String(record.customerId) : null,
+    amount: Number(record.amount ?? 0),
+    cashier: record.initiatedBy ?? record.cashier ?? "",
+  };
+}
+
 // Maps Django stock history and preserves the existing opening-stock filter.
 function normalizeStockMovement(record) {
   const isOpeningStock =
@@ -245,6 +274,8 @@ export function StoreProvider({ children }) {
   const [customers, setCustomers] = useState(() =>
     loadBusinessRecords("customers", seedCustomers, "business_phildial"),
   );
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersError, setCustomersError] = useState("");
   const [sales, setSales] = useState(() =>
     loadBusinessRecords("sales", seedSales, "business_phildial"),
   );
@@ -366,6 +397,39 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+
+  // Loads real customers for the currently selected business.
+  const loadCustomers = useCallback(async (businessId) => {
+    if (!businessId) {
+      setCustomersLoading(false);
+      setCustomersError("");
+      return [];
+    }
+
+    setCustomersLoading(true);
+    setCustomersError("");
+
+    try {
+      const response = await apiRequest(
+        `/businesses/${businessId}/customers/`,
+      );
+      const nextCustomers = normalizeApiCollection(response).map(
+        normalizeCustomer,
+      );
+
+      setCustomers((current) =>
+        replaceBusinessRecords(current, businessId, nextCustomers),
+      );
+
+      return nextCustomers;
+    } catch (error) {
+      setCustomersError(error.message);
+      throw error;
+    } finally {
+      setCustomersLoading(false);
+    }
+  }, []);
+
   // Restores real businesses after a saved JWT session is verified.
   useEffect(() => {
     if (authInitializing) return;
@@ -407,6 +471,35 @@ export function StoreProvider({ children }) {
     businesses,
     businessesLoading,
     loadInventory,
+    user,
+  ]);
+
+
+  // Refreshes real customers whenever the authenticated workspace changes.
+  useEffect(() => {
+    if (authInitializing || businessesLoading) return;
+
+    if (!user) {
+      setCustomersLoading(false);
+      setCustomersError("");
+      return;
+    }
+
+    const businessExists = businesses.some(
+      (item) => String(item.id) === String(activeBusinessId),
+    );
+
+    if (!activeBusinessId || !businessExists) return;
+
+    loadCustomers(activeBusinessId).catch(() => {
+      // The exposed error state lets the customer page report the failure.
+    });
+  }, [
+    activeBusinessId,
+    authInitializing,
+    businesses,
+    businessesLoading,
+    loadCustomers,
     user,
   ]);
 
@@ -713,120 +806,125 @@ export function StoreProvider({ children }) {
     };
   }
 
-  function addCustomer(customer) {
-    const nextCustomer = {
-      ...customer,
-      id: createId("customer"),
-      businessType: business.type,
-      businessId: business.id,
-      outstandingBalance: Number(customer.outstandingBalance) || 0,
-      totalPurchases: 0,
-      createdAt: new Date().toISOString(),
-    };
+  async function addCustomer(customer) {
+    const response = await apiRequest(
+      `/businesses/${business.id}/customers/`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(customer.name ?? "").trim(),
+          phone: String(customer.phone ?? "").trim(),
+          email: String(customer.email ?? "").trim(),
+          address: String(customer.address ?? "").trim(),
+        }),
+      },
+    );
+    const nextCustomer = normalizeCustomer(response);
 
-    setCustomers((current) => [nextCustomer, ...current]);
+    setCustomers((current) =>
+      upsertBusinessRecord(current, nextCustomer),
+    );
+
     return nextCustomer;
   }
 
-  // Records a customer payment against one unpaid invoice and issues a receipt.
-  function recordCustomerPayment(customerId, amount, details = {}) {
+  // Records a real debt payment and keeps the visible balances synchronized.
+  async function recordCustomerPayment(
+    customerId,
+    amount,
+    details = {},
+  ) {
     const paymentAmount = Number(amount);
-    const customer = currentCustomers.find((item) => item.id === customerId);
-
-    if (!customer) throw new Error("Customer not found in this business.");
-    if (paymentAmount <= 0) throw new Error("Enter a valid payment amount.");
-    if (paymentAmount > customer.outstandingBalance) {
-      throw new Error("Payment cannot exceed the customer's outstanding balance.");
-    }
-
-    const unpaidSales = currentSales
-      .filter(
-        (sale) =>
-          sale.customerId === customerId &&
-          Number(sale.outstandingBalance || 0) > 0,
-      )
-      .sort(
-        (first, second) =>
-          new Date(first.createdAt).getTime() -
-          new Date(second.createdAt).getTime(),
-      );
-
-    const selectedSale = details.saleId
-      ? unpaidSales.find((sale) => sale.id === details.saleId)
-      : unpaidSales[0];
-
-    if (!selectedSale) {
-      throw new Error("No unpaid invoice was found for this customer.");
-    }
-
-    if (paymentAmount > Number(selectedSale.outstandingBalance || 0)) {
-      throw new Error(
-        `Payment cannot exceed the selected invoice balance of ${selectedSale.outstandingBalance}.`,
-      );
-    }
-
-    const createdAt = new Date().toISOString();
-    const receiptSequence = currentPayments.length + 501;
-    const receiptNumber = `${business.receiptPrefix || "RCT"}-${String(
-      receiptSequence,
-    ).padStart(5, "0")}`;
-
-    const receipt = {
-      id: createId("payment"),
-      receiptNumber,
-      businessType: business.type,
-      businessId: business.id,
-      saleId: selectedSale.id,
-      saleNumber: selectedSale.saleNumber,
-      invoiceNumber: selectedSale.invoiceNumber,
-      customerId: customer.id,
-      customerName: customer.name,
-      amount: paymentAmount,
-      paymentMethod: details.paymentMethod || "cash",
-      reference: String(details.reference || "").trim(),
-      note: String(details.note || "").trim(),
-      cashier: details.cashier || "Michael Triumph",
-      type: "debt_payment",
-      status: "issued",
-      createdAt,
-    };
-
-    setSales((current) =>
-      current.map((sale) => {
-        if (sale.id !== selectedSale.id) return sale;
-
-        const nextAmountPaid = Number(sale.amountPaid || 0) + paymentAmount;
-        const nextOutstandingBalance = Math.max(
-          0,
-          Number(sale.outstandingBalance || 0) - paymentAmount,
-        );
-
-        return {
-          ...sale,
-          amountPaid: nextAmountPaid,
-          outstandingBalance: nextOutstandingBalance,
-          status: nextOutstandingBalance > 0 ? "partially_paid" : "completed",
-          latestReceiptNumber: receiptNumber,
-        };
-      }),
+    const customer = currentCustomers.find(
+      (item) => String(item.id) === String(customerId),
     );
+
+    if (!customer) {
+      throw new Error("Customer not found in this business.");
+    }
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      throw new Error("Enter a valid payment amount.");
+    }
+
+    if (paymentAmount > Number(customer.outstandingBalance ?? 0)) {
+      throw new Error(
+        "Payment cannot exceed the customer's outstanding balance.",
+      );
+    }
+
+    const requestKey =
+      typeof window.crypto?.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : createId("debt_payment");
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/customers/${customerId}/payments/`,
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": requestKey,
+        },
+        body: JSON.stringify({
+          amount: paymentAmount,
+          saleId: details.saleId || null,
+          paymentMethod: details.paymentMethod || "cash",
+          reference: String(details.reference ?? "").trim(),
+          note: String(details.note ?? "").trim(),
+        }),
+      },
+    );
+    const nextPayment = normalizePayment(response);
 
     setCustomers((current) =>
       current.map((item) =>
-        item.id === customerId
+        String(item.id) === String(customerId)
           ? {
               ...item,
               outstandingBalance: Math.max(
                 0,
-                Number(item.outstandingBalance || 0) - paymentAmount,
+                Number(item.outstandingBalance ?? 0) -
+                  nextPayment.amount,
               ),
             }
           : item,
       ),
     );
 
-    setPayments((current) => [receipt, ...current]);
-    return receipt;
+    if (nextPayment.saleId) {
+      setSales((current) =>
+        current.map((sale) => {
+          if (String(sale.id) !== String(nextPayment.saleId)) {
+            return sale;
+          }
+
+          const nextAmountPaid =
+            Number(sale.amountPaid ?? 0) + nextPayment.amount;
+          const nextOutstandingBalance = Math.max(
+            0,
+            Number(sale.outstandingBalance ?? 0) -
+              nextPayment.amount,
+          );
+
+          return {
+            ...sale,
+            amountPaid: nextAmountPaid,
+            outstandingBalance: nextOutstandingBalance,
+            status:
+              nextOutstandingBalance > 0
+                ? "partially_paid"
+                : "completed",
+            latestReceiptNumber: nextPayment.receiptNumber,
+          };
+        }),
+      );
+    }
+
+    setPayments((current) =>
+      upsertBusinessRecord(current, nextPayment),
+    );
+
+    return nextPayment;
   }
 
   // Creates or updates one waybill for the complete multi-item sale.
@@ -1113,6 +1211,9 @@ export function StoreProvider({ children }) {
       inventoryLoading,
       inventoryError,
       loadInventory,
+      customersLoading,
+      customersError,
+      loadCustomers,
       products: currentProducts,
       customers: currentCustomers,
       sales: currentSales,
@@ -1140,6 +1241,8 @@ export function StoreProvider({ children }) {
       businesses,
       businessesError,
       businessesLoading,
+      customersError,
+      customersLoading,
       inventoryError,
       inventoryLoading,
       currentCustomers,
