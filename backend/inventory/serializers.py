@@ -324,6 +324,12 @@ class ProductSerializer(serializers.ModelSerializer):
         return data
 
 
+class ProductStatusSerializer(serializers.Serializer):
+    # Validates explicit product activation and deactivation requests.
+
+    isActive = serializers.BooleanField()
+
+
 class StockAdjustmentSerializer(serializers.Serializer):
     # Validates signed stock changes submitted by the inventory pages.
 

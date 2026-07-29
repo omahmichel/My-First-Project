@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -36,12 +37,12 @@ export function AuthProvider({ children }) {
   const [isInitializing, setIsInitializing] = useState(true);
 
   // Clears all authentication state without depending on the API response.
-  function clearAuthentication() {
+  const clearAuthentication = useCallback(() => {
     setUser(null);
     saveStoredValue("auth_user", null);
     window.localStorage.removeItem("stockflow_access_token");
     window.localStorage.removeItem("stockflow_refresh_token");
-  }
+  }, []);
 
   // Verifies a saved access token before protected routes are displayed.
   useEffect(() => {
@@ -80,7 +81,28 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [clearAuthentication]);
+
+  // Ends the visible session when automatic token refresh is no longer possible.
+  useEffect(() => {
+    function handleAuthenticationExpiry() {
+      clearAuthentication();
+      setPendingRegistration(null);
+      saveStoredValue("pending_registration", null);
+    }
+
+    window.addEventListener(
+      "stockflow:auth-expired",
+      handleAuthenticationExpiry,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "stockflow:auth-expired",
+        handleAuthenticationExpiry,
+      );
+    };
+  }, [clearAuthentication]);
 
   // Authenticates with Django and stores both JWT tokens safely in this browser.
   async function login({ email, password }) {
@@ -165,6 +187,8 @@ export function AuthProvider({ children }) {
         await apiRequest("/auth/logout/", {
           method: "POST",
           body: JSON.stringify({ refresh: refreshToken }),
+          // Logout should never rotate an already-expired access token.
+          skipAuthRefresh: true,
         });
       }
     } catch {

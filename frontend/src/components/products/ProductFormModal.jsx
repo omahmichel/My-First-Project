@@ -29,6 +29,7 @@ const emptyForm = {
 export default function ProductFormModal({ open, onClose, onSave, product = null, defaultType = "standard" }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -48,6 +49,7 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
         : { ...emptyForm, productType: defaultType, businessType: defaultType === "fashion" ? "boutique" : "building_materials", unit: defaultType === "tile" ? "box" : "piece" },
     );
     setError("");
+    setIsSaving(false);
   }, [defaultType, open, product]);
 
   function handleChange(event) {
@@ -61,8 +63,11 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
     }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+
+    if (isSaving) return;
+
     setError("");
 
     if (!form.name.trim() || !form.category.trim() || !form.sku.trim()) {
@@ -75,14 +80,27 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
       return;
     }
 
-    onSave(form);
-    onClose();
+    setIsSaving(true);
+
+    try {
+      await onSave(form);
+      onClose();
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Prevents the modal from closing while Django is saving the product.
+  function handleClose() {
+    if (!isSaving) onClose();
   }
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={product ? "Edit product" : "Add a new product"}
       description="Enter the information needed for stock, sales and reporting."
       size="large"
@@ -225,26 +243,34 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
             </select>
           </label>
           <label>
-            Opening stock
-            <input name="stock" type="number" min="0" step="1" value={form.stock} onChange={handleChange} />
+            {product ? "Current stock (use Adjust stock)" : "Opening stock"}
+            <input name="stock" type="number" min="0" step="1" value={form.stock} onChange={handleChange} disabled={Boolean(product)} />
           </label>
           <label>
             Low-stock level
             <input name="lowStockLevel" type="number" min="0" step="1" value={form.lowStockLevel} onChange={handleChange} />
           </label>
           <label>
-            Cost price (GH₵)
+            Cost price (GHS)
             <input name="costPrice" type="number" min="0" step="0.01" value={form.costPrice} onChange={handleChange} />
           </label>
           <label>
-            Selling price (GH₵)
+            Selling price (GHS)
             <input name="sellingPrice" type="number" min="0" step="0.01" value={form.sellingPrice} onChange={handleChange} />
           </label>
         </div>
 
         <div className="modal-form-actions">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit">{product ? "Save changes" : "Add product"}</Button>
+          <Button variant="secondary" onClick={handleClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving
+              ? "Saving..."
+              : product
+                ? "Save changes"
+                : "Add product"}
+          </Button>
         </div>
       </form>
     </Modal>

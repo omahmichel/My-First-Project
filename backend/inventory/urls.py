@@ -4,6 +4,7 @@ from .views import (
     BusinessProductDetailAPIView,
     BusinessProductListCreateAPIView,
     BusinessStockMovementListAPIView,
+    ProductStatusAPIView,
     ProductStockAdjustmentAPIView,
 )
 
@@ -19,6 +20,12 @@ urlpatterns = [
         "businesses/<uuid:business_id>/products/<uuid:product_id>/",
         BusinessProductDetailAPIView.as_view(),
         name="business-product-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/products/"
+        "<uuid:product_id>/status/",
+        ProductStatusAPIView.as_view(),
+        name="product-status",
     ),
     path(
         "businesses/<uuid:business_id>/products/"

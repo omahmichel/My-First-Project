@@ -13,7 +13,16 @@ import { formatCurrency } from "../../utils/formatters";
 import "../../styles/products-control-board.css";
 
 export default function ProductsPage() {
-  const { products, addProduct, updateProduct, toggleProductStatus, deleteProduct, adjustStock } = useStore();
+  const {
+    products,
+    inventoryLoading,
+    inventoryError,
+    addProduct,
+    updateProduct,
+    toggleProductStatus,
+    deleteProduct,
+    adjustStock,
+  } = useStore();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
@@ -24,6 +33,10 @@ export default function ProductsPage() {
   const [deleteError, setDeleteError] = useState("");
   const [stockForm, setStockForm] = useState({ quantity: "", reason: "New stock received", type: "stock_in" });
   const [stockError, setStockError] = useState("");
+  const [inventoryActionError, setInventoryActionError] = useState("");
+  const [statusProductId, setStatusProductId] = useState(null);
+  const [stockSaving, setStockSaving] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -73,39 +86,73 @@ export default function ProductsPage() {
     }
   }, [currentPage, totalPages]);
 
-  function saveProduct(form) {
-    if (editingProduct) updateProduct(editingProduct.id, form);
-    else addProduct(form);
+  async function saveProduct(form) {
+    setInventoryActionError("");
+
+    if (editingProduct) {
+      return updateProduct(editingProduct.id, form);
+    }
+
+    return addProduct(form);
   }
 
-  // Permanently deletes only products without sales or invoice history.
-  function confirmProductDeletion() {
-    if (!deleteProductTarget) return;
+  // Archives a product without removing its historical database record.
+  async function confirmProductDeletion() {
+    if (!deleteProductTarget || deleteSaving) return;
 
     setDeleteError("");
+    setDeleteSaving(true);
 
     try {
-      deleteProduct(deleteProductTarget.id);
+      await deleteProduct(deleteProductTarget.id);
       setDeleteProductTarget(null);
     } catch (error) {
       setDeleteError(error.message);
+    } finally {
+      setDeleteSaving(false);
     }
   }
 
-  function submitStockAdjustment(event) {
+  async function submitStockAdjustment(event) {
     event.preventDefault();
+
+    if (stockSaving) return;
+
     setStockError("");
+    setStockSaving(true);
+
     try {
-      adjustStock({
+      await adjustStock({
         productId: stockProduct.id,
         quantity: Number(stockForm.quantity),
         type: stockForm.type,
         reason: stockForm.reason,
       });
       setStockProduct(null);
-      setStockForm({ quantity: "", reason: "New stock received", type: "stock_in" });
+      setStockForm({
+        quantity: "",
+        reason: "New stock received",
+        type: "stock_in",
+      });
     } catch (error) {
       setStockError(error.message);
+    } finally {
+      setStockSaving(false);
+    }
+  }
+
+  async function changeProductStatus(product) {
+    if (statusProductId) return;
+
+    setInventoryActionError("");
+    setStatusProductId(product.id);
+
+    try {
+      await toggleProductStatus(product.id);
+    } catch (error) {
+      setInventoryActionError(error.message);
+    } finally {
+      setStatusProductId(null);
     }
   }
 
@@ -115,7 +162,17 @@ export default function ProductsPage() {
         eyebrow="Inventory"
         title="Products"
         description="Manage every product, price, unit and stock level from one controlled list."
-        actions={<Button onClick={() => { setEditingProduct(null); setProductModalOpen(true); }}><PackagePlus size={18} /> Add product</Button>}
+        actions={<Button onClick={() => { setEditingProduct(null); setProductModalOpen(true); }}><PackagePlus size={18} />
+
+      {inventoryLoading ? (
+        <div className="form-alert">Loading real inventory...</div>
+      ) : null}
+
+      {inventoryError || inventoryActionError ? (
+        <div className="form-alert form-alert-error">
+          {inventoryActionError || inventoryError}
+        </div>
+      ) : null} Add product</Button>}
       />
 
       <section className="inventory-summary-row">
@@ -156,8 +213,24 @@ export default function ProductsPage() {
                     <td>
                       <div className="table-action-group">
                         <button type="button" onClick={() => { setEditingProduct(product); setProductModalOpen(true); }}>Edit</button>
-                        <button type="button" onClick={() => setStockProduct(product)}>Stock</button>
-                        <button type="button" onClick={() => toggleProductStatus(product.id)}>{product.status === "active" ? "Deactivate" : "Activate"}</button>
+                        <button
+                          type="button"
+                          onClick={() => setStockProduct(product)}
+                          disabled={product.status !== "active"}
+                        >
+                          Stock
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => changeProductStatus(product)}
+                          disabled={Boolean(statusProductId)}
+                        >
+                          {statusProductId === product.id
+                            ? "Updating..."
+                            : product.status === "active"
+                              ? "Deactivate"
+                              : "Activate"}
+                        </button>
                         <button
                           type="button"
                           className="product-delete-action"
@@ -234,13 +307,14 @@ export default function ProductsPage() {
       <Modal
         open={Boolean(deleteProductTarget)}
         onClose={() => {
+          if (deleteSaving) return;
           setDeleteProductTarget(null);
           setDeleteError("");
         }}
-        title="Delete product"
+        title="Archive product"
         description={
           deleteProductTarget
-            ? `Permanently remove ${deleteProductTarget.name} from this business inventory.`
+            ? `Archive ${deleteProductTarget.name} without deleting its stock history.`
             : ""
         }
       >
@@ -250,8 +324,8 @@ export default function ProductsPage() {
 
         <div className="product-delete-confirmation">
           <p>
-            This action is only allowed when the product has no sales or invoice
-            history. Products with transaction history must be deactivated instead.
+            The product will become inactive but its stock and transaction history
+            will remain safely stored.
           </p>
 
           <div className="modal-form-actions">
@@ -269,20 +343,32 @@ export default function ProductsPage() {
               type="button"
               className="product-delete-confirm-button"
               onClick={confirmProductDeletion}
+              disabled={deleteSaving}
             >
-              Delete product
+              {deleteSaving ? "Archiving..." : "Archive product"}
             </button>
           </div>
         </div>
       </Modal>
 
-      <Modal open={Boolean(stockProduct)} onClose={() => setStockProduct(null)} title="Adjust stock" description={stockProduct ? `${stockProduct.name} currently has ${stockProduct.stock} ${stockProduct.unit}(s).` : ""}>
+      <Modal open={Boolean(stockProduct)} onClose={() => { if (!stockSaving) setStockProduct(null); }} title="Adjust stock" description={stockProduct ? `${stockProduct.name} currently has ${stockProduct.stock} ${stockProduct.unit}(s).` : ""}>
         {stockError ? <div className="form-alert form-alert-error">{stockError}</div> : null}
         <form className="simple-form" onSubmit={submitStockAdjustment}>
           <label>Movement type<select value={stockForm.type} onChange={(event) => setStockForm((current) => ({ ...current, type: event.target.value }))}><option value="stock_in">New stock received</option><option value="adjustment">Manual correction</option><option value="damage">Damaged stock</option><option value="return">Customer return</option></select></label>
           <label>Quantity change<input type="number" value={stockForm.quantity} onChange={(event) => setStockForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Use -2 to reduce stock" required /></label>
           <label>Reason<textarea value={stockForm.reason} onChange={(event) => setStockForm((current) => ({ ...current, reason: event.target.value }))} rows="3" required /></label>
-          <div className="modal-form-actions"><Button variant="secondary" onClick={() => setStockProduct(null)}>Cancel</Button><Button type="submit">Save adjustment</Button></div>
+          <div className="modal-form-actions">
+            <Button
+              variant="secondary"
+              onClick={() => setStockProduct(null)}
+              disabled={stockSaving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={stockSaving}>
+              {stockSaving ? "Saving..." : "Save adjustment"}
+            </Button>
+          </div>
         </form>
       </Modal>
     </div>

@@ -23,6 +23,8 @@ import "../../styles/boutique-inventory-records.css";
 export default function BoutiquePage() {
   const {
     products,
+    inventoryLoading,
+    inventoryError,
     addProduct,
     updateProduct,
     toggleProductStatus,
@@ -49,6 +51,10 @@ export default function BoutiquePage() {
 
   const [deleteProductTarget, setDeleteProductTarget] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [inventoryActionError, setInventoryActionError] = useState("");
+  const [statusProductId, setStatusProductId] = useState(null);
+  const [stockSaving, setStockSaving] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -193,12 +199,14 @@ export default function BoutiquePage() {
     0,
   );
 
-  function saveProduct(form) {
+  async function saveProduct(form) {
+    setInventoryActionError("");
+
     if (editingProduct) {
-      updateProduct(editingProduct.id, form);
-    } else {
-      addProduct(form);
+      return updateProduct(editingProduct.id, form);
     }
+
+    return addProduct(form);
   }
 
   function openNewProductModal() {
@@ -211,12 +219,16 @@ export default function BoutiquePage() {
     setProductModalOpen(true);
   }
 
-  function submitStockAdjustment(event) {
+  async function submitStockAdjustment(event) {
     event.preventDefault();
+
+    if (stockSaving) return;
+
     setStockError("");
+    setStockSaving(true);
 
     try {
-      adjustStock({
+      await adjustStock({
         productId: stockProduct.id,
         quantity: Number(stockForm.quantity),
         type: stockForm.type,
@@ -231,19 +243,39 @@ export default function BoutiquePage() {
       });
     } catch (error) {
       setStockError(error.message);
+    } finally {
+      setStockSaving(false);
     }
   }
 
-  function confirmProductDeletion() {
-    if (!deleteProductTarget) return;
+  async function confirmProductDeletion() {
+    if (!deleteProductTarget || deleteSaving) return;
 
     setDeleteError("");
+    setDeleteSaving(true);
 
     try {
-      deleteProduct(deleteProductTarget.id);
+      await deleteProduct(deleteProductTarget.id);
       setDeleteProductTarget(null);
     } catch (error) {
       setDeleteError(error.message);
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
+
+  async function changeProductStatus(product) {
+    if (statusProductId) return;
+
+    setInventoryActionError("");
+    setStatusProductId(product.id);
+
+    try {
+      await toggleProductStatus(product.id);
+    } catch (error) {
+      setInventoryActionError(error.message);
+    } finally {
+      setStatusProductId(null);
     }
   }
 
@@ -271,6 +303,16 @@ export default function BoutiquePage() {
         actions={
           <Button onClick={openNewProductModal}>
             <PackagePlus size={18} />
+
+      {inventoryLoading ? (
+        <div className="form-alert">Loading real boutique inventory...</div>
+      ) : null}
+
+      {inventoryError || inventoryActionError ? (
+        <div className="form-alert form-alert-error">
+          {inventoryActionError || inventoryError}
+        </div>
+      ) : null}
             Add boutique record
           </Button>
         }
@@ -496,6 +538,7 @@ export default function BoutiquePage() {
                         <button
                           type="button"
                           onClick={() => setStockProduct(product)}
+                          disabled={product.status !== "active"}
                         >
                           Adjust stock
                         </button>
@@ -503,11 +546,14 @@ export default function BoutiquePage() {
                         <button
                           type="button"
                           className="boutique-record-secondary-action"
-                          onClick={() => toggleProductStatus(product.id)}
+                          onClick={() => changeProductStatus(product)}
+                          disabled={Boolean(statusProductId)}
                         >
-                          {product.status === "active"
-                            ? "Deactivate"
-                            : "Activate"}
+                          {statusProductId === product.id
+                            ? "Updating..."
+                            : product.status === "active"
+                              ? "Deactivate"
+                              : "Activate"}
                         </button>
 
                         <button
@@ -604,6 +650,7 @@ export default function BoutiquePage() {
       <Modal
         open={Boolean(stockProduct)}
         onClose={() => {
+          if (stockSaving) return;
           setStockProduct(null);
           setStockError("");
         }}
@@ -672,10 +719,13 @@ export default function BoutiquePage() {
             <Button
               variant="secondary"
               onClick={() => setStockProduct(null)}
+              disabled={stockSaving}
             >
               Cancel
             </Button>
-            <Button type="submit">Save adjustment</Button>
+            <Button type="submit" disabled={stockSaving}>
+              {stockSaving ? "Saving..." : "Save adjustment"}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -683,13 +733,14 @@ export default function BoutiquePage() {
       <Modal
         open={Boolean(deleteProductTarget)}
         onClose={() => {
+          if (deleteSaving) return;
           setDeleteProductTarget(null);
           setDeleteError("");
         }}
-        title="Delete boutique record"
+        title="Archive boutique record"
         description={
           deleteProductTarget
-            ? `Permanently remove ${deleteProductTarget.name} from Kendy Trenz inventory.`
+            ? `Archive ${deleteProductTarget.name} without deleting its stock history.`
             : ""
         }
       >
@@ -699,8 +750,8 @@ export default function BoutiquePage() {
 
         <div className="boutique-delete-confirmation">
           <p>
-            This action is allowed only when the product has no sales or invoice
-            history. Products with transaction history must be deactivated instead.
+            The product will become inactive but its stock and transaction history
+            will remain safely stored.
           </p>
 
           <div className="modal-form-actions">
@@ -718,8 +769,9 @@ export default function BoutiquePage() {
               type="button"
               className="boutique-delete-confirm-button"
               onClick={confirmProductDeletion}
+              disabled={deleteSaving}
             >
-              Delete record
+              {deleteSaving ? "Archiving..." : "Archive record"}
             </button>
           </div>
         </div>

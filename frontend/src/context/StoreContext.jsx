@@ -68,6 +68,121 @@ function normalizeBusiness(record) {
   };
 }
 
+
+// Converts plain or paginated API responses into a predictable array.
+function normalizeApiCollection(response) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.results)) return response.results;
+  return [];
+}
+
+// Converts Django decimal strings without exposing missing restricted values.
+function normalizeOptionalNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+// Maps a Django product response into the existing frontend product shape.
+function normalizeProduct(record) {
+  const isActive = record.isActive !== false;
+
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(record.businessId),
+    stock: Number(record.stock ?? 0),
+    reservedStock: Number(record.reservedStock ?? 0),
+    availableStock: Number(record.availableStock ?? record.stock ?? 0),
+    lowStockLevel: Number(record.lowStockLevel ?? 0),
+    costPrice: normalizeOptionalNumber(record.costPrice),
+    sellingPrice: Number(record.sellingPrice ?? 0),
+    piecesPerBox: Number(record.piecesPerBox ?? 0),
+    sqmPerBox: Number(record.sqmPerBox ?? 0),
+    loosePieces: Number(record.loosePieces ?? 0),
+    isActive,
+    status: isActive ? "active" : "inactive",
+  };
+}
+
+// Maps Django stock history and preserves the existing opening-stock filter.
+function normalizeStockMovement(record) {
+  const isOpeningStock =
+    record.type === "stock_in" && record.reason === "Opening stock";
+
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(record.businessId),
+    productId: String(record.productId),
+    quantity: Number(record.quantity ?? 0),
+    previousStock: Number(record.previousStock ?? 0),
+    newStock: Number(record.newStock ?? 0),
+    type: isOpeningStock ? "opening_stock" : record.type,
+  };
+}
+
+// Replaces records for one business without removing another workspace's cache.
+function replaceBusinessRecords(currentRecords, businessId, nextRecords) {
+  return [
+    ...currentRecords.filter(
+      (record) => String(resolveRecordBusinessId(record)) !== String(businessId),
+    ),
+    ...nextRecords,
+  ];
+}
+
+// Inserts a new API record or replaces its current cached version.
+function upsertBusinessRecord(currentRecords, nextRecord) {
+  const recordExists = currentRecords.some(
+    (record) => String(record.id) === String(nextRecord.id),
+  );
+
+  if (!recordExists) return [nextRecord, ...currentRecords];
+
+  return currentRecords.map((record) =>
+    String(record.id) === String(nextRecord.id) ? nextRecord : record,
+  );
+}
+
+// Builds only writable product fields accepted by the Django serializer.
+function buildProductPayload(product, { includeStock = false } = {}) {
+  const numberOrZero = (value) => {
+    const parsedValue = Number(value);
+    return Number.isFinite(parsedValue) && parsedValue >= 0
+      ? parsedValue
+      : 0;
+  };
+
+  const payload = {
+    productType: product.productType,
+    name: String(product.name ?? "").trim(),
+    sku: String(product.sku ?? "").trim(),
+    category: String(product.category ?? "").trim(),
+    brand: String(product.brand ?? "").trim(),
+    unit: product.unit || "piece",
+    lowStockLevel: numberOrZero(product.lowStockLevel),
+    costPrice: numberOrZero(product.costPrice),
+    sellingPrice: numberOrZero(product.sellingPrice),
+    designCode: String(product.designCode ?? "").trim(),
+    size: String(product.size ?? "").trim(),
+    finish: String(product.finish ?? "").trim(),
+    color: String(product.color ?? "").trim(),
+    batchNumber: String(product.batchNumber ?? "").trim(),
+    piecesPerBox: numberOrZero(product.piecesPerBox),
+    sqmPerBox: numberOrZero(product.sqmPerBox),
+    loosePieces: numberOrZero(product.loosePieces),
+    styleCode: String(product.styleCode ?? "").trim(),
+  };
+
+  if (includeStock) {
+    payload.stock = numberOrZero(product.stock);
+  }
+
+  return payload;
+}
+
 // Resolves old business-type records into stable business IDs during migration.
 function resolveRecordBusinessId(record, fallbackBusinessId = "business_phildial") {
   return (
@@ -125,6 +240,8 @@ export function StoreProvider({ children }) {
   const [products, setProducts] = useState(() =>
     loadBusinessRecords("products", seedProducts, "business_phildial"),
   );
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState("");
   const [customers, setCustomers] = useState(() =>
     loadBusinessRecords("customers", seedCustomers, "business_phildial"),
   );
@@ -201,6 +318,54 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+
+  // Loads real products and stock movements for one selected business.
+  const loadInventory = useCallback(async (businessId) => {
+    if (!businessId) {
+      setInventoryLoading(false);
+      setInventoryError("");
+      return { products: [], stockMovements: [] };
+    }
+
+    setInventoryLoading(true);
+    setInventoryError("");
+
+    try {
+      const [productResponse, movementResponse] = await Promise.all([
+        apiRequest(`/businesses/${businessId}/products/`),
+        apiRequest(`/businesses/${businessId}/stock-movements/`),
+      ]);
+
+      const nextProducts = normalizeApiCollection(productResponse).map(
+        normalizeProduct,
+      );
+      const nextStockMovements = normalizeApiCollection(
+        movementResponse,
+      ).map(normalizeStockMovement);
+
+      setProducts((current) =>
+        replaceBusinessRecords(current, businessId, nextProducts),
+      );
+      setStockMovements((current) =>
+        replaceBusinessRecords(
+          current,
+          businessId,
+          nextStockMovements,
+        ),
+      );
+
+      return {
+        products: nextProducts,
+        stockMovements: nextStockMovements,
+      };
+    } catch (error) {
+      setInventoryError(error.message);
+      throw error;
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, []);
+
   // Restores real businesses after a saved JWT session is verified.
   useEffect(() => {
     if (authInitializing) return;
@@ -215,6 +380,35 @@ export function StoreProvider({ children }) {
       // The exposed error state allows the UI to report the failure later.
     });
   }, [authInitializing, loadBusinesses, user]);
+
+
+  // Refreshes real inventory whenever the authenticated workspace changes.
+  useEffect(() => {
+    if (authInitializing || businessesLoading) return;
+
+    if (!user) {
+      setInventoryLoading(false);
+      setInventoryError("");
+      return;
+    }
+
+    const businessExists = businesses.some(
+      (item) => String(item.id) === String(activeBusinessId),
+    );
+
+    if (!activeBusinessId || !businessExists) return;
+
+    loadInventory(activeBusinessId).catch(() => {
+      // The exposed error state lets inventory pages report the failure.
+    });
+  }, [
+    activeBusinessId,
+    authInitializing,
+    businesses,
+    businessesLoading,
+    loadInventory,
+    user,
+  ]);
 
   useEffect(() => saveStoredValue("businesses", businesses), [businesses]);
   useEffect(
@@ -356,36 +550,40 @@ export function StoreProvider({ children }) {
     return currentProducts.find((product) => product.id === productId);
   }
 
-  function addProduct(product) {
-    const nextProduct = {
-      ...product,
-      id: createId("product"),
-      businessType: business.type,
-      businessId: business.id,
-      stock: Number(product.stock) || 0,
-      loosePieces: Number(product.loosePieces) || 0,
-      costPrice: Number(product.costPrice) || 0,
-      sellingPrice: Number(product.sellingPrice) || 0,
-      lowStockLevel: Number(product.lowStockLevel) || 0,
-      status: "active",
-    };
+  async function addProduct(product) {
+    const businessId = business.id;
+    const response = await apiRequest(
+      `/businesses/${businessId}/products/`,
+      {
+        method: "POST",
+        body: JSON.stringify(
+          buildProductPayload(product, { includeStock: true }),
+        ),
+      },
+    );
+    const nextProduct = normalizeProduct(response);
 
-    setProducts((current) => [nextProduct, ...current]);
+    setProducts((current) =>
+      upsertBusinessRecord(current, nextProduct),
+    );
 
+    // Shows opening stock immediately while preserving backend authority.
     if (nextProduct.stock > 0) {
       setStockMovements((current) => [
         {
           id: createId("movement"),
+          businessId,
+          businessType: business.type,
           productId: nextProduct.id,
           productName: nextProduct.name,
-          businessType: business.type,
-          businessId: business.id,
           type: "opening_stock",
           quantity: nextProduct.stock,
           unit: nextProduct.unit,
-          reason: "Opening stock entered",
-          user: "Business Owner",
-          createdAt: new Date().toISOString(),
+          previousStock: 0,
+          newStock: nextProduct.stock,
+          reason: "Opening stock",
+          user: "Current user",
+          createdAt: nextProduct.createdAt ?? new Date().toISOString(),
         },
         ...current,
       ]);
@@ -394,108 +592,125 @@ export function StoreProvider({ children }) {
     return nextProduct;
   }
 
-  function updateProduct(productId, changes) {
-    if (!findCurrentProduct(productId)) {
-      throw new Error("You cannot update a product outside this business type.");
-    }
+  async function updateProduct(productId, changes) {
+    const currentProduct = findCurrentProduct(productId);
 
-    setProducts((current) =>
-      current.map((product) =>
-        product.id === productId
-          ? {
-              ...product,
-              ...changes,
-              businessType: business.type,
-              businessId: business.id,
-              stock: Number(changes.stock ?? product.stock),
-              loosePieces: Number(changes.loosePieces ?? product.loosePieces ?? 0),
-              costPrice: Number(changes.costPrice ?? product.costPrice),
-              sellingPrice: Number(changes.sellingPrice ?? product.sellingPrice),
-              lowStockLevel: Number(changes.lowStockLevel ?? product.lowStockLevel),
-            }
-          : product,
-      ),
-    );
-  }
-
-  function toggleProductStatus(productId) {
-    if (!findCurrentProduct(productId)) {
-      throw new Error("You cannot change a product outside this business type.");
-    }
-
-    setProducts((current) =>
-      current.map((product) =>
-        product.id === productId
-          ? { ...product, status: product.status === "active" ? "inactive" : "active" }
-          : product,
-      ),
-    );
-  }
-
-
-  // Permanently removes only unsold products from the active business inventory.
-  function deleteProduct(productId) {
-    const product = findCurrentProduct(productId);
-
-    if (!product) {
-      throw new Error("You cannot delete a product outside this business type.");
-    }
-
-    const hasSalesHistory = sales.some((sale) =>
-      (sale.items ?? []).some((item) => item.productId === productId),
-    );
-
-    if (hasSalesHistory) {
+    if (!currentProduct) {
       throw new Error(
-        "This product already has sales or invoice history. Deactivate it instead.",
+        "You cannot update a product outside this business.",
       );
     }
 
+    const response = await apiRequest(
+      `/businesses/${business.id}/products/${productId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(buildProductPayload(changes)),
+      },
+    );
+    const updatedProduct = normalizeProduct(response);
+
     setProducts((current) =>
-      current.filter((item) => item.id !== productId),
+      upsertBusinessRecord(current, updatedProduct),
     );
 
-    setStockMovements((current) =>
-      current.filter((movement) => movement.productId !== productId),
-    );
-
-    return product;
+    return updatedProduct;
   }
 
-  function adjustStock({ productId, quantity, type, reason, user = "Business Owner" }) {
-    const adjustment = Number(quantity);
-    const product = findCurrentProduct(productId);
+  async function toggleProductStatus(productId) {
+    const currentProduct = findCurrentProduct(productId);
 
-    if (!product) throw new Error("Product not found in this business inventory.");
-    if (!adjustment) throw new Error("Enter a stock adjustment quantity.");
-    if (product.stock + adjustment < 0) {
-      throw new Error("This adjustment would reduce stock below zero.");
+    if (!currentProduct) {
+      throw new Error(
+        "You cannot change a product outside this business.",
+      );
     }
 
+    const response = await apiRequest(
+      `/businesses/${business.id}/products/${productId}/status/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: currentProduct.status !== "active",
+        }),
+      },
+    );
+    const updatedProduct = normalizeProduct(response);
+
     setProducts((current) =>
-      current.map((item) =>
-        item.id === productId ? { ...item, stock: item.stock + adjustment } : item,
-      ),
+      upsertBusinessRecord(current, updatedProduct),
     );
 
-    setStockMovements((current) => [
+    return updatedProduct;
+  }
+
+  // Archives a product through Django without deleting its audit history.
+  async function deleteProduct(productId) {
+    const currentProduct = findCurrentProduct(productId);
+
+    if (!currentProduct) {
+      throw new Error(
+        "You cannot archive a product outside this business.",
+      );
+    }
+
+    await apiRequest(
+      `/businesses/${business.id}/products/${productId}/`,
+      { method: "DELETE" },
+    );
+
+    const archivedProduct = {
+      ...currentProduct,
+      isActive: false,
+      status: "inactive",
+    };
+
+    setProducts((current) =>
+      upsertBusinessRecord(current, archivedProduct),
+    );
+
+    return archivedProduct;
+  }
+
+  async function adjustStock({ productId, quantity, type, reason }) {
+    const currentProduct = findCurrentProduct(productId);
+
+    if (!currentProduct) {
+      throw new Error(
+        "Product not found in this business inventory.",
+      );
+    }
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/products/${productId}/adjust-stock/`,
       {
-        id: createId("movement"),
-        productId,
-        productName: product.designCode
-          ? `${product.name} — ${product.designCode}`
-          : product.name,
-        businessType: business.type,
-        businessId: business.id,
-        type,
-        quantity: adjustment,
-        unit: product.unit,
-        reason,
-        user,
-        createdAt: new Date().toISOString(),
+        method: "POST",
+        body: JSON.stringify({
+          quantity: Number(quantity),
+          type,
+          reason: String(reason ?? "").trim(),
+        }),
       },
-      ...current,
+    );
+
+    const updatedProduct = normalizeProduct(response.product);
+    const nextMovement = normalizeStockMovement(response.movement);
+
+    setProducts((current) =>
+      upsertBusinessRecord(current, updatedProduct),
+    );
+    setStockMovements((current) => [
+      nextMovement,
+      ...current.filter(
+        (movement) =>
+          String(movement.id) !== String(nextMovement.id),
+      ),
     ]);
+
+    return {
+      product: updatedProduct,
+      movement: nextMovement,
+    };
   }
 
   function addCustomer(customer) {
@@ -868,7 +1083,8 @@ export function StoreProvider({ children }) {
       0,
     );
     const stockValue = currentProducts.reduce(
-      (sum, product) => sum + product.stock * product.costPrice,
+      (sum, product) =>
+        sum + product.stock * Number(product.costPrice ?? 0),
       0,
     );
     const lowStockProducts = currentProducts.filter(
@@ -894,6 +1110,9 @@ export function StoreProvider({ children }) {
       businessesLoading,
       businessesError,
       loadBusinesses,
+      inventoryLoading,
+      inventoryError,
+      loadInventory,
       products: currentProducts,
       customers: currentCustomers,
       sales: currentSales,
@@ -921,6 +1140,8 @@ export function StoreProvider({ children }) {
       businesses,
       businessesError,
       businessesLoading,
+      inventoryError,
+      inventoryLoading,
       currentCustomers,
       currentProducts,
       currentSales,

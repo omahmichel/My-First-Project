@@ -39,6 +39,8 @@ function getTileStatusPresentation(tile) {
 export default function TilesPage() {
   const {
     products,
+    inventoryLoading,
+    inventoryError,
     addProduct,
     updateProduct,
     toggleProductStatus,
@@ -59,6 +61,9 @@ export default function TilesPage() {
     type: "stock_in",
   });
   const [stockError, setStockError] = useState("");
+  const [inventoryActionError, setInventoryActionError] = useState("");
+  const [statusProductId, setStatusProductId] = useState(null);
+  const [stockSaving, setStockSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -196,11 +201,15 @@ const finishes = useMemo(() => {
     stockState !== "all";
 
   // Creates or updates a tile while preserving the specialist product type.
-  function saveTile(form) {
+  async function saveTile(form) {
     const tileForm = { ...form, productType: "tile" };
+    setInventoryActionError("");
 
-    if (editingTile) updateProduct(editingTile.id, tileForm);
-    else addProduct(tileForm);
+    if (editingTile) {
+      return updateProduct(editingTile.id, tileForm);
+    }
+
+    return addProduct(tileForm);
   }
 
   // Resets every search and filter control in one action.
@@ -213,12 +222,16 @@ const finishes = useMemo(() => {
   }
 
   // Records full-box stock movements through the existing workflow.
-  function submitStockAdjustment(event) {
+  async function submitStockAdjustment(event) {
     event.preventDefault();
+
+    if (stockSaving) return;
+
     setStockError("");
+    setStockSaving(true);
 
     try {
-      adjustStock({
+      await adjustStock({
         productId: stockTile.id,
         quantity: Number(stockForm.quantity),
         type: stockForm.type,
@@ -232,6 +245,23 @@ const finishes = useMemo(() => {
       });
     } catch (error) {
       setStockError(error.message);
+    } finally {
+      setStockSaving(false);
+    }
+  }
+
+  async function changeTileStatus(tile) {
+    if (statusProductId) return;
+
+    setInventoryActionError("");
+    setStatusProductId(tile.id);
+
+    try {
+      await toggleProductStatus(tile.id);
+    } catch (error) {
+      setInventoryActionError(error.message);
+    } finally {
+      setStatusProductId(null);
     }
   }
 
@@ -248,7 +278,17 @@ const finishes = useMemo(() => {
               setProductModalOpen(true);
             }}
           >
-            <PackagePlus size={18} /> Add tile record
+            <PackagePlus size={18} />
+
+      {inventoryLoading ? (
+        <div className="form-alert">Loading real tile inventory...</div>
+      ) : null}
+
+      {inventoryError || inventoryActionError ? (
+        <div className="form-alert form-alert-error">
+          {inventoryActionError || inventoryError}
+        </div>
+      ) : null} Add tile record
           </Button>
         }
       />
@@ -412,15 +452,24 @@ const finishes = useMemo(() => {
                           >
                             Edit
                           </button>
-                          <button type="button" onClick={() => setStockTile(tile)}>
+                          <button
+                            type="button"
+                            onClick={() => setStockTile(tile)}
+                            disabled={tile.status !== "active"}
+                          >
                             Adjust stock
                           </button>
                           <button
                             className="tile-record-secondary-action"
                             type="button"
-                            onClick={() => toggleProductStatus(tile.id)}
+                            onClick={() => changeTileStatus(tile)}
+                            disabled={Boolean(statusProductId)}
                           >
-                            {tile.status === "active" ? "Deactivate" : "Activate"}
+                            {statusProductId === tile.id
+                              ? "Updating..."
+                              : tile.status === "active"
+                                ? "Deactivate"
+                                : "Activate"}
                           </button>
                         </div>
                       </td>
@@ -504,7 +553,9 @@ const finishes = useMemo(() => {
 
       <Modal
         open={Boolean(stockTile)}
-        onClose={() => setStockTile(null)}
+        onClose={() => {
+          if (!stockSaving) setStockTile(null);
+        }}
         title="Adjust tile box stock"
         description={
           stockTile
@@ -562,10 +613,16 @@ const finishes = useMemo(() => {
           </label>
 
           <div className="modal-form-actions">
-            <Button variant="secondary" onClick={() => setStockTile(null)}>
+            <Button
+              variant="secondary"
+              onClick={() => setStockTile(null)}
+              disabled={stockSaving}
+            >
               Cancel
             </Button>
-            <Button type="submit">Save adjustment</Button>
+            <Button type="submit" disabled={stockSaving}>
+              {stockSaving ? "Saving..." : "Save adjustment"}
+            </Button>
           </div>
         </form>
       </Modal>

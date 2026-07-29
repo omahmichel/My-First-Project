@@ -10,6 +10,7 @@ from businesses.models import Business, BusinessMembership
 from .models import Product, StockMovement
 from .serializers import (
     ProductSerializer,
+    ProductStatusSerializer,
     StockAdjustmentSerializer,
     StockMovementSerializer,
 )
@@ -81,14 +82,14 @@ class BusinessProductAccessMixin:
             "current_role": role,
         }
 
-    def get_active_product(self):
+    def get_product(self):
+        # Resolves active or inactive products inside the current business.
         business, _ = self.get_business_and_role()
 
         return get_object_or_404(
             Product.objects.select_related("business"),
             pk=self.kwargs["product_id"],
             business=business,
-            is_active=True,
         )
 
 
@@ -106,10 +107,9 @@ class BusinessProductListCreateAPIView(
         products = (
             Product.objects.filter(
                 business=business,
-                is_active=True,
             )
             .select_related("business")
-            .order_by("name", "sku")
+            .order_by("-is_active", "name", "sku")
         )
 
         serializer = ProductSerializer(
@@ -152,7 +152,7 @@ class BusinessProductDetailAPIView(
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, business_id, product_id):
-        product = self.get_active_product()
+        product = self.get_product()
 
         return Response(
             ProductSerializer(
@@ -167,7 +167,7 @@ class BusinessProductDetailAPIView(
         if denied_response:
             return denied_response
 
-        product = self.get_active_product()
+        product = self.get_product()
         serializer = ProductSerializer(
             product,
             data=request.data,
@@ -185,7 +185,7 @@ class BusinessProductDetailAPIView(
         if denied_response:
             return denied_response
 
-        product = self.get_active_product()
+        product = self.get_product()
         serializer = ProductSerializer(
             product,
             data=request.data,
@@ -213,13 +213,54 @@ class BusinessProductDetailAPIView(
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        product = self.get_active_product()
+        product = self.get_product()
 
         # Soft deletion protects future invoice and sales-history links.
         product.is_active = False
         product.save(update_fields=("is_active", "updated_at"))
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+class ProductStatusAPIView(
+    BusinessProductAccessMixin,
+    APIView,
+):
+    # Lets only owners and managers deactivate or restore a product.
+
+    permission_classes = (IsAuthenticated,)
+
+    def patch(self, request, business_id, product_id):
+        _, role = self.get_business_and_role()
+
+        if role not in (
+            BusinessMembership.Role.OWNER,
+            BusinessMembership.Role.MANAGER,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Only the business owner or manager can "
+                        "change a product's active status."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        product = self.get_product()
+        serializer = ProductStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        product.is_active = serializer.validated_data["isActive"]
+        product.save(update_fields=("is_active", "updated_at"))
+
+        return Response(
+            ProductSerializer(
+                product,
+                context=self.get_serializer_context(),
+            ).data
+        )
 
 
 class BusinessStockMovementListAPIView(
