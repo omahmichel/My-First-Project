@@ -194,11 +194,11 @@ STATIC_URL = 'static/'
 # Uses the project-specific email-based user model.
 AUTH_USER_MODEL = "accounts.User"
 
-# Allows the local Vite frontend to call the Django API.
-CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-]
+# Allows trusted local or deployed frontends to call the Django API.
+CORS_ALLOWED_ORIGINS = get_env_list(
+    "DJANGO_CORS_ALLOWED_ORIGINS",
+    default="http://127.0.0.1:5173,http://localhost:5173",
+)
 
 # Uses JWT authentication for protected API endpoints.
 REST_FRAMEWORK = {
@@ -250,3 +250,24 @@ CORS_ALLOW_HEADERS = tuple(
         )
     )
 )
+
+# Production HTTPS protections stay disabled during local HTTP development.
+SECURE_SSL_REDIRECT = get_env_bool("DJANGO_SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = get_env_bool("DJANGO_SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = get_env_bool("DJANGO_CSRF_COOKIE_SECURE", default=False)
+SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = get_env_bool(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=False,
+)
+SECURE_HSTS_PRELOAD = get_env_bool(
+    "DJANGO_SECURE_HSTS_PRELOAD",
+    default=False,
+)
+
+# Allows trusted deployed frontend origins to submit protected requests.
+CSRF_TRUSTED_ORIGINS = get_env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+
+# Trust this proxy header only when the deployment proxy overwrites it safely.
+if get_env_bool("DJANGO_TRUST_PROXY_SSL_HEADER", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
