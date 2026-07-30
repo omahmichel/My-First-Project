@@ -135,6 +135,42 @@ function normalizePayment(record) {
   };
 }
 
+
+// Maps one immutable Django sale line into React numeric values.
+function normalizeSaleItem(record) {
+  return {
+    ...record,
+    id: String(record.id),
+    productId: String(record.productId),
+    quantity: Number(record.quantity ?? 0),
+    unitPrice: Number(record.unitPrice ?? 0),
+    costPrice:
+      record.costPrice === null || record.costPrice === undefined
+        ? null
+        : Number(record.costPrice),
+    total: Number(record.total ?? record.lineTotal ?? 0),
+  };
+}
+
+// Maps a complete Django invoice response into the existing sale shape.
+function normalizeSale(record) {
+  const nextPayments = (record.payments ?? []).map(normalizePayment);
+
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(record.businessId),
+    customerId: record.customerId ? String(record.customerId) : null,
+    subtotal: Number(record.subtotal ?? 0),
+    discount: Number(record.discount ?? 0),
+    total: Number(record.total ?? 0),
+    amountPaid: Number(record.amountPaid ?? 0),
+    outstandingBalance: Number(record.outstandingBalance ?? 0),
+    items: (record.items ?? []).map(normalizeSaleItem),
+    payments: nextPayments,
+  };
+}
+
 // Maps Django stock history and preserves the existing opening-stock filter.
 function normalizeStockMovement(record) {
   const isOpeningStock =
@@ -279,6 +315,8 @@ export function StoreProvider({ children }) {
   const [sales, setSales] = useState(() =>
     loadBusinessRecords("sales", seedSales, "business_phildial"),
   );
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState("");
   const [stockMovements, setStockMovements] = useState(() =>
     loadBusinessRecords(
       "stock_movements",
@@ -430,6 +468,45 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+
+  // Loads real invoices and their issued payments for one business.
+  const loadSales = useCallback(async (businessId) => {
+    if (!businessId) {
+      setSalesLoading(false);
+      setSalesError("");
+      return [];
+    }
+
+    setSalesLoading(true);
+    setSalesError("");
+
+    try {
+      const response = await apiRequest(
+        `/businesses/${businessId}/sales/`,
+      );
+      const nextSales = normalizeApiCollection(response).map(
+        normalizeSale,
+      );
+      const nextPayments = nextSales.flatMap(
+        (sale) => sale.payments ?? [],
+      );
+
+      setSales((current) =>
+        replaceBusinessRecords(current, businessId, nextSales),
+      );
+      setPayments((current) =>
+        replaceBusinessRecords(current, businessId, nextPayments),
+      );
+
+      return nextSales;
+    } catch (error) {
+      setSalesError(error.message);
+      throw error;
+    } finally {
+      setSalesLoading(false);
+    }
+  }, []);
+
   // Restores real businesses after a saved JWT session is verified.
   useEffect(() => {
     if (authInitializing) return;
@@ -500,6 +577,35 @@ export function StoreProvider({ children }) {
     businesses,
     businessesLoading,
     loadCustomers,
+    user,
+  ]);
+
+
+  // Refreshes real invoices whenever the authenticated workspace changes.
+  useEffect(() => {
+    if (authInitializing || businessesLoading) return;
+
+    if (!user) {
+      setSalesLoading(false);
+      setSalesError("");
+      return;
+    }
+
+    const businessExists = businesses.some(
+      (item) => String(item.id) === String(activeBusinessId),
+    );
+
+    if (!activeBusinessId || !businessExists) return;
+
+    loadSales(activeBusinessId).catch(() => {
+      // The exposed error state lets sales pages report the failure.
+    });
+  }, [
+    activeBusinessId,
+    authInitializing,
+    businesses,
+    businessesLoading,
+    loadSales,
     user,
   ]);
 
@@ -976,148 +1082,198 @@ export function StoreProvider({ children }) {
     return waybill;
   }
 
-  function completeSale({ cartItems, customerId, discount, amountPaid, paymentMethod }) {
-    if (!cartItems.length) throw new Error("Add at least one product to the sale.");
+  async function completeSale({
+    cartItems,
+    customerId,
+    discount,
+    amountPaid,
+    paymentMethod,
+    amountPaidMethod = "",
+    idempotencyKey,
+  }) {
+    if (!cartItems.length) {
+      throw new Error("Add at least one product to the sale.");
+    }
 
     cartItems.forEach((cartItem) => {
       const product = findCurrentProduct(cartItem.productId);
+      const availableStock = Number(
+        product?.availableStock ?? product?.stock ?? 0,
+      );
+
       if (!product || product.status !== "active") {
-        throw new Error(`${cartItem.name} is not available in this business.`);
+        throw new Error(
+          `${cartItem.name} is not available in this business.`,
+        );
       }
-      if (cartItem.quantity > product.stock) {
-        throw new Error(`Only ${product.stock} ${product.unit}(s) of ${product.name} remain.`);
+
+      if (Number(cartItem.quantity) > availableStock) {
+        throw new Error(
+          `Only ${availableStock} ${product.unit}(s) of ${product.name} remain.`,
+        );
       }
     });
 
-    const subtotal = cartItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const subtotal = cartItems.reduce(
+      (sum, item) =>
+        sum + Number(item.quantity) * Number(item.unitPrice),
+      0,
+    );
     const safeDiscount = Math.max(0, Number(discount) || 0);
     const total = Math.max(0, subtotal - safeDiscount);
     const safeAmountPaid = Math.max(0, Number(amountPaid) || 0);
-    const outstandingBalance = Math.max(0, total - safeAmountPaid);
-    const selectedCustomer = currentCustomers.find((customer) => customer.id === customerId);
+    const selectedCustomer = currentCustomers.find(
+      (customer) => String(customer.id) === String(customerId),
+    );
 
-    if (outstandingBalance > 0 && !selectedCustomer) {
-      throw new Error("Select a customer before completing a credit sale.");
+    if (safeDiscount > subtotal) {
+      throw new Error("Discount cannot be greater than the subtotal.");
+    }
+
+    if (paymentMethod === "mobile_money") {
+      throw new Error(
+        "Mobile Money checkout will be enabled after the real payment gateway is connected.",
+      );
+    }
+
+    if (paymentMethod === "credit" && !selectedCustomer) {
+      throw new Error(
+        "Select a customer for a credit or part-payment sale.",
+      );
     }
 
     if (safeAmountPaid > total) {
-      throw new Error("Amount paid cannot be greater than the sale total.");
+      throw new Error(
+        "Amount paid cannot be greater than the sale total.",
+      );
     }
 
-    const saleSequence = currentSales.length + 32;
-    const invoiceSequence = currentSales.length + 285;
-    const createdAt = new Date().toISOString();
-    const saleId = createId("sale");
-    const saleNumber = `SAL-${String(saleSequence).padStart(5, "0")}`;
-    const invoiceNumber = `${business.invoicePrefix || "INV"}-${String(invoiceSequence).padStart(5, "0")}`;
-    // Issues a receipt immediately when money is received with the sale.
-    const receiptSequence = currentPayments.length + 501;
-    const receiptNumber =
-      safeAmountPaid > 0
-        ? `${business.receiptPrefix || "RCT"}-${String(
-            receiptSequence,
-          ).padStart(5, "0")}`
-        : null;
+    if (
+      paymentMethod === "credit" &&
+      safeAmountPaid > 0 &&
+      !amountPaidMethod
+    ) {
+      throw new Error(
+        "Select how the initial payment was received.",
+      );
+    }
 
-    const saleItems = cartItems.map((cartItem) => {
-      const product = findCurrentProduct(cartItem.productId);
-      return {
-        productId: product.id,
-        name: product.designCode ? `${product.name} — Design ${product.designCode}` : product.name,
-        quantity: cartItem.quantity,
-        unit: product.unit,
-        unitPrice: cartItem.unitPrice,
-        costPrice: product.costPrice,
-        total: cartItem.quantity * cartItem.unitPrice,
-      };
-    });
+    const requestKey =
+      idempotencyKey ||
+      (typeof window.crypto?.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : createId("sale"));
 
-    const sale = {
-      id: saleId,
-      saleNumber,
-      invoiceNumber,
-      receiptNumber,
-      latestReceiptNumber: receiptNumber,
-      waybill: null,
-      businessType: business.type,
-      businessId: business.id,
-      customerId: selectedCustomer?.id ?? null,
-      customerName: selectedCustomer?.name ?? "Walk-in customer",
-      items: saleItems,
-      subtotal,
-      discount: safeDiscount,
-      total,
-      amountPaid: safeAmountPaid,
-      outstandingBalance,
-      paymentMethod,
-      status: outstandingBalance > 0 ? "partially_paid" : "completed",
-      cashier: "Michael Triumph",
-      createdAt,
-    };
+    const response = await apiRequest(
+      `/businesses/${business.id}/sales/`,
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": requestKey,
+        },
+        body: JSON.stringify({
+          items: cartItems.map((item) => ({
+            productId: item.productId,
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+          })),
+          customerId: customerId || null,
+          discount: safeDiscount,
+          amountPaid:
+            paymentMethod === "credit" ? safeAmountPaid : total,
+          paymentMethod,
+          amountPaidMethod:
+            paymentMethod === "credit" && safeAmountPaid > 0
+              ? amountPaidMethod
+              : "",
+          mobileMoneyNetwork: "",
+          mobileMoneyNumber: "",
+        }),
+      },
+    );
+    const nextSale = normalizeSale(response);
 
+    setSales((current) =>
+      upsertBusinessRecord(current, nextSale),
+    );
+
+    setPayments((current) =>
+      (nextSale.payments ?? []).reduce(
+        (records, payment) =>
+          upsertBusinessRecord(records, payment),
+        current,
+      ),
+    );
+
+    // Updates the visible stock immediately from the confirmed invoice.
     setProducts((current) =>
       current.map((product) => {
-        const soldItem = saleItems.find((item) => item.productId === product.id);
-        return soldItem ? { ...product, stock: product.stock - soldItem.quantity } : product;
+        const soldItem = nextSale.items.find(
+          (item) => String(item.productId) === String(product.id),
+        );
+
+        if (!soldItem) return product;
+
+        const nextStock = Math.max(
+          0,
+          Number(product.stock ?? 0) - soldItem.quantity,
+        );
+        const reservedStock = Number(product.reservedStock ?? 0);
+
+        return {
+          ...product,
+          stock: nextStock,
+          availableStock: Math.max(0, nextStock - reservedStock),
+        };
       }),
     );
 
-    const saleMovements = saleItems.map((item) => ({
-      id: createId("movement"),
+    const saleMovements = nextSale.items.map((item) => ({
+      id: `sale-${nextSale.id}-${item.productId}`,
       productId: item.productId,
       productName: item.name,
-      businessType: business.type,
-      businessId: business.id,
+      businessType: nextSale.businessType,
+      businessId: nextSale.businessId,
       type: "sale",
       quantity: -item.quantity,
       unit: item.unit,
-      reason: `Sale ${saleNumber}`,
-      user: "Michael Triumph",
-      createdAt,
+      reason: `Sale ${nextSale.saleNumber}`,
+      user: nextSale.cashier,
+      createdAt: nextSale.completedAt ?? nextSale.createdAt,
     }));
 
-    setStockMovements((current) => [...saleMovements, ...current]);
-    setSales((current) => [sale, ...current]);
+    setStockMovements((current) => [
+      ...saleMovements,
+      ...current.filter(
+        (movement) =>
+          !saleMovements.some(
+            (nextMovement) => nextMovement.id === movement.id,
+          ),
+      ),
+    ]);
 
-    if (safeAmountPaid > 0) {
-      const receipt = {
-        id: createId("payment"),
-        receiptNumber,
-        businessType: business.type,
-        businessId: business.id,
-        saleId,
-        saleNumber,
-        invoiceNumber,
-        customerId: selectedCustomer?.id ?? null,
-        customerName: selectedCustomer?.name ?? "Walk-in customer",
-        amount: safeAmountPaid,
-        paymentMethod,
-        reference: "",
-        note: "Payment received when the sale was completed.",
-        cashier: "Michael Triumph",
-        type: "sale_payment",
-        status: "issued",
-        createdAt,
-      };
-
-      setPayments((current) => [receipt, ...current]);
-    }
-
-    if (selectedCustomer) {
+    if (nextSale.customerId) {
       setCustomers((current) =>
         current.map((customer) =>
-          customer.id === selectedCustomer.id
+          String(customer.id) === String(nextSale.customerId)
             ? {
                 ...customer,
-                outstandingBalance: customer.outstandingBalance + outstandingBalance,
-                totalPurchases: customer.totalPurchases + total,
+                outstandingBalance:
+                  Number(customer.outstandingBalance ?? 0) +
+                  nextSale.outstandingBalance,
+                totalPurchases:
+                  Number(customer.totalPurchases ?? 0) + nextSale.total,
               }
             : customer,
         ),
       );
     }
 
-    return sale;
+    // Reconciles the optimistic screen values with authoritative API data.
+    loadInventory(business.id).catch(() => {});
+    loadCustomers(business.id).catch(() => {});
+
+    return nextSale;
   }
 
   function addTeamMember(member) {
@@ -1214,6 +1370,9 @@ export function StoreProvider({ children }) {
       customersLoading,
       customersError,
       loadCustomers,
+      salesLoading,
+      salesError,
+      loadSales,
       products: currentProducts,
       customers: currentCustomers,
       sales: currentSales,
@@ -1245,6 +1404,8 @@ export function StoreProvider({ children }) {
       customersLoading,
       inventoryError,
       inventoryLoading,
+      salesError,
+      salesLoading,
       currentCustomers,
       currentProducts,
       currentSales,

@@ -220,3 +220,18 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# Allows StockFlow's protected retry header through CORS preflight.
+from corsheaders.defaults import default_headers as cors_default_headers
+
+_existing_cors_allow_headers = globals().get(
+    "CORS_ALLOW_HEADERS",
+    cors_default_headers,
+)
+CORS_ALLOW_HEADERS = tuple(
+    dict.fromkeys(
+        (
+            *_existing_cors_allow_headers,
+            "idempotency-key",
+        )
+    )
+)
