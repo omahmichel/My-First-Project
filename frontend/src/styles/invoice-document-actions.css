@@ -1,0 +1,49 @@
+/* Feedback and disabled states for invoice document actions. */
+
+.invoice-action-feedback {
+  padding: 11px 14px;
+  border: 1px solid #cfe4d8;
+  border-radius: 11px;
+  background: #f0f8f3;
+  color: #215f43;
+  font-size: 0.72rem;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.invoice-action-feedback-error {
+  border-color: #efcece;
+  background: #fff4f4;
+  color: #a33c3c;
+}
+
+.invoice-list-actions button:disabled,
+.invoice-share-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.invoice-list-empty {
+  display: grid;
+  min-height: 190px;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  padding: 30px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.invoice-list-empty svg {
+  margin-bottom: 4px;
+  color: var(--primary);
+}
+
+.invoice-list-empty strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.invoice-list-empty span {
+  font-size: 0.69rem;
+}

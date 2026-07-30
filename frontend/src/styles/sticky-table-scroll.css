@@ -1,0 +1,81 @@
+/* Reusable fixed scrollbar for wide application tables. */
+
+.sticky-table-scroll-content {
+  scrollbar-width: none;
+}
+
+.sticky-table-scroll-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.sticky-table-scroll-bar {
+  position: fixed;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  z-index: 45;
+  display: none;
+  height: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid rgba(139, 162, 151, 0.55);
+  border-radius: 999px;
+  background: rgba(241, 247, 244, 0.96);
+  box-shadow: 0 8px 22px rgba(15, 42, 30, 0.16);
+  scrollbar-color: #7f9188 #e8efeb;
+  scrollbar-width: auto;
+  backdrop-filter: blur(8px);
+}
+
+.sticky-table-scroll-bar-visible {
+  display: block;
+}
+
+.sticky-table-scroll-spacer {
+  height: 1px;
+}
+
+.sticky-table-scroll-bar::-webkit-scrollbar {
+  height: 14px;
+}
+
+.sticky-table-scroll-bar::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #e8efeb;
+}
+
+.sticky-table-scroll-bar::-webkit-scrollbar-thumb {
+  border: 3px solid #e8efeb;
+  border-radius: 999px;
+  background: #7f9188;
+}
+
+.sticky-table-scroll-bar::-webkit-scrollbar-thumb:hover {
+  background: #60756b;
+}
+
+@media print {
+  .sticky-table-scroll-bar {
+    display: none !important;
+  }
+}
+
+/* Force-hide each table's original scrollbar. */
+
+.responsive-table-wrapper.sticky-table-scroll-content {
+  overflow-x: auto !important;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.responsive-table-wrapper.sticky-table-scroll-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.responsive-table-wrapper.sticky-table-scroll-content::-webkit-scrollbar-track,
+.responsive-table-wrapper.sticky-table-scroll-content::-webkit-scrollbar-thumb {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}

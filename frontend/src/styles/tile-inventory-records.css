@@ -1,0 +1,727 @@
+/* Gives the tile inventory page its own professional record-management layout. */
+.tile-records-page {
+  min-width: 0;
+}
+
+/* Keeps the operational summary compact and readable across the workspace. */
+.tile-records-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tile-records-summary article {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+  padding: 17px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdfc 100%);
+  box-shadow: 0 10px 28px rgba(20, 54, 38, 0.045);
+}
+
+.tile-records-summary article > span {
+  display: grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.tile-records-summary strong,
+.tile-records-summary small {
+  display: block;
+}
+
+.tile-records-summary strong {
+  color: var(--ink);
+  font-size: 1.12rem;
+  letter-spacing: -0.025em;
+}
+
+.tile-records-summary small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+/* Prevents the table panel from forcing the whole application to overflow. */
+.tile-records-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Separates search, result information and filters into a balanced toolbar. */
+.tile-records-toolbar {
+  display: grid;
+  gap: 13px;
+  padding: 17px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdfc 100%);
+}
+
+.tile-records-search-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tile-records-search {
+  width: min(560px, 100%);
+}
+
+.tile-records-result-group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.tile-records-result-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tile-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.tile-clear-filters:hover {
+  background: var(--primary-light);
+}
+
+.tile-records-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(135px, 1fr));
+  gap: 9px;
+}
+
+.tile-records-filters select {
+  min-width: 0;
+  min-height: 39px;
+  font-size: 0.72rem;
+}
+
+/* Uses fewer, smarter columns so the desktop table fits without a page scrollbar. */
+.tile-records-table-wrapper {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b9c8c0 transparent;
+}
+
+.tile-records-table {
+  width: 100%;
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.tile-records-table th {
+  padding: 12px 13px;
+  background: #f7faf8;
+  color: #65766d;
+  font-size: 0.64rem;
+  letter-spacing: 0.065em;
+}
+
+.tile-records-table td {
+  padding: 14px 13px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  vertical-align: top;
+}
+
+.tile-records-table tbody tr {
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.tile-records-table tbody tr:hover {
+  background: #fbfdfc;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.tile-records-table th:nth-child(1) { width: 21%; }
+.tile-records-table th:nth-child(2) { width: 14%; }
+.tile-records-table th:nth-child(3) { width: 20%; }
+.tile-records-table th:nth-child(4) { width: 14%; }
+.tile-records-table th:nth-child(5) { width: 12%; }
+.tile-records-table th:nth-child(6) { width: 9%; }
+.tile-records-table th:nth-child(7) { width: 10%; }
+
+/* Creates a clear information hierarchy inside each combined table cell. */
+.tile-record-product,
+.tile-record-stack,
+.tile-record-stock,
+.tile-record-pricing {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tile-record-product strong,
+.tile-record-stack strong,
+.tile-record-stock strong,
+.tile-record-pricing strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.tile-record-product span {
+  color: var(--primary);
+  font-size: 0.67rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.tile-record-product small,
+.tile-record-stack small,
+.tile-record-stock small,
+.tile-record-pricing small {
+  color: var(--subtle);
+  font-size: 0.64rem;
+  overflow-wrap: anywhere;
+}
+
+.tile-record-pricing > span {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.tile-specification-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tile-specification-list > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: #f8faf9;
+}
+
+.tile-specification-list small {
+  color: var(--subtle);
+  font-size: 0.57rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tile-specification-list strong {
+  color: #43534a;
+  font-size: 0.66rem;
+  overflow-wrap: anywhere;
+}
+
+/* Keeps actions compact instead of letting them create an oversized column. */
+.tile-record-actions {
+  display: grid;
+  gap: 5px;
+  min-width: 88px;
+}
+
+.tile-record-actions button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #cfe0d6;
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--primary-dark);
+  font-size: 0.64rem;
+  font-weight: 750;
+  text-align: center;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.tile-record-actions button:hover {
+  border-color: #9fc1af;
+  background: var(--primary-soft);
+}
+
+.tile-record-actions .tile-record-secondary-action {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.tile-records-empty {
+  padding: 44px 20px !important;
+  text-align: center;
+}
+
+.tile-records-empty strong,
+.tile-records-empty span {
+  display: block;
+}
+
+.tile-records-empty strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.tile-records-empty span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* Tightens the desktop table further on medium laptop screens. */
+@media (max-width: 1280px) {
+  .tile-records-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tile-records-table {
+    min-width: 920px;
+  }
+
+  .tile-records-table th,
+  .tile-records-table td {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
+/* Stacks the toolbar controls cleanly on tablets. */
+@media (max-width: 900px) {
+  .tile-records-search-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tile-records-result-group {
+    justify-content: space-between;
+  }
+
+  .tile-records-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Converts the table into readable record cards on phones. */
+@media (max-width: 700px) {
+  .tile-records-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-records-panel {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .tile-records-toolbar {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #ffffff;
+  }
+
+  .tile-records-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-records-table-wrapper {
+    overflow: visible;
+  }
+
+  .tile-records-table,
+  .tile-records-table thead,
+  .tile-records-table tbody,
+  .tile-records-table tr,
+  .tile-records-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tile-records-table thead {
+    display: none;
+  }
+
+  .tile-records-table tbody {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .tile-records-table tbody tr {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 8px 24px rgba(20, 54, 38, 0.045);
+  }
+
+  .tile-records-table tbody tr:hover {
+    box-shadow: 0 8px 24px rgba(20, 54, 38, 0.045);
+  }
+
+  .tile-records-table td {
+    display: grid;
+    grid-template-columns: 105px minmax(0, 1fr);
+    gap: 12px;
+    padding: 11px 13px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .tile-records-table td:first-child {
+    border-top: 0;
+  }
+
+  .tile-records-table td::before {
+    content: attr(data-label);
+    color: var(--subtle);
+    font-size: 0.61rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .tile-record-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tile-records-empty {
+    display: block !important;
+  }
+
+  .tile-records-empty::before {
+    content: none !important;
+  }
+}
+
+@media (max-width: 460px) {
+  .tile-records-result-group {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tile-records-table td {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .tile-record-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* PREMIUM COMPACT TILE TABLE START */
+
+/* Gives the records area a cleaner premium surface. */
+.tile-records-panel {
+  border: 1px solid #dfe8e3;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(21, 66, 45, 0.07);
+}
+
+/* Keeps the toolbar compact while preserving clear spacing. */
+.tile-records-toolbar {
+  gap: 10px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(247, 251, 249, 0.92), #ffffff);
+}
+
+.tile-records-search-row {
+  gap: 12px;
+}
+
+.tile-records-search {
+  width: min(500px, 100%);
+}
+
+.tile-records-filters {
+  grid-template-columns: repeat(4, minmax(125px, 1fr));
+  gap: 8px;
+}
+
+.tile-records-filters select {
+  min-height: 38px;
+  padding: 8px 34px 8px 11px;
+  border-color: #d9e4de;
+  border-radius: 10px;
+  background-color: #ffffff;
+  font-size: 0.7rem;
+}
+
+/* Reduces horizontal overflow and makes the table fit laptop screens better. */
+.tile-records-table {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.tile-records-table th {
+  padding: 10px 11px;
+  border-bottom: 1px solid #e5ece8;
+  background: #f6f9f7;
+  color: #63746b;
+  font-size: 0.6rem;
+  letter-spacing: 0.07em;
+}
+
+.tile-records-table td {
+  padding: 10px 11px;
+  color: #425249;
+  font-size: 0.71rem;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.tile-records-table tbody tr {
+  background: #ffffff;
+}
+
+.tile-records-table tbody tr:nth-child(even) {
+  background: #fcfefd;
+}
+
+.tile-records-table tbody tr:hover {
+  background: #f7fbf9;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+/* Rebalances the seven intelligent columns. */
+.tile-records-table th:nth-child(1) { width: 20%; }
+.tile-records-table th:nth-child(2) { width: 14%; }
+.tile-records-table th:nth-child(3) { width: 23%; }
+.tile-records-table th:nth-child(4) { width: 14%; }
+.tile-records-table th:nth-child(5) { width: 13%; }
+.tile-records-table th:nth-child(6) { width: 8%; }
+.tile-records-table th:nth-child(7) { width: 8%; }
+
+/* Tightens typography inside combined cells. */
+.tile-record-product,
+.tile-record-stack,
+.tile-record-stock,
+.tile-record-pricing {
+  gap: 2px;
+}
+
+.tile-record-product strong,
+.tile-record-stack strong,
+.tile-record-stock strong,
+.tile-record-pricing strong {
+  font-size: 0.75rem;
+  line-height: 1.22;
+}
+
+.tile-record-product span {
+  font-size: 0.61rem;
+  letter-spacing: 0.02em;
+}
+
+.tile-record-product small,
+.tile-record-stack small,
+.tile-record-stock small,
+.tile-record-pricing small {
+  font-size: 0.6rem;
+  line-height: 1.2;
+}
+
+.tile-record-pricing > span {
+  font-size: 0.58rem;
+}
+
+/* Turns tile specifications into compact premium information chips. */
+.tile-specification-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.tile-specification-list > span {
+  gap: 1px;
+  padding: 5px 7px;
+  border-color: #e1e9e5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fafcfb, #f5f8f6);
+}
+
+.tile-specification-list small {
+  font-size: 0.51rem;
+  letter-spacing: 0.055em;
+}
+
+.tile-specification-list strong {
+  font-size: 0.62rem;
+  line-height: 1.18;
+}
+
+/* Keeps status badges neat and visually balanced. */
+.tile-records-table .badge {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+/* Places actions in a compact horizontal group instead of tall stacked buttons. */
+.tile-record-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tile-record-actions button {
+  width: auto;
+  min-height: 28px;
+  padding: 5px 7px;
+  border-color: #d3e2da;
+  border-radius: 7px;
+  font-size: 0.57rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tile-record-actions button:hover {
+  border-color: #9fc1af;
+  background: #f1f8f4;
+}
+
+/* Keeps medium laptop layouts compact without squeezing content excessively. */
+@media (max-width: 1280px) {
+  .tile-records-table {
+    min-width: 820px;
+  }
+
+  .tile-records-table th,
+  .tile-records-table td {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .tile-record-actions button {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+}
+
+/* Preserves the existing mobile record-card architecture. */
+@media (max-width: 700px) {
+  .tile-records-table tbody tr:nth-child(even) {
+    background: #ffffff;
+  }
+
+  .tile-records-table td {
+    padding: 10px 12px;
+  }
+
+  .tile-record-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tile-record-actions button {
+    width: 100%;
+  }
+}
+
+/* PREMIUM COMPACT TILE TABLE END */
+
+/* Tile Inventory pagination. */
+
+.tile-records-pagination {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 17px;
+  border-top: 1px solid var(--line-soft);
+  background: #fbfdfc;
+}
+
+.tile-pagination-summary,
+.tile-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tile-pagination-summary > span,
+.tile-pagination-controls > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.tile-pagination-summary label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.tile-pagination-summary select {
+  width: auto;
+  min-width: 66px;
+  min-height: 32px;
+  padding: 5px 28px 5px 9px;
+  border-radius: 8px;
+  font-size: 0.66rem;
+}
+
+.tile-pagination-controls button {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary-dark);
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.tile-pagination-controls button:hover:not(:disabled) {
+  border-color: #9fc8ba;
+  background: var(--primary-light);
+}
+
+.tile-pagination-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 720px) {
+  .tile-records-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tile-pagination-summary,
+  .tile-pagination-controls {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .tile-pagination-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

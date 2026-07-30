@@ -1,0 +1,126 @@
+Folder PATH listing
+Volume serial number is 821C-0B15
+C:\USERS\OMAHM\ONEDRIVE\DOCUMENTS\ATTACHMENTS\DESKTOP\MICRO_INVENTORY_INVOICE_GENERATOR\FRONTEND\SRC
+¦   App.backup.txt
+¦   App.jsx
+¦   main.jsx
+¦   
++---components
+¦   +---layout
+¦   ¦       AppLayout.jsx
+¦   ¦       Sidebar.backup.txt
+¦   ¦       Sidebar.before-boutique-label-update.auto.txt
+¦   ¦       Sidebar.before-business-switcher.auto.txt
+¦   ¦       Sidebar.jsx
+¦   ¦       Topbar.before-boutique-label-update.auto.txt
+¦   ¦       Topbar.jsx
+¦   ¦       
+¦   +---products
+¦   ¦       ProductFormModal.before-tile-size-update.auto.txt
+¦   ¦       ProductFormModal.before-tile-size-update.txt
+¦   ¦       ProductFormModal.jsx
+¦   ¦       
+¦   +---ui
+¦           Badge.jsx
+¦           Button.jsx
+¦           EmptyState.jsx
+¦           Modal.jsx
+¦           PageHeader.jsx
+¦           StatCard.jsx
+¦           
++---context
+¦       AuthContext.backup.txt
+¦       AuthContext.jsx
+¦       StoreContext.backup.txt
+¦       StoreContext.before-delete-product.auto.txt
+¦       StoreContext.before-multi-business.auto.txt
+¦       StoreContext.before-multi-business.txt
+¦       StoreContext.jsx
+¦       
++---data
+¦       seedData.backup.txt
+¦       seedData.js
+¦       
++---pages
+¦   ¦   NotFoundPage.jsx
+¦   ¦   
+¦   +---auth
+¦   ¦       LoginPage.jsx
+¦   ¦       RegisterPage.jsx
+¦   ¦       
+¦   +---customers
+¦   ¦       CustomersPage.jsx
+¦   ¦       
+¦   +---dashboard
+¦   ¦       DashboardPage.backup.txt
+¦   ¦       DashboardPage.jsx
+¦   ¦       DashboardPage.problem.txt
+¦   ¦       
+¦   +---inventory
+¦   ¦       BoutiquePage.before-records-update.auto.txt
+¦   ¦       BoutiquePage.jsx
+¦   ¦       ProductsPage.before-delete-action.auto.txt
+¦   ¦       ProductsPage.before-premium-style.auto.txt
+¦   ¦       ProductsPage.jsx
+¦   ¦       StockMovementsPage.jsx
+¦   ¦       TilesPage.before-compact-style.txt
+¦   ¦       TilesPage.before-records-update.txt
+¦   ¦       TilesPage.jsx
+¦   ¦       
+¦   +---invoices
+¦   ¦       InvoicesPage.before-compact-layout.auto.txt
+¦   ¦       InvoicesPage.before-document-actions.auto.txt
+¦   ¦       InvoicesPage.jsx
+¦   ¦       
+¦   +---onboarding
+¦   ¦       OnboardingPage.jsx
+¦   ¦       
+¦   +---public
+¦   ¦       LandingPage.before-feature-rotation.auto.txt
+¦   ¦       LandingPage.before-inventory-preview.txt
+¦   ¦       LandingPage.before-photos.txt
+¦   ¦       LandingPage.jsx
+¦   ¦       
+¦   +---reports
+¦   ¦       ReportsPage.jsx
+¦   ¦       
+¦   +---sales
+¦   ¦       NewSalePage.jsx
+¦   ¦       SalesHistoryPage.before-compact-layout.auto.txt
+¦   ¦       SalesHistoryPage.before-export-options.auto.txt
+¦   ¦       SalesHistoryPage.jsx
+¦   ¦       
+¦   +---settings
+¦   ¦       SettingsPage.jsx
+¦   ¦       
+¦   +---team
+¦           TeamPage.jsx
+¦           
++---routes
+¦       IndustryRoute.jsx
+¦       ProtectedRoute.jsx
+¦       
++---services
+¦       api.js
+¦       storage.js
+¦       
++---styles
+¦       boutique-inventory-records.css
+¦       global.css
+¦       invoice-document-actions.css
+¦       invoices-compact.css
+¦       landing-inventory-professional.css
+¦       landing-polish.before-feature-rotation.auto.txt
+¦       landing-polish.css
+¦       products-control-board.css
+¦       sales-history-compact.css
+¦       sales-history-export.css
+¦       sidebar-business-switcher.css
+¦       tile-inventory-records.before-premium-compact.auto.txt
+¦       tile-inventory-records.css
+¦       
++---utils
+        formatters.js
+        invoiceDocuments.before-sales-export.auto.txt
+        invoiceDocuments.js
+        

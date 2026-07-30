@@ -1,0 +1,23 @@
+MICRO INVENTORY & INVOICE GENERATOR — FRONTEND DELIVERY
+
+1. Extract the ZIP file.
+2. Open the micro_inventory_invoice_generator folder in VS Code.
+3. Open a VS Code terminal.
+4. Run:
+
+   cd frontend
+   npm install
+   npm run dev
+
+5. Open the Vite address shown in the terminal.
+
+DEMO LOGIN
+Email: owner@stockflow.demo
+Password: password123
+
+STANDALONE LANDING PAGE
+Open landing-page-static/index.html directly in your browser.
+
+IMPORTANT
+The frontend currently uses browser local storage as a temporary demo database.
+The Django backend will be connected in the next project phase through src/services/api.js.
