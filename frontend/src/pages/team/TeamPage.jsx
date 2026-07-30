@@ -1,4 +1,11 @@
-import { Mail, Plus, Search, ShieldCheck, UserRoundCog } from "lucide-react";
+import {
+  Copy,
+  Mail,
+  Plus,
+  Search,
+  ShieldCheck,
+  UserRoundCog,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import Badge from "../../components/ui/Badge";
@@ -10,20 +17,35 @@ import { formatDateTime } from "../../utils/formatters";
 
 import "../../styles/team-page-polish.css";
 
+const EMPTY_FORM = {
+  name: "",
+  email: "",
+  phone: "",
+  role: "cashier",
+};
+
 export default function TeamPage() {
   const {
     team,
+    teamLoading,
+    teamError,
     business,
     addTeamMember,
     deleteTeamMember,
   } = useStore();
+
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "cashier" });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [deleteMemberTarget, setDeleteMemberTarget] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = useMemo(
     () =>
@@ -60,52 +82,188 @@ export default function TeamPage() {
     ? firstVisibleRecord + paginatedTeam.length - 1
     : 0;
 
-  // Returns to page one whenever search or page size changes.
   useEffect(() => {
     setCurrentPage(1);
   }, [search, pageSize]);
 
-  // Keeps the selected page inside the available page range.
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    addTeamMember(form);
-    setForm({ name: "", email: "", phone: "", role: "cashier" });
-    setModalOpen(false);
+
+    if (submitting) return;
+
+    setSubmitting(true);
+    setActionError("");
+    setActionMessage("");
+    setTemporaryPassword("");
+
+    try {
+      const nextMember = await addTeamMember(form);
+
+      setForm(EMPTY_FORM);
+      setModalOpen(false);
+      setTemporaryPassword(nextMember.temporaryPassword || "");
+      setActionMessage(
+        nextMember.isNewUser
+          ? `${nextMember.name} was added with a new staff account.`
+          : `${nextMember.name} was added to ${business.name}.`,
+      );
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  // Removes a staff member after confirmation while protecting the owner.
-  function confirmTeamMemberDeletion() {
-    if (!deleteMemberTarget) return;
+  async function confirmTeamMemberDeletion() {
+    if (!deleteMemberTarget || deleting) return;
 
+    setDeleting(true);
     setDeleteError("");
 
     try {
-      deleteTeamMember(deleteMemberTarget.id);
+      await deleteTeamMember(deleteMemberTarget.id);
+      setActionMessage(
+        `${deleteMemberTarget.name} was removed from ${business.name}.`,
+      );
       setDeleteMemberTarget(null);
     } catch (error) {
       setDeleteError(error.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function copyTemporaryPassword() {
+    try {
+      await navigator.clipboard.writeText(temporaryPassword);
+      setActionMessage("Temporary password copied.");
+    } catch {
+      setActionError(
+        "Copy failed. Select and copy the temporary password manually.",
+      );
     }
   }
 
   return (
     <div className="page-stack">
-      <PageHeader eyebrow="Access control" title="Team members" description="Give each worker an individual account and role instead of sharing the owner password." actions={<Button onClick={() => setModalOpen(true)}><Plus size={18} /> Add team member</Button>} />
+      <PageHeader
+        eyebrow="Access control"
+        title="Team members"
+        description="Give each worker an individual account and role instead of sharing the owner password."
+        actions={
+          <Button
+            onClick={() => {
+              setActionError("");
+              setModalOpen(true);
+            }}
+          >
+            <Plus size={18} />
+            Add team member
+          </Button>
+        }
+      />
 
-      <section className="permission-callout"><ShieldCheck size={23} /><div><strong>Role-based protection is part of the architecture.</strong><p>Cashiers should not automatically view full profit, change cost prices, reverse sales or manage subscriptions.</p></div></section>
+      {teamLoading ? (
+        <div className="form-alert" role="status">
+          Loading team members...
+        </div>
+      ) : null}
+
+      {teamError || actionError ? (
+        <div className="form-alert form-alert-error" role="alert">
+          {actionError || teamError}
+        </div>
+      ) : null}
+
+      {actionMessage ? (
+        <div className="form-alert form-alert-success" role="status">
+          {actionMessage}
+        </div>
+      ) : null}
+
+      {temporaryPassword ? (
+        <section className="permission-callout">
+          <ShieldCheck size={23} />
+          <div>
+            <strong>Copy this temporary password now.</strong>
+            <p>
+              It is shown only after creating a new staff account. Send it
+              privately to the staff member and ask them to change it after
+              login.
+            </p>
+            <code>{temporaryPassword}</code>
+          </div>
+          <Button variant="secondary" onClick={copyTemporaryPassword}>
+            <Copy size={17} />
+            Copy password
+          </Button>
+        </section>
+      ) : null}
+
+      <section className="permission-callout">
+        <ShieldCheck size={23} />
+        <div>
+          <strong>Role-based protection is active.</strong>
+          <p>
+            Cashiers cannot automatically view restricted cost information or
+            manage business access.
+          </p>
+        </div>
+      </section>
 
       <section className="panel-card">
-        <div className="table-toolbar"><label className="table-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email or role..." /></label><span className="result-count">{filtered.length} team member(s)</span></div>
+        <div className="table-toolbar">
+          <label className="table-search">
+            <Search size={18} />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search name, email or role..."
+            />
+          </label>
+          <span className="result-count">
+            {filtered.length} team member(s)
+          </span>
+        </div>
+
         <div className="team-card-grid">
           {paginatedTeam.map((member) => (
             <article className="team-card" key={member.id}>
-              <div className="team-card-heading"><span>{member.name.slice(0, 2).toUpperCase()}</span><div><strong>{member.name}</strong><small className="capitalize-text">{member.role}</small></div><Badge tone={member.status === "active" ? "success" : "neutral"}>{member.status}</Badge></div>
-              <div className="team-contact"><span><Mail size={16} />{member.email}</span><span>{member.phone}</span></div>
+              <div className="team-card-heading">
+                <span>
+                  {(member.name || member.email)
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </span>
+                <div>
+                  <strong>{member.name || member.email}</strong>
+                  <small className="capitalize-text">
+                    {member.role.replace("_", " ")}
+                  </small>
+                </div>
+                <Badge
+                  tone={
+                    member.status === "active" ? "success" : "neutral"
+                  }
+                >
+                  {member.status}
+                </Badge>
+              </div>
+
+              <div className="team-contact">
+                <span>
+                  <Mail size={16} />
+                  {member.email}
+                </span>
+                <span>{member.phone || "No phone added"}</span>
+              </div>
+
               <div className="team-card-footer">
                 <div>
                   <span>Last active</span>
@@ -135,6 +293,12 @@ export default function TeamPage() {
               </div>
             </article>
           ))}
+
+          {!teamLoading && !teamError && !filtered.length ? (
+            <p className="muted-message">
+              No team members match the current search.
+            </p>
+          ) : null}
         </div>
 
         <div className="team-pagination">
@@ -192,6 +356,7 @@ export default function TeamPage() {
       <Modal
         open={Boolean(deleteMemberTarget)}
         onClose={() => {
+          if (deleting) return;
           setDeleteMemberTarget(null);
           setDeleteError("");
         }}
@@ -210,8 +375,8 @@ export default function TeamPage() {
 
         <div className="team-delete-confirmation">
           <p>
-            This removes the staff account only from the currently active
-            business. The owner account cannot be deleted.
+            This removes access only from the active business. Historical
+            records remain protected.
           </p>
 
           <div className="modal-form-actions">
@@ -221,6 +386,7 @@ export default function TeamPage() {
                 setDeleteMemberTarget(null);
                 setDeleteError("");
               }}
+              disabled={deleting}
             >
               Cancel
             </Button>
@@ -228,21 +394,108 @@ export default function TeamPage() {
             <Button
               className="team-delete-confirm-button"
               onClick={confirmTeamMemberDeletion}
+              disabled={deleting}
             >
-              Remove team member
+              {deleting ? "Removing..." : "Remove team member"}
             </Button>
           </div>
         </div>
       </Modal>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add team member" description="The backend phase will send a secure invitation and temporary password.">
+      <Modal
+        open={modalOpen}
+        onClose={() => {
+          if (!submitting) setModalOpen(false);
+        }}
+        title="Add team member"
+        description="A new staff account receives a temporary password once. Existing users are added with their existing login."
+      >
         <form className="simple-form" onSubmit={submit}>
-          <label>Full name<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required /></label>
-          <label>Email address<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required /></label>
-          <label>Phone number<input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></label>
-          <label>Role<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}><option value="cashier">Cashier</option><option value="manager">Manager</option><option value="inventory_clerk">Inventory clerk</option></select></label>
-          <div className="role-preview"><UserRoundCog size={21} /><div><strong className="capitalize-text">{form.role.replace("_", " ")}</strong><span>Permissions will be enforced by both the frontend and Django API.</span></div></div>
-          <div className="modal-form-actions"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button type="submit">Add team member</Button></div>
+          <label>
+            Full name
+            <input
+              value={form.name}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              required
+            />
+          </label>
+
+          <label>
+            Email address
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  email: event.target.value,
+                }))
+              }
+              required
+            />
+          </label>
+
+          <label>
+            Phone number
+            <input
+              value={form.phone}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  phone: event.target.value,
+                }))
+              }
+            />
+          </label>
+
+          <label>
+            Role
+            <select
+              value={form.role}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  role: event.target.value,
+                }))
+              }
+            >
+              <option value="cashier">Cashier</option>
+              <option value="manager">Manager</option>
+              <option value="inventory_clerk">
+                Inventory clerk
+              </option>
+            </select>
+          </label>
+
+          <div className="role-preview">
+            <UserRoundCog size={21} />
+            <div>
+              <strong className="capitalize-text">
+                {form.role.replace("_", " ")}
+              </strong>
+              <span>
+                Permissions are enforced by both React and Django.
+              </span>
+            </div>
+          </div>
+
+          <div className="modal-form-actions">
+            <Button
+              variant="secondary"
+              onClick={() => setModalOpen(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Adding..." : "Add team member"}
+            </Button>
+          </div>
         </form>
       </Modal>
     </div>

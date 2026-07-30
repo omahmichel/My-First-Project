@@ -69,6 +69,26 @@ function normalizeBusiness(record) {
 }
 
 
+
+// Maps one Django team membership into the existing React team shape.
+function normalizeTeamMember(record, business) {
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(business.id),
+    businessType: business.type,
+    name: record.name ?? "",
+    email: record.email ?? "",
+    phone: record.phone ?? "",
+    role: record.role ?? "cashier",
+    status: record.status ?? "active",
+    lastActive: record.lastActive ?? null,
+    joinedAt: record.joinedAt ?? null,
+    isNewUser: Boolean(record.isNewUser),
+    temporaryPassword: record.temporaryPassword ?? "",
+  };
+}
+
 // Converts plain or paginated API responses into a predictable array.
 function normalizeApiCollection(response) {
   if (Array.isArray(response)) return response;
@@ -324,9 +344,9 @@ export function StoreProvider({ children }) {
       "business_phildial",
     ),
   );
-  const [team, setTeam] = useState(() =>
-    loadBusinessRecords("team", seedTeam, "business_phildial"),
-  );
+  const [team, setTeam] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState("");
   // Stores issued receipts and later customer debt payments.
   const [payments, setPayments] = useState(() =>
     loadBusinessRecords("payments", [], "business_phildial"),
@@ -687,6 +707,62 @@ export function StoreProvider({ children }) {
     [business.id, payments],
   );
 
+
+  // Loads only real active team members for one manageable business.
+  const loadTeam = useCallback(
+    async (businessId, businessRecord = business) => {
+      if (!businessId) {
+        setTeam([]);
+        setTeamLoading(false);
+        setTeamError("");
+        return [];
+      }
+
+      setTeamLoading(true);
+      setTeamError("");
+
+      try {
+        const response = await apiRequest(
+          `/businesses/${businessId}/team/`,
+        );
+        const nextTeam = normalizeApiCollection(response).map(
+          (record) => normalizeTeamMember(record, businessRecord),
+        );
+
+        setTeam(nextTeam);
+        return nextTeam;
+      } catch (error) {
+        setTeamError(error.message);
+        throw error;
+      } finally {
+        setTeamLoading(false);
+      }
+    },
+    [business],
+  );
+
+  // Refreshes team access whenever the selected business changes.
+  useEffect(() => {
+    if (authInitializing || businessesLoading) return;
+
+    if (!user || !business?.id) {
+      setTeam([]);
+      setTeamLoading(false);
+      setTeamError("");
+      return;
+    }
+
+    loadTeam(business.id, business).catch(() => {
+      // The Team page displays the exposed error state.
+    });
+  }, [
+    authInitializing,
+    business,
+    businessesLoading,
+    loadTeam,
+    user,
+  ]);
+
   const currentTeam = useMemo(
     () =>
       team.filter(
@@ -695,10 +771,10 @@ export function StoreProvider({ children }) {
     [business.id, team],
   );
 
-  function updateBusiness(changes) {
+  async function updateBusiness(changes) {
     const requestedBusinessId = changes.id;
 
-    // Preserves onboarding compatibility by adding a genuinely new business.
+    // Preserves onboarding compatibility for a genuinely new workspace.
     if (
       requestedBusinessId &&
       requestedBusinessId !== activeBusinessId &&
@@ -715,23 +791,48 @@ export function StoreProvider({ children }) {
       return nextBusiness;
     }
 
+    const response = await apiRequest(
+      `/businesses/${business.id}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: String(changes.name ?? business.name).trim(),
+          business_type:
+            changes.type ??
+            changes.businessType ??
+            business.type,
+          phone: String(changes.phone ?? "").trim(),
+          email: String(changes.email ?? "").trim(),
+          location: String(changes.location ?? "").trim(),
+          invoicePrefix: String(
+            changes.invoicePrefix ??
+              business.invoicePrefix ??
+              "INV",
+          )
+            .trim()
+            .toUpperCase(),
+          receiptPrefix: String(
+            changes.receiptPrefix ??
+              business.receiptPrefix ??
+              "RCT",
+          )
+            .trim()
+            .toUpperCase(),
+        }),
+      },
+    );
+
+    const nextBusiness = normalizeBusiness(response);
+
     setBusinesses((current) =>
       current.map((item) =>
-        item.id === activeBusinessId
-          ? {
-              ...item,
-              ...changes,
-              id: item.id,
-            }
+        String(item.id) === String(nextBusiness.id)
+          ? nextBusiness
           : item,
       ),
     );
 
-    return {
-      ...business,
-      ...changes,
-      id: business.id,
-    };
+    return nextBusiness;
   }
 
   function switchBusiness(businessId) {
@@ -1278,41 +1379,61 @@ export function StoreProvider({ children }) {
     return nextSale;
   }
 
-  function addTeamMember(member) {
-    const nextMember = {
-      ...member,
-      id: createId("team"),
-      businessType: business.type,
-      businessId: business.id,
-      status: "active",
-      lastActive: null,
-    };
-    setTeam((current) => [...current, nextMember]);
+  async function addTeamMember(member) {
+    const response = await apiRequest(
+      `/businesses/${business.id}/team/`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(member.name || "").trim(),
+          email: String(member.email || "")
+            .trim()
+            .toLowerCase(),
+          phone: String(member.phone || "").trim(),
+          role: member.role || "cashier",
+        }),
+      },
+    );
+
+    const nextMember = normalizeTeamMember(response, business);
+
+    setTeam((current) => [
+      ...current.filter(
+        (item) => String(item.id) !== String(nextMember.id),
+      ),
+      nextMember,
+    ]);
+
     return nextMember;
   }
 
-  // Deletes a staff account only from the currently active business.
-  function deleteTeamMember(memberId) {
-    const member = team.find((item) => item.id === memberId);
+  // Soft-removes access from the active business without deleting the user.
+  async function deleteTeamMember(memberId) {
+    const member = team.find(
+      (item) => String(item.id) === String(memberId),
+    );
 
     if (!member) {
       throw new Error("This team member could not be found.");
     }
 
-    if (resolveRecordBusinessId(member) !== business.id) {
-      throw new Error(
-        "You cannot remove a team member from another business.",
-      );
-    }
-
     if (member.role === "owner") {
       throw new Error(
-        "The business owner account cannot be deleted.",
+        "The business owner account cannot be removed.",
       );
     }
 
+    await apiRequest(
+      `/businesses/${business.id}/team/${memberId}/`,
+      {
+        method: "DELETE",
+      },
+    );
+
     setTeam((current) =>
-      current.filter((item) => item.id !== memberId),
+      current.filter(
+        (item) => String(item.id) !== String(memberId),
+      ),
     );
 
     return member;
@@ -1381,6 +1502,9 @@ export function StoreProvider({ children }) {
       payments: currentPayments,
       stockMovements: currentStockMovements,
       team: currentTeam,
+      teamLoading,
+      teamError,
+      loadTeam,
       metrics,
       updateBusiness,
       switchBusiness,
@@ -1414,6 +1538,8 @@ export function StoreProvider({ children }) {
       currentPayments,
       currentStockMovements,
       currentTeam,
+      teamError,
+      teamLoading,
       metrics,
     ],
   );
