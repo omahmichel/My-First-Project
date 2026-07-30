@@ -153,7 +153,7 @@ export default function LandingPage() {
                   Create free account <ArrowRight size={19} />
                 </Link>
                 <Link to="/login" className="marketing-secondary-button marketing-large-button">
-                  Open demo dashboard
+                  Log in to StockFlow
                 </Link>
               </div>
 
@@ -550,11 +550,11 @@ export default function LandingPage() {
             <div>
               <span>Ready to organise your shop?</span>
               <h2>Stop guessing what you sold, what remains and who owes you.</h2>
-              <p>Open the working frontend demo and explore the complete application interface.</p>
+              <p>Log in to manage your stock, sales, invoices and customer records.</p>
             </div>
             <div>
               <Link to="/register" className="marketing-light-button">Create free account <ArrowRight size={18} /></Link>
-              <Link to="/login" className="marketing-outline-button">Open demo</Link>
+              <Link to="/login" className="marketing-outline-button">Log in</Link>
             </div>
           </div>
         </section>
