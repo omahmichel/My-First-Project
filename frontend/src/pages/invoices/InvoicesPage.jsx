@@ -25,7 +25,7 @@ import "../../styles/invoice-document-actions.css";
 import "../../styles/invoices-compact.css";
 
 export default function InvoicesPage() {
-  const { sales, business } = useStore();
+  const { sales, business, salesLoading, salesError } = useStore();
   const [search, setSearch] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [sharingInvoiceId, setSharingInvoiceId] = useState(null);
@@ -136,7 +136,7 @@ export default function InvoicesPage() {
           <Button
             variant="secondary"
             onClick={handleExportList}
-            disabled={!invoices.length}
+            disabled={salesLoading || !invoices.length}
           >
             <Download size={18} />
             Export list
@@ -236,7 +236,24 @@ export default function InvoicesPage() {
             </article>
           ))}
 
-          {!invoices.length ? (
+          {salesLoading ? (
+            <div className="invoice-list-empty" role="status">
+              <FileText size={24} />
+              <strong>Loading invoice records...</strong>
+            </div>
+          ) : null}
+
+          {salesError ? (
+            <div
+              className="invoice-list-empty danger-text"
+              role="alert"
+            >
+              <FileText size={24} />
+              <strong>{salesError}</strong>
+            </div>
+          ) : null}
+
+          {!salesLoading && !salesError && !invoices.length ? (
             <div className="invoice-list-empty">
               <FileText size={24} />
               <strong>No invoice records found.</strong>

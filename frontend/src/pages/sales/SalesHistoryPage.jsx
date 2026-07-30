@@ -17,7 +17,7 @@ import "../../styles/sales-history-compact.css";
 import "../../styles/sales-history-export.css";
 
 export default function SalesHistoryPage() {
-  const { sales, business } = useStore();
+  const { sales, business, salesLoading, salesError } = useStore();
   const [search, setSearch] = useState("");
   const [payment, setPayment] = useState("all");
   const [actionMessage, setActionMessage] = useState("");
@@ -125,7 +125,7 @@ export default function SalesHistoryPage() {
           <div className="sales-history-export-options">
             <Button
               onClick={handleExportPdf}
-              disabled={!filtered.length}
+              disabled={salesLoading || !filtered.length}
             >
               <Download size={18} />
               Export PDF
@@ -134,7 +134,7 @@ export default function SalesHistoryPage() {
             <Button
               variant="secondary"
               onClick={handleExportCsv}
-              disabled={!filtered.length}
+              disabled={salesLoading || !filtered.length}
             >
               <Download size={18} />
               Export CSV
@@ -259,7 +259,26 @@ export default function SalesHistoryPage() {
                 </tr>
               ))}
 
-              {!filtered.length ? (
+              {salesLoading ? (
+                <tr>
+                  <td className="sales-history-empty" colSpan="8">
+                    Loading sales history...
+                  </td>
+                </tr>
+              ) : null}
+
+              {salesError ? (
+                <tr>
+                  <td
+                    className="sales-history-empty danger-text"
+                    colSpan="8"
+                  >
+                    {salesError}
+                  </td>
+                </tr>
+              ) : null}
+
+              {!salesLoading && !salesError && !filtered.length ? (
                 <tr>
                   <td className="sales-history-empty" colSpan="8">
                     No sales records match the current filters.

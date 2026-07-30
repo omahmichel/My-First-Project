@@ -6,6 +6,7 @@ import {
   ReceiptText,
   Save,
   Search,
+  Share2,
   Truck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -21,6 +22,7 @@ import {
   downloadReceiptPdf,
   downloadWaybillPdf,
   exportCustomerStatementPdf,
+  shareCustomerStatement,
 } from "../../utils/invoiceDocuments";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
@@ -50,6 +52,7 @@ export default function CustomerPurchaseRecordsPage() {
     status: "pending",
   });
   const [message, setMessage] = useState("");
+  const [sharingStatement, setSharingStatement] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -258,6 +261,42 @@ export default function CustomerPurchaseRecordsPage() {
     }
   }
 
+
+  async function handleStatementShare() {
+    setMessage("");
+
+    if (!selectedCustomer) {
+      setMessage(
+        "Select a named customer before sharing a statement.",
+      );
+      return;
+    }
+
+    setSharingStatement(true);
+
+    try {
+      const result = await shareCustomerStatement(
+        selectedCustomer,
+        filteredSales,
+        payments,
+        business,
+      );
+
+      setMessage(result);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setMessage("Sharing was cancelled.");
+      } else {
+        setMessage(
+          error.message ||
+            "The customer statement could not be shared.",
+        );
+      }
+    } finally {
+      setSharingStatement(false);
+    }
+  }
+
   return (
     <div className="page-stack purchase-records-page">
       <PageHeader
@@ -265,13 +304,32 @@ export default function CustomerPurchaseRecordsPage() {
         title="Purchase records"
         description="Review every customer purchase together with its invoice, receipts and waybill status."
         actions={
-          <Button
-            onClick={handleStatementDownload}
-            disabled={!selectedCustomer || !filteredSales.length}
-          >
-            <Download size={17} />
-            Download statement PDF
-          </Button>
+          <div className="purchase-statement-actions">
+            <Button
+              variant="secondary"
+              onClick={handleStatementShare}
+              disabled={
+                sharingStatement ||
+                !selectedCustomer ||
+                !filteredSales.length
+              }
+            >
+              <Share2 size={17} />
+              {sharingStatement
+                ? "Sharing..."
+                : "Share statement"}
+            </Button>
+
+            <Button
+              onClick={handleStatementDownload}
+              disabled={
+                !selectedCustomer || !filteredSales.length
+              }
+            >
+              <Download size={17} />
+              Download statement PDF
+            </Button>
+          </div>
         }
       />
 

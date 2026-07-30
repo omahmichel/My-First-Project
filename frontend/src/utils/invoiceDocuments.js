@@ -540,6 +540,12 @@ export function createReceiptPdf(receipt, sale, business) {
         textColor: [255, 255, 255],
         fontStyle: "bold",
       },
+      footStyles: {
+        fillColor: [235, 244, 239],
+        textColor: [22, 52, 38],
+        fontStyle: "bold",
+        fontSize: 6.1,
+      },
     });
   }
 
@@ -746,7 +752,7 @@ export function downloadWaybillPdf(sale, business) {
 
 
 // Downloads one consolidated PDF containing every transaction for one customer.
-export function exportCustomerStatementPdf(
+function createCustomerStatementPdf(
   customer,
   sales,
   payments,
@@ -757,10 +763,41 @@ export function exportCustomerStatementPdf(
   }
 
   if (!sales.length) {
-    throw new Error("This customer has no purchase records to include.");
+    throw new Error(
+      "This customer has no purchase records to include.",
+    );
   }
 
-  // Uses A5 landscape to reduce unnecessary empty space for short statements.
+  /*
+    Removes accidental duplicate sale and payment records before
+    creating the printable customer statement.
+  */
+  const uniqueSales = [
+    ...new Map(
+      sales.map((sale) => [
+        String(sale.id || sale.invoiceNumber),
+        sale,
+      ]),
+    ).values(),
+  ];
+
+  const uniquePayments = [
+    ...new Map(
+      payments.map((payment) => [
+        String(
+          payment.id ||
+            payment.receiptNumber ||
+            `${payment.saleId}-${payment.createdAt}-${payment.amount}`,
+        ),
+        payment,
+      ]),
+    ).values(),
+  ];
+
+  /*
+    Uses A5 landscape so the wide tables fit cleanly without
+    leaving a large unused area below short statements.
+  */
   const document = new jsPDF({
     orientation: "landscape",
     unit: "pt",
@@ -769,39 +806,54 @@ export function exportCustomerStatementPdf(
 
   const pageWidth = document.internal.pageSize.getWidth();
   const pageHeight = document.internal.pageSize.getHeight();
-  const margin = 22;
+  const margin = 30;
   const generatedAt = new Date();
 
-  const totalPurchases = sales.reduce(
-    (sum, sale) => sum + Number(sale.total || 0),
-    0,
-  );
-  const totalPaid = sales.reduce(
+  const totalPaid = uniqueSales.reduce(
     (sum, sale) => sum + Number(sale.amountPaid || 0),
     0,
   );
-  const totalBalance = sales.reduce(
-    (sum, sale) => sum + Number(sale.outstandingBalance || 0),
-    0,
-  );
 
+  const paymentMethods = [
+    ...new Set(
+      uniqueSales
+        .map((sale) => sale.paymentMethod)
+        .filter(Boolean),
+    ),
+  ];
+
+  const paymentMethodLabel =
+    paymentMethods.length === 1
+      ? formatPaymentMethod(paymentMethods[0])
+      : paymentMethods.length > 1
+        ? "Mixed"
+        : "Not recorded";
+
+  // Creates the professional business and document header.
   document.setFillColor(15, 42, 30);
-  document.rect(0, 0, pageWidth, 68, "F");
+  document.rect(0, 0, pageWidth, 70, "F");
 
   document.setTextColor(255, 255, 255);
   document.setFont("helvetica", "bold");
   document.setFontSize(15);
-  document.text(safeText(business?.name, "Business"), margin, 29);
+  document.text(
+    safeText(business?.name, "Business"),
+    margin,
+    27,
+  );
 
   document.setFont("helvetica", "normal");
-  document.setFontSize(7.2);
+  document.setFontSize(7.5);
   document.text(
-    `${safeText(business?.location, "Location not recorded")} · ${safeText(
+    `${safeText(
+      business?.location,
+      "Location not recorded",
+    )} · ${safeText(
       business?.phone,
       "Phone not recorded",
     )}`,
     margin,
-    45,
+    43,
   );
 
   document.setFont("helvetica", "bold");
@@ -809,7 +861,7 @@ export function exportCustomerStatementPdf(
   document.text(
     "CONSOLIDATED CUSTOMER STATEMENT",
     pageWidth - margin,
-    27,
+    26,
     { align: "right" },
   );
 
@@ -818,75 +870,105 @@ export function exportCustomerStatementPdf(
   document.text(
     `Generated ${formatDocumentDate(generatedAt)}`,
     pageWidth - margin,
-    44,
+    42,
     { align: "right" },
   );
 
-  document.setTextColor(39, 56, 47);
-  document.setFont("helvetica", "bold");
-  document.setFontSize(7);
-  document.text("CUSTOMER", margin, 88);
-  document.text("CONTACT", 210, 88);
-  document.text("ADDRESS", 344, 88);
+  /*
+    Lists the customer information in one aligned section instead
+    of spreading the name, contact and address across the page.
+  */
+  const detailsY = 86;
+  const detailsHeight = 78;
+  const labelX = margin + 16;
+  const valueX = margin + 105;
 
-  document.setFontSize(9.2);
-  document.text(safeText(customer.name), margin, 103);
-  document.text(safeText(customer.phone), 210, 103);
-
-  document.setFont("helvetica", "normal");
-  document.setFontSize(8);
-  document.text(
-    document.splitTextToSize(
-      safeText(customer.address),
-      pageWidth - 344 - margin,
-    ),
-    344,
-    103,
+  document.setFillColor(247, 250, 248);
+  document.setDrawColor(218, 229, 223);
+  document.roundedRect(
+    margin,
+    detailsY,
+    pageWidth - margin * 2,
+    detailsHeight,
+    6,
+    6,
+    "FD",
   );
 
-  const summaryY = 124;
-  const summaryGap = 8;
-  const summaryWidth = (pageWidth - margin * 2 - summaryGap * 2) / 3;
-  const summaryItems = [
-    ["Total purchases", formatPdfCurrency(totalPurchases)],
-    ["Total received", formatPdfCurrency(totalPaid)],
-    ["Outstanding balance", formatPdfCurrency(totalBalance)],
+  document.setTextColor(22, 52, 38);
+  document.setFont("helvetica", "bold");
+  document.setFontSize(8.2);
+  document.text(
+    "CUSTOMER DETAILS",
+    labelX,
+    detailsY + 16,
+  );
+
+  const customerRows = [
+    ["Customer name", safeText(customer.name)],
+    ["Contact", safeText(customer.phone, "Not recorded")],
+    ["Address", safeText(customer.address, "Not recorded")],
   ];
 
-  summaryItems.forEach(([label, value], index) => {
-    const x = margin + index * (summaryWidth + summaryGap);
-
-    document.setFillColor(241, 248, 244);
-    document.roundedRect(x, summaryY, summaryWidth, 35, 5, 5, "F");
+  customerRows.forEach(([label, value], index) => {
+    const rowY = detailsY + 33 + index * 16;
 
     document.setTextColor(91, 106, 98);
-    document.setFont("helvetica", "normal");
-    document.setFontSize(6.4);
-    document.text(label, x + 9, summaryY + 12);
-
-    document.setTextColor(22, 52, 38);
     document.setFont("helvetica", "bold");
-    document.setFontSize(9.5);
-    document.text(value, x + 9, summaryY + 27);
+    document.setFontSize(6.8);
+    document.text(label, labelX, rowY);
+
+    document.setTextColor(29, 48, 39);
+    document.setFont("helvetica", "normal");
+    document.setFontSize(7.8);
+
+    if (label === "Address") {
+      document.text(
+        document.splitTextToSize(
+          value,
+          pageWidth - valueX - margin - 12,
+        ),
+        valueX,
+        rowY,
+      );
+    } else {
+      document.text(value, valueX, rowY);
+    }
   });
 
-  // Combines sale and invoice references and payment figures to keep the table compact.
-  const purchaseRows = sales.flatMap((sale) =>
-    (sale.items ?? []).map((item) => [
-      formatDocumentDate(sale.createdAt),
-      `${safeText(sale.invoiceNumber)}\n${safeText(sale.saleNumber)}`,
+  /*
+    Keeps repeated sale information on only the first item row,
+    making multi-item purchases easier to read.
+  */
+  const purchaseRows = uniqueSales.flatMap((sale) =>
+    (sale.items ?? []).map((item, itemIndex) => [
+      itemIndex === 0
+        ? formatDocumentDate(sale.createdAt)
+        : "",
+      itemIndex === 0
+        ? `${safeText(sale.invoiceNumber)}\n${safeText(
+            sale.saleNumber,
+          )}`
+        : "",
       safeText(item.name, "Unnamed item"),
-      `${Number(item.quantity || 0)} ${safeText(item.unit, "unit")}(s)`,
+      `${Number(item.quantity || 0)} ${safeText(
+        item.unit,
+        "unit",
+      )}(s)`,
       formatPdfCurrency(item.unitPrice),
       formatPdfCurrency(item.total),
-      `Paid: ${formatPdfCurrency(sale.amountPaid)}\nBalance: ${formatPdfCurrency(
-        sale.outstandingBalance,
-      )}`,
+      itemIndex === 0
+        ? `Paid: ${formatPdfCurrency(
+            sale.amountPaid,
+          )}\nBalance: ${formatPdfCurrency(
+            sale.outstandingBalance,
+          )}`
+        : "",
     ]),
   );
 
   autoTable(document, {
-    startY: 176,
+    startY: detailsY + detailsHeight + 14,
     head: [[
       "Date",
       "Reference",
@@ -894,19 +976,38 @@ export function exportCustomerStatementPdf(
       "Quantity",
       "Unit price",
       "Line total",
-      "Payment",
+      `Payment (${paymentMethodLabel})`,
     ]],
     body: purchaseRows,
+    foot: [[
+      { content: "", colSpan: 2 },
+      {
+        content: "Total Amount Paid",
+        styles: {
+          fontStyle: "bold",
+          halign: "left",
+        },
+      },
+      { content: "", colSpan: 3 },
+      {
+        content: formatPdfCurrency(totalPaid),
+        styles: {
+          fontStyle: "bold",
+          halign: "right",
+        },
+      },
+    ]],
+    showFoot: "lastPage",
     theme: "grid",
     margin: {
       left: margin,
       right: margin,
-      bottom: 30,
+      bottom: 42,
     },
     styles: {
-      cellPadding: 3.6,
+      cellPadding: 3.2,
       font: "helvetica",
-      fontSize: 6.4,
+      fontSize: 6.1,
       lineColor: [220, 230, 224],
       lineWidth: 0.4,
       textColor: [44, 60, 52],
@@ -917,45 +1018,72 @@ export function exportCustomerStatementPdf(
       fillColor: [25, 74, 52],
       textColor: [255, 255, 255],
       fontStyle: "bold",
-      fontSize: 6.3,
+      fontSize: 6.1,
+    },
+    footStyles: {
+      fillColor: [235, 244, 239],
+      textColor: [22, 52, 38],
+      fontStyle: "bold",
+      fontSize: 6.1,
     },
     alternateRowStyles: {
       fillColor: [247, 250, 248],
     },
-    // A5 landscape printable width is about 551pt after margins.
-    // These widths total exactly 551pt, so no column can run off the page.
+    // These widths fit the A4 portrait printable area exactly.
     columnStyles: {
       0: { cellWidth: 50 },
-      1: { cellWidth: 62 },
-      2: { cellWidth: 145 },
-      3: { cellWidth: 60 },
-      4: { cellWidth: 66, halign: "right" },
-      5: { cellWidth: 70, halign: "right" },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 135 },
+      3: { cellWidth: 55 },
+      4: { cellWidth: 65, halign: "right" },
+      5: { cellWidth: 68, halign: "right" },
       6: {
-        cellWidth: 98,
+        cellWidth: 90,
         halign: "right",
-        fontSize: 6,
+        fontSize: 6.2,
       },
     },
   });
 
-  const saleIds = new Set(sales.map((sale) => sale.id));
-  const statementPayments = payments.filter((payment) =>
-    saleIds.has(payment.saleId),
+  const saleIds = new Set(
+    uniqueSales.map((sale) => String(sale.id)),
+  );
+
+  const statementPayments = uniquePayments
+    .filter((payment) =>
+      saleIds.has(String(payment.saleId)),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt) - new Date(b.createdAt),
+    );
+
+  const receiptTotal = statementPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
   );
 
   if (statementPayments.length) {
-    let receiptStartY = (document.lastAutoTable?.finalY ?? 230) + 13;
+    let receiptStartY =
+      (document.lastAutoTable?.finalY ?? 250) + 12;
 
-    if (receiptStartY > pageHeight - 88) {
+    /*
+      Starts receipts on a fresh page only when the remaining space
+      cannot hold the heading and at least a few receipt rows.
+    */
+    if (receiptStartY > pageHeight - 125) {
       document.addPage();
-      receiptStartY = 30;
+      receiptStartY = 34;
     }
 
     document.setTextColor(39, 56, 47);
     document.setFont("helvetica", "bold");
-    document.setFontSize(8);
-    document.text("PAYMENT RECEIPTS", margin, receiptStartY);
+    document.setFontSize(8.2);
+    document.text(
+      "PAYMENT RECEIPTS",
+      margin,
+      receiptStartY,
+    );
 
     autoTable(document, {
       startY: receiptStartY + 8,
@@ -975,16 +1103,34 @@ export function exportCustomerStatementPdf(
         safeText(payment.reference, "Not provided"),
         formatPdfCurrency(payment.amount),
       ]),
+      foot: [[
+        {
+          content: "Total Amount Paid",
+          colSpan: 5,
+          styles: {
+            fontStyle: "bold",
+            halign: "right",
+          },
+        },
+        {
+          content: formatPdfCurrency(receiptTotal),
+          styles: {
+            fontStyle: "bold",
+            halign: "right",
+          },
+        },
+      ]],
+      showFoot: "lastPage",
       theme: "grid",
       margin: {
         left: margin,
         right: margin,
-        bottom: 30,
+        bottom: 42,
       },
       styles: {
-        cellPadding: 3.4,
+        cellPadding: 3.2,
         font: "helvetica",
-        fontSize: 6.3,
+        fontSize: 6.1,
         lineColor: [220, 230, 224],
         lineWidth: 0.4,
         textColor: [44, 60, 52],
@@ -994,54 +1140,140 @@ export function exportCustomerStatementPdf(
         textColor: [255, 255, 255],
         fontStyle: "bold",
       },
-      // Keeps the receipts table inside the same 551pt printable width.
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 77 },
-        2: { cellWidth: 77 },
-        3: { cellWidth: 75 },
-        4: { cellWidth: 185 },
-        5: { cellWidth: 77, halign: "right" },
+        0: { cellWidth: 72 },
+        1: { cellWidth: 84 },
+        2: { cellWidth: 84 },
+        3: { cellWidth: 90 },
+        4: { cellWidth: 120 },
+        5: { cellWidth: 73, halign: "right" },
       },
     });
   }
 
+  // Adds a clean footer to every actual PDF page.
   const pageCount = document.getNumberOfPages();
 
-  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+  for (
+    let pageNumber = 1;
+    pageNumber <= pageCount;
+    pageNumber += 1
+  ) {
     document.setPage(pageNumber);
     document.setDrawColor(220, 230, 224);
     document.line(
       margin,
-      pageHeight - 22,
+      pageHeight - 28,
       pageWidth - margin,
-      pageHeight - 22,
+      pageHeight - 28,
     );
 
     document.setTextColor(105, 119, 111);
     document.setFont("helvetica", "normal");
-    document.setFontSize(6.2);
+    document.setFontSize(7);
     document.text(
       `${safeText(customer.name)} purchase statement`,
       margin,
-      pageHeight - 10,
+      pageHeight - 14,
     );
     document.text(
       `Page ${pageNumber} of ${pageCount}`,
       pageWidth - margin,
-      pageHeight - 10,
+      pageHeight - 14,
       { align: "right" },
     );
   }
 
   const dateStamp = generatedAt.toISOString().slice(0, 10);
   const filename =
-    `${safeFilename(customer.name)}-customer-statement-${dateStamp}.pdf`;
+    `${safeFilename(
+      customer.name,
+    )}-customer-statement-${dateStamp}.pdf`;
+
+  return {
+    document,
+    filename,
+  };
+}
+
+// Downloads the consolidated statement as a compact PDF.
+export function exportCustomerStatementPdf(
+  customer,
+  sales,
+  payments,
+  business,
+) {
+  const { document, filename } = createCustomerStatementPdf(
+    customer,
+    sales,
+    payments,
+    business,
+  );
 
   document.save(filename);
   return filename;
 }
 
+
+// Shares the consolidated statement PDF through the device share menu.
+export async function shareCustomerStatement(
+  customer,
+  sales,
+  payments,
+  business,
+) {
+  const { document, filename } = createCustomerStatementPdf(
+    customer,
+    sales,
+    payments,
+    business,
+  );
+
+  const title = `${safeText(
+    customer?.name,
+    "Customer",
+  )} statement - ${safeText(
+    business?.name,
+    "Business",
+  )}`;
+
+  const text =
+    `Consolidated customer statement for ${safeText(
+      customer?.name,
+      "Customer",
+    )} from ${safeText(business?.name, "Business")}.`;
+
+  if (navigator.share) {
+    const pdfBlob = document.output("blob");
+    const pdfFile = new File(
+      [pdfBlob],
+      filename,
+      { type: "application/pdf" },
+    );
+
+    const shareData = {
+      title,
+      text,
+    };
+
+    if (navigator.canShare?.({ files: [pdfFile] })) {
+      shareData.files = [pdfFile];
+    }
+
+    await navigator.share(shareData);
+
+    return shareData.files
+      ? "Customer statement PDF shared successfully."
+      : "Customer statement details shared successfully.";
+  }
+
+  document.save(filename);
+
+  return (
+    "Sharing is unavailable on this device, so the statement "
+    + "PDF was downloaded instead."
+  );
+}
 
 // Downloads the visible Sales History records as a CSV file.
 export function exportSalesHistoryCsv(sales, business) {
