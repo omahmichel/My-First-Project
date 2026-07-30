@@ -25,3 +25,4 @@ Thumbs.db
 **/*.before-*.txt
 **/*.backup.txt
 **/*.problem.txt
+frontend/.vite/
