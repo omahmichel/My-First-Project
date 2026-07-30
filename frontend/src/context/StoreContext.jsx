@@ -7,14 +7,6 @@ import {
   useState,
 } from "react";
 
-import {
-  seedBusiness,
-  seedCustomers,
-  seedProducts,
-  seedSales,
-  seedStockMovements,
-  seedTeam,
-} from "../data/seedData";
 import { useAuth } from "./AuthContext";
 import { apiRequest } from "../services/api";
 import { loadStoredValue, saveStoredValue } from "../services/storage";
@@ -22,27 +14,22 @@ import { createId } from "../utils/formatters";
 
 const StoreContext = createContext(null);
 
-const BUSINESS_IDS_BY_TYPE = {
-  building_materials: "business_phildial",
-  boutique: "business_kendy",
-};
-
-const DEFAULT_BUSINESSES = [
-  {
-    ...seedBusiness,
-    id: "business_phildial",
-    name: "Phildial Enterprise",
-    type: "building_materials",
-  },
-  {
-    ...seedBusiness,
-    id: "business_kendy",
-    name: "Kendy Trenz",
-    type: "boutique",
-    invoicePrefix: "KDY",
-    receiptPrefix: "KRC",
-  },
-];
+const EMPTY_BUSINESS = Object.freeze({
+  id: "",
+  name: "",
+  slug: "",
+  type: "",
+  phone: "",
+  email: "",
+  location: "",
+  invoicePrefix: "INV",
+  receiptPrefix: "RCT",
+  status: "",
+  ownerName: "",
+  ownerEmail: "",
+  currentUserRole: "",
+  activeTeamMembers: 0,
+});
 
 
 // Maps a Django business response to the existing frontend business shape.
@@ -269,94 +256,42 @@ function buildProductPayload(product, { includeStock = false } = {}) {
 }
 
 // Resolves old business-type records into stable business IDs during migration.
-function resolveRecordBusinessId(record, fallbackBusinessId = "business_phildial") {
-  return (
-    record.businessId ??
-    BUSINESS_IDS_BY_TYPE[record.businessType] ??
-    fallbackBusinessId
+function resolveRecordBusinessId(record, fallbackBusinessId = "") {
+  return String(
+    record?.businessId ??
+      record?.business_id ??
+      fallbackBusinessId,
   );
-}
-
-// Preserves an existing multi-business list or migrates the former single profile.
-function loadInitialBusinesses() {
-  const storedBusinesses = loadStoredValue("businesses", null);
-
-  if (Array.isArray(storedBusinesses) && storedBusinesses.length > 0) {
-    return storedBusinesses;
-  }
-
-  const legacyBusiness = loadStoredValue("business", seedBusiness);
-
-  return DEFAULT_BUSINESSES.map((defaultBusiness) =>
-    defaultBusiness.type === legacyBusiness.type
-      ? {
-          ...defaultBusiness,
-          ...legacyBusiness,
-          id: defaultBusiness.id,
-          name: defaultBusiness.name,
-          type: defaultBusiness.type,
-        }
-      : defaultBusiness,
-  );
-}
-
-// Adds business IDs to old browser records without removing their existing fields.
-function loadBusinessRecords(storageKey, seedRecords, fallbackBusinessId) {
-  const records = loadStoredValue(storageKey, seedRecords);
-
-  return records.map((record) => ({
-    ...record,
-    businessId: resolveRecordBusinessId(record, fallbackBusinessId),
-  }));
 }
 
 export function StoreProvider({ children }) {
   const { user, isInitializing: authInitializing } = useAuth();
-  const [businesses, setBusinesses] = useState(loadInitialBusinesses);
+  const [businesses, setBusinesses] = useState([]);
   const [businessesLoading, setBusinessesLoading] = useState(true);
   const [businessesError, setBusinessesError] = useState("");
-  const [activeBusinessId, setActiveBusinessId] = useState(() => {
-    const legacyBusiness = loadStoredValue("business", seedBusiness);
-    const fallbackId =
-      BUSINESS_IDS_BY_TYPE[legacyBusiness.type] ?? "business_phildial";
-
-    return loadStoredValue("active_business_id", fallbackId);
-  });
-  const [products, setProducts] = useState(() =>
-    loadBusinessRecords("products", seedProducts, "business_phildial"),
+  const [activeBusinessId, setActiveBusinessId] = useState(() =>
+    loadStoredValue("active_business_id", ""),
   );
+  const [products, setProducts] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
-  const [customers, setCustomers] = useState(() =>
-    loadBusinessRecords("customers", seedCustomers, "business_phildial"),
-  );
+  const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState("");
-  const [sales, setSales] = useState(() =>
-    loadBusinessRecords("sales", seedSales, "business_phildial"),
-  );
+  const [sales, setSales] = useState([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState("");
-  const [stockMovements, setStockMovements] = useState(() =>
-    loadBusinessRecords(
-      "stock_movements",
-      seedStockMovements,
-      "business_phildial",
-    ),
-  );
+  const [stockMovements, setStockMovements] = useState([]);
   const [team, setTeam] = useState([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState("");
-  // Stores issued receipts and later customer debt payments.
-  const [payments, setPayments] = useState(() =>
-    loadBusinessRecords("payments", [], "business_phildial"),
-  );
+  const [payments, setPayments] = useState([]);
 
   const business = useMemo(
     () =>
       businesses.find((item) => item.id === activeBusinessId) ??
       businesses[0] ??
-      DEFAULT_BUSINESSES[0],
+      EMPTY_BUSINESS,
     [activeBusinessId, businesses],
   );
 
@@ -532,6 +467,14 @@ export function StoreProvider({ children }) {
     if (authInitializing) return;
 
     if (!user) {
+      setBusinesses([]);
+      setActiveBusinessId("");
+      setProducts([]);
+      setCustomers([]);
+      setSales([]);
+      setStockMovements([]);
+      setTeam([]);
+      setPayments([]);
       setBusinessesLoading(false);
       setBusinessesError("");
       return;
@@ -629,35 +572,18 @@ export function StoreProvider({ children }) {
     user,
   ]);
 
-  useEffect(() => saveStoredValue("businesses", businesses), [businesses]);
+  // Persists only the selected workspace preference, never business data.
   useEffect(
     () => saveStoredValue("active_business_id", activeBusinessId),
     [activeBusinessId],
   );
-  useEffect(() => saveStoredValue("business", business), [business]);
-  useEffect(() => saveStoredValue("products", products), [products]);
-  useEffect(() => saveStoredValue("customers", customers), [customers]);
-  useEffect(() => saveStoredValue("sales", sales), [sales]);
-  useEffect(() => saveStoredValue("stock_movements", stockMovements), [stockMovements]);
-  useEffect(() => saveStoredValue("team", team), [team]);
-  useEffect(() => saveStoredValue("payments", payments), [payments]);
 
-  // Keeps all business records in storage while exposing only the active business.
-  const productBusinessIds = useMemo(
-    () =>
-      new Map(
-        products.map((product) => [
-          product.id,
-          resolveRecordBusinessId(product),
-        ]),
-      ),
-    [products],
-  );
-
+  // Exposes only records carrying the active Django business ID.
   const currentProducts = useMemo(
     () =>
       products.filter(
-        (product) => resolveRecordBusinessId(product) === business.id,
+        (product) =>
+          resolveRecordBusinessId(product) === business.id,
       ),
     [business.id, products],
   );
@@ -665,48 +591,37 @@ export function StoreProvider({ children }) {
   const currentCustomers = useMemo(
     () =>
       customers.filter(
-        (customer) => resolveRecordBusinessId(customer) === business.id,
+        (customer) =>
+          resolveRecordBusinessId(customer) === business.id,
       ),
     [business.id, customers],
   );
 
   const currentSales = useMemo(
     () =>
-      sales.filter((sale) => {
-        const saleBusinessId =
-          sale.businessId ?? BUSINESS_IDS_BY_TYPE[sale.businessType];
-
-        if (saleBusinessId) return saleBusinessId === business.id;
-
-        return (sale.items ?? []).some(
-          (item) => productBusinessIds.get(item.productId) === business.id,
-        );
-      }),
-    [business.id, productBusinessIds, sales],
+      sales.filter(
+        (sale) => resolveRecordBusinessId(sale) === business.id,
+      ),
+    [business.id, sales],
   );
 
   const currentStockMovements = useMemo(
     () =>
-      stockMovements.filter((movement) => {
-        const movementBusinessId =
-          movement.businessId ??
-          BUSINESS_IDS_BY_TYPE[movement.businessType];
-
-        if (movementBusinessId) return movementBusinessId === business.id;
-
-        return productBusinessIds.get(movement.productId) === business.id;
-      }),
-    [business.id, productBusinessIds, stockMovements],
+      stockMovements.filter(
+        (movement) =>
+          resolveRecordBusinessId(movement) === business.id,
+      ),
+    [business.id, stockMovements],
   );
 
   const currentPayments = useMemo(
     () =>
       payments.filter(
-        (payment) => resolveRecordBusinessId(payment) === business.id,
+        (payment) =>
+          resolveRecordBusinessId(payment) === business.id,
       ),
     [business.id, payments],
   );
-
 
   // Loads only real active team members for one manageable business.
   const loadTeam = useCallback(
@@ -772,23 +687,10 @@ export function StoreProvider({ children }) {
   );
 
   async function updateBusiness(changes) {
-    const requestedBusinessId = changes.id;
-
-    // Preserves onboarding compatibility for a genuinely new workspace.
-    if (
-      requestedBusinessId &&
-      requestedBusinessId !== activeBusinessId &&
-      !businesses.some((item) => item.id === requestedBusinessId)
-    ) {
-      const nextBusiness = {
-        ...business,
-        ...changes,
-        id: requestedBusinessId,
-      };
-
-      setBusinesses((current) => [...current, nextBusiness]);
-      setActiveBusinessId(nextBusiness.id);
-      return nextBusiness;
+    if (!business.id) {
+      throw new Error(
+        "Create or select a business before updating settings.",
+      );
     }
 
     const response = await apiRequest(
