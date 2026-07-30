@@ -4,6 +4,7 @@ from .views import (
     BusinessCustomerDebtPaymentAPIView,
     BusinessSaleDetailAPIView,
     BusinessSaleListCreateAPIView,
+    BusinessSaleWaybillAPIView,
 )
 
 app_name = "sales"
@@ -24,5 +25,11 @@ urlpatterns = [
         "businesses/<uuid:business_id>/sales/<uuid:sale_id>/",
         BusinessSaleDetailAPIView.as_view(),
         name="business-sale-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/sales/"
+        "<uuid:sale_id>/waybill/",
+        BusinessSaleWaybillAPIView.as_view(),
+        name="business-sale-waybill",
     ),
 ]

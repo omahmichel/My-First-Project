@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from .models import Payment, Sale, SaleItem
+from .models import Payment, Sale, SaleItem, Waybill
 
 
 class CheckoutItemSerializer(serializers.Serializer):
@@ -413,6 +413,123 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+
+class WaybillSerializer(serializers.ModelSerializer):
+    # Returns the camelCase delivery document expected by React.
+
+    waybillNumber = serializers.CharField(
+        source="waybill_number",
+        read_only=True,
+    )
+    recipientName = serializers.CharField(
+        source="recipient_name",
+        read_only=True,
+    )
+    recipientPhone = serializers.CharField(
+        source="recipient_phone",
+        read_only=True,
+    )
+    deliveryAddress = serializers.CharField(
+        source="delivery_address",
+        read_only=True,
+    )
+    dispatchDate = serializers.DateField(
+        source="dispatch_date",
+        read_only=True,
+    )
+    driverName = serializers.CharField(
+        source="driver_name",
+        read_only=True,
+    )
+    vehicleNumber = serializers.CharField(
+        source="vehicle_number",
+        read_only=True,
+    )
+    deliveryNotes = serializers.CharField(
+        source="delivery_notes",
+        read_only=True,
+    )
+    createdAt = serializers.DateTimeField(
+        source="created_at",
+        read_only=True,
+    )
+    updatedAt = serializers.DateTimeField(
+        source="updated_at",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Waybill
+        fields = (
+            "waybillNumber",
+            "recipientName",
+            "recipientPhone",
+            "deliveryAddress",
+            "dispatchDate",
+            "driverName",
+            "vehicleNumber",
+            "deliveryNotes",
+            "status",
+            "createdAt",
+            "updatedAt",
+        )
+        read_only_fields = fields
+
+
+class WaybillUpsertSerializer(serializers.Serializer):
+    # Validates new waybills and later detail/status updates.
+
+    recipientName = serializers.CharField(
+        source="recipient_name",
+        max_length=180,
+        trim_whitespace=True,
+    )
+    recipientPhone = serializers.CharField(
+        source="recipient_phone",
+        max_length=30,
+        trim_whitespace=True,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    deliveryAddress = serializers.CharField(
+        source="delivery_address",
+        trim_whitespace=True,
+        allow_blank=False,
+    )
+    dispatchDate = serializers.DateField(
+        source="dispatch_date",
+    )
+    driverName = serializers.CharField(
+        source="driver_name",
+        max_length=180,
+        trim_whitespace=True,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    vehicleNumber = serializers.CharField(
+        source="vehicle_number",
+        max_length=80,
+        trim_whitespace=True,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    deliveryNotes = serializers.CharField(
+        source="delivery_notes",
+        trim_whitespace=True,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    status = serializers.ChoiceField(
+        choices=Waybill.Status.choices,
+        required=False,
+        default=Waybill.Status.PENDING,
+    )
+
+
 class SaleSerializer(serializers.ModelSerializer):
     # Returns the complete invoice-ready sale in React field names.
 
@@ -546,5 +663,10 @@ class SaleSerializer(serializers.ModelSerializer):
         return payment.receipt_number if payment else None
 
     def get_waybill(self, obj):
-        # Waybill support will be added without changing the sale response shape.
-        return None
+        # Returns the persisted delivery document without changing sale shape.
+        waybill = getattr(obj, "waybill", None)
+
+        if not waybill:
+            return None
+
+        return WaybillSerializer(waybill).data

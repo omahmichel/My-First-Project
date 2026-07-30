@@ -8,7 +8,7 @@ from businesses.models import Business, BusinessMembership
 from customers.models import Customer
 from inventory.models import Product, StockMovement
 
-from .models import Payment, Sale
+from .models import Payment, Sale, Waybill
 
 
 class SalesRegressionTests(APITestCase):
@@ -494,3 +494,177 @@ class SalesRegressionTests(APITestCase):
         )
         self.assertEqual(Sale.objects.count(), 0)
         self.assertEqual(Payment.objects.count(), 0)
+
+    def test_waybill_create_update_and_persist(self):
+        # One waybill remains attached to its sale after API reloads.
+        self.authenticate(self.owner)
+        sale_response = self.client.post(
+            self.sales_url,
+            self.cash_sale_payload(),
+            format="json",
+            **self.idempotency_headers("waybill-sale-001"),
+        )
+        self.assertEqual(
+            sale_response.status_code,
+            status.HTTP_201_CREATED,
+            sale_response.data,
+        )
+
+        sale_id = sale_response.data["id"]
+        waybill_url = (
+            f"/api/businesses/{self.business.id}/sales/"
+            f"{sale_id}/waybill/"
+        )
+        payload = {
+            "recipientName": "Ama Serwaa",
+            "recipientPhone": "0241234567",
+            "deliveryAddress": "Adenta, Accra",
+            "dispatchDate": "2026-07-30",
+            "driverName": "Kwame Driver",
+            "vehicleNumber": "GT-1234-26",
+            "deliveryNotes": "Call before delivery.",
+            "status": "pending",
+        }
+
+        create_response = self.client.post(
+            waybill_url,
+            payload,
+            format="json",
+        )
+        self.assertEqual(
+            create_response.status_code,
+            status.HTTP_201_CREATED,
+            create_response.data,
+        )
+        self.assertEqual(
+            create_response.data["waybillNumber"],
+            "WB-00001",
+        )
+        self.assertEqual(Waybill.objects.count(), 1)
+
+        update_response = self.client.patch(
+            waybill_url,
+            {
+                "status": "delivered",
+                "driverName": "Updated Driver",
+            },
+            format="json",
+        )
+        self.assertEqual(
+            update_response.status_code,
+            status.HTTP_200_OK,
+            update_response.data,
+        )
+        self.assertEqual(
+            update_response.data["waybillNumber"],
+            "WB-00001",
+        )
+        self.assertEqual(update_response.data["status"], "delivered")
+        self.assertEqual(
+            update_response.data["driverName"],
+            "Updated Driver",
+        )
+        self.assertEqual(Waybill.objects.count(), 1)
+
+        detail_response = self.client.get(
+            f"/api/businesses/{self.business.id}/sales/{sale_id}/"
+        )
+        self.assertEqual(
+            detail_response.status_code,
+            status.HTTP_200_OK,
+            detail_response.data,
+        )
+        self.assertEqual(
+            detail_response.data["waybill"]["waybillNumber"],
+            "WB-00001",
+        )
+        self.assertEqual(
+            detail_response.data["waybill"]["status"],
+            "delivered",
+        )
+
+        list_response = self.client.get(self.sales_url)
+        self.assertEqual(
+            list_response.status_code,
+            status.HTTP_200_OK,
+            list_response.data,
+        )
+        stored_sale = next(
+            item
+            for item in list_response.data
+            if str(item["id"]) == str(sale_id)
+        )
+        self.assertEqual(
+            stored_sale["waybill"]["waybillNumber"],
+            "WB-00001",
+        )
+
+    def test_waybill_requires_complete_delivery_details(self):
+        # Invalid delivery documents must not create partial records.
+        self.authenticate(self.owner)
+        sale_response = self.client.post(
+            self.sales_url,
+            self.cash_sale_payload(),
+            format="json",
+            **self.idempotency_headers("waybill-invalid-sale-001"),
+        )
+        self.assertEqual(
+            sale_response.status_code,
+            status.HTTP_201_CREATED,
+            sale_response.data,
+        )
+
+        response = self.client.post(
+            (
+                f"/api/businesses/{self.business.id}/sales/"
+                f"{sale_response.data['id']}/waybill/"
+            ),
+            {
+                "recipientName": "Ama Serwaa",
+                "dispatchDate": "2026-07-30",
+                "status": "pending",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(Waybill.objects.count(), 0)
+
+    def test_waybill_cannot_cross_business_boundaries(self):
+        # A sale from one business cannot receive another business's waybill.
+        self.authenticate(self.owner)
+        sale_response = self.client.post(
+            self.sales_url,
+            self.cash_sale_payload(),
+            format="json",
+            **self.idempotency_headers("waybill-isolation-sale-001"),
+        )
+        self.assertEqual(
+            sale_response.status_code,
+            status.HTTP_201_CREATED,
+            sale_response.data,
+        )
+
+        response = self.client.post(
+            (
+                f"/api/businesses/{self.other_business.id}/sales/"
+                f"{sale_response.data['id']}/waybill/"
+            ),
+            {
+                "recipientName": "Ama Serwaa",
+                "recipientPhone": "0241234567",
+                "deliveryAddress": "Adenta, Accra",
+                "dispatchDate": "2026-07-30",
+                "status": "pending",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(Waybill.objects.count(), 0)

@@ -20,6 +20,7 @@ class DocumentSequence(models.Model):
     next_sale_number = models.PositiveBigIntegerField(default=1)
     next_invoice_number = models.PositiveBigIntegerField(default=1)
     next_receipt_number = models.PositiveBigIntegerField(default=1)
+    next_waybill_number = models.PositiveBigIntegerField(default=1)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -539,3 +540,95 @@ class Payment(models.Model):
             f"{self.get_method_display()} payment "
             f"{self.amount} ({self.get_status_display()})"
         )
+
+
+class Waybill(models.Model):
+    # Stores one persistent delivery document for a completed sale.
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        DISPATCHED = "dispatched", "Dispatched"
+        DELIVERED = "delivered", "Delivered"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="waybills",
+    )
+    sale = models.OneToOneField(
+        Sale,
+        on_delete=models.CASCADE,
+        related_name="waybill",
+    )
+    waybill_number = models.CharField(max_length=40)
+    recipient_name = models.CharField(max_length=180)
+    recipient_phone = models.CharField(max_length=30, blank=True)
+    delivery_address = models.TextField()
+    dispatch_date = models.DateField()
+    driver_name = models.CharField(max_length=180, blank=True)
+    vehicle_number = models.CharField(max_length=80, blank=True)
+    delivery_notes = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    created_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        related_name="created_waybills",
+        blank=True,
+        null=True,
+    )
+    created_by_name = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "waybill_number"),
+                name="unique_waybill_number_per_business",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "created_at")),
+            models.Index(fields=("business", "status")),
+            models.Index(fields=("business", "dispatch_date")),
+        ]
+
+    def clean(self):
+        # Prevents a waybill from crossing business boundaries.
+        errors = {}
+
+        if (
+            self.sale_id
+            and self.business_id
+            and self.sale.business_id != self.business_id
+        ):
+            errors["sale"] = (
+                "The selected sale does not belong to this business."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        # Keeps a readable creator snapshot without exposing credentials.
+        if self.created_by_id:
+            self.created_by_name = (
+                self.created_by.full_name
+                or self.created_by.email
+            )
+
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.waybill_number} - {self.sale.sale_number}"

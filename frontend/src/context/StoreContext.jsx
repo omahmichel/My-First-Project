@@ -1033,29 +1033,21 @@ export function StoreProvider({ children }) {
     return nextPayment;
   }
 
-  // Creates or updates one waybill for the complete multi-item sale.
-  function saveWaybill(saleId, details = {}) {
-    const selectedSale = currentSales.find((sale) => sale.id === saleId);
+  // Creates or updates one persistent waybill through Django.
+  async function saveWaybill(saleId, details = {}) {
+    const selectedSale = currentSales.find(
+      (sale) => String(sale.id) === String(saleId),
+    );
 
     if (!selectedSale) {
       throw new Error("Sale not found in this business.");
     }
 
-    const existingWaybillNumber = selectedSale.waybill?.waybillNumber;
-    const waybillSequence =
-      currentSales.filter((sale) => sale.waybill?.waybillNumber).length + 101;
-    const waybillNumber =
-      existingWaybillNumber ||
-      `${business.waybillPrefix || "WB"}-${String(waybillSequence).padStart(
-        5,
-        "0",
-      )}`;
-
-    const waybill = {
-      waybillNumber,
+    const payload = {
       recipientName:
-        String(details.recipientName || selectedSale.customerName || "").trim() ||
-        "Walk-in customer",
+        String(
+          details.recipientName || selectedSale.customerName || "",
+        ).trim() || "Walk-in customer",
       recipientPhone: String(details.recipientPhone || "").trim(),
       deliveryAddress: String(details.deliveryAddress || "").trim(),
       dispatchDate:
@@ -1064,13 +1056,23 @@ export function StoreProvider({ children }) {
       vehicleNumber: String(details.vehicleNumber || "").trim(),
       deliveryNotes: String(details.deliveryNotes || "").trim(),
       status: details.status || "pending",
-      createdAt: selectedSale.waybill?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
+
+    if (!payload.deliveryAddress) {
+      throw new Error("Enter the delivery address.");
+    }
+
+    const waybill = await apiRequest(
+      `/businesses/${business.id}/sales/${saleId}/waybill/`,
+      {
+        method: selectedSale.waybill ? "PUT" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
     setSales((current) =>
       current.map((sale) =>
-        sale.id === saleId
+        String(sale.id) === String(saleId)
           ? {
               ...sale,
               waybill,

@@ -1,4 +1,4 @@
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -7,12 +7,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from businesses.models import Business, BusinessMembership
-from .models import Payment, Sale
+from .models import DocumentSequence, Payment, Sale, Waybill
 from .serializers import (
     CreateSaleSerializer,
     DebtPaymentSerializer,
     PaymentSerializer,
     SaleSerializer,
+    WaybillSerializer,
+    WaybillUpsertSerializer,
 )
 from .services import (
     create_completed_sale,
@@ -98,7 +100,7 @@ class BusinessSaleAccessMixin:
                 "business",
                 "customer",
                 "cashier",
-            ).prefetch_related("items", "payments"),
+            ).prefetch_related("items", "payments", "waybill"),
             pk=self.kwargs["sale_id"],
             business=business,
         )
@@ -127,7 +129,7 @@ class BusinessSaleListCreateAPIView(
                 "customer",
                 "cashier",
             )
-            .prefetch_related("items", "payments")
+            .prefetch_related("items", "payments", "waybill")
             .order_by("-created_at")
         )
 
@@ -180,7 +182,7 @@ class BusinessSaleListCreateAPIView(
                 "customer",
                 "cashier",
             )
-            .prefetch_related("items", "payments")
+            .prefetch_related("items", "payments", "waybill")
             .first()
         )
 
@@ -211,7 +213,7 @@ class BusinessSaleListCreateAPIView(
                     "business",
                     "customer",
                     "cashier",
-                ).prefetch_related("items", "payments"),
+                ).prefetch_related("items", "payments", "waybill"),
                 business=business,
                 idempotency_key=idempotency_key,
             )
@@ -256,6 +258,105 @@ class BusinessSaleDetailAPIView(
             ).data
         )
 
+
+
+class BusinessSaleWaybillAPIView(
+    BusinessSaleAccessMixin,
+    APIView,
+):
+    # Creates or updates one business-isolated waybill for a sale.
+
+    permission_classes = (IsAuthenticated,)
+
+    def _save_waybill(
+        self,
+        request,
+        business_id,
+        sale_id,
+        *,
+        partial=False,
+    ):
+        business, _, denied_response = self.require_sales_access()
+
+        if denied_response:
+            return denied_response
+
+        serializer = WaybillUpsertSerializer(
+            data=request.data,
+            partial=partial,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            sale = get_object_or_404(
+                Sale.objects.select_for_update(),
+                pk=sale_id,
+                business=business,
+            )
+            waybill = (
+                Waybill.objects.select_for_update()
+                .filter(
+                    business=business,
+                    sale=sale,
+                )
+                .first()
+            )
+            created = waybill is None
+
+            if created:
+                sequence, _ = (
+                    DocumentSequence.objects.select_for_update()
+                    .get_or_create(business=business)
+                )
+                prefix = (
+                    getattr(business, "waybill_prefix", "")
+                    or "WB"
+                )
+                waybill_number = (
+                    f"{prefix}-"
+                    f"{sequence.next_waybill_number:05d}"
+                )
+                sequence.next_waybill_number += 1
+                sequence.save(
+                    update_fields=(
+                        "next_waybill_number",
+                        "updated_at",
+                    )
+                )
+                waybill = Waybill(
+                    business=business,
+                    sale=sale,
+                    waybill_number=waybill_number,
+                    created_by=request.user,
+                )
+
+            for field, value in serializer.validated_data.items():
+                setattr(waybill, field, value)
+
+            waybill.save()
+
+        return Response(
+            WaybillSerializer(waybill).data,
+            status=(
+                status.HTTP_201_CREATED
+                if created
+                else status.HTTP_200_OK
+            ),
+        )
+
+    def post(self, request, business_id, sale_id):
+        return self._save_waybill(request, business_id, sale_id)
+
+    def put(self, request, business_id, sale_id):
+        return self._save_waybill(request, business_id, sale_id)
+
+    def patch(self, request, business_id, sale_id):
+        return self._save_waybill(
+            request,
+            business_id,
+            sale_id,
+            partial=True,
+        )
 
 
 class BusinessCustomerDebtPaymentAPIView(

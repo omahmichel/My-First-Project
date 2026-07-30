@@ -204,15 +204,18 @@ export default function CustomerPurchaseRecordsPage() {
     });
   }
 
-  function handleWaybillSubmit(event) {
+  async function handleWaybillSubmit(event) {
     event.preventDefault();
     setMessage("");
 
     try {
-      const waybill = saveWaybill(waybillSale.id, waybillForm);
+      const waybill = await saveWaybill(
+        waybillSale.id,
+        waybillForm,
+      );
 
       setSelectedSale((current) =>
-        current?.id === waybillSale.id
+        String(current?.id) === String(waybillSale.id)
           ? { ...current, waybill }
           : current,
       );
