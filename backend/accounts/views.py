@@ -3,7 +3,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 from .serializers import (
     LoginSerializer,
@@ -16,6 +19,7 @@ class RegisterAPIView(APIView):
     # Registers an account and returns JWT tokens immediately.
 
     permission_classes = (AllowAny,)
+    throttle_scope = "auth_register"
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -40,6 +44,14 @@ class LoginAPIView(TokenObtainPairView):
 
     permission_classes = (AllowAny,)
     serializer_class = LoginSerializer
+    throttle_scope = "auth_login"
+
+
+class RefreshAPIView(TokenRefreshView):
+    # Rotates refresh tokens while limiting automated refresh abuse.
+
+    permission_classes = (AllowAny,)
+    throttle_scope = "auth_refresh"
 
 
 class CurrentUserAPIView(APIView):
@@ -55,6 +67,7 @@ class LogoutAPIView(APIView):
     # Blacklists the submitted refresh token during logout.
 
     permission_classes = (IsAuthenticated,)
+    throttle_scope = "auth_logout"
 
     def post(self, request):
         refresh_token = request.data.get("refresh")

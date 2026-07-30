@@ -208,6 +208,21 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    # Limits anonymous and authenticated API abuse across StockFlow.
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    # Keeps authentication endpoints stricter than ordinary API traffic.
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.getenv("THROTTLE_RATE_ANON", "100/hour"),
+        "user": os.getenv("THROTTLE_RATE_USER", "1000/hour"),
+        "auth_login": os.getenv("THROTTLE_RATE_LOGIN", "10/min"),
+        "auth_register": os.getenv("THROTTLE_RATE_REGISTER", "5/hour"),
+        "auth_refresh": os.getenv("THROTTLE_RATE_REFRESH", "30/min"),
+        "auth_logout": os.getenv("THROTTLE_RATE_LOGOUT", "20/min"),
+    },
 }
 
 # Keeps access tokens short-lived while allowing secure refresh rotation.
