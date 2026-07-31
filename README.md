@@ -49,11 +49,13 @@ Branches:
 
 Active development branch: `development`
 
-Latest verified development commit at this handoff:
+Documentation baseline commit:
 
 ```text
-e494522 Add environment-controlled production security settings
+3e4217a Update StockFlow project documentation
 ```
+
+This commit records the verified project state when the handoff documentation was created.
 
 Do not switch branches unless it is genuinely necessary.
 

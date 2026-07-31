@@ -22,8 +22,8 @@ Currency: Ghana cedis only — GHS / GH₵ / ₵
 GIT STATE
 Repository: https://github.com/omahmichel/My-First-Project
 Active branch: development
-Latest verified pushed commit:
-e494522 Add environment-controlled production security settings
+Documentation baseline commit:
+3e4217a Update StockFlow project documentation
 
 CURRENT VERIFIED FEATURES
 - Real registration and login
@@ -97,7 +97,7 @@ WORKING METHOD
 
 CURRENT DOCUMENTATION UPDATE
 README.md and START_HERE.txt have been updated in the working tree to reflect the verified project state.
-Neither documentation change has been committed yet.
+The documentation update was committed and pushed in commit 3e4217a.
 
 DEFERRED ARCHITECTURE ITEMS
 The following were inspected but intentionally not implemented:
