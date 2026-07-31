@@ -32,8 +32,8 @@ Open the URL shown by Vite, normally `http://localhost:5173`.
 - Invoice preview and printing
 - Customer debt and repayments
 - Reports, staff roles and business settings
-- Browser local storage for temporary demo persistence
+- Real Django API persistence for business, inventory, customer and sales records
 
 ## Architecture note
 
-`src/services/api.js` is reserved for the future Django REST Framework backend. The current demo data layer is isolated in `src/context/StoreContext.jsx` and `src/services/storage.js`, which makes the backend integration safer and more controlled.
+`src/services/api.js` connects the frontend to the live Django REST Framework backend. `src/context/StoreContext.jsx` manages application state using real API records, while `src/services/storage.js` stores only lightweight browser state such as the selected business and cached account details.
