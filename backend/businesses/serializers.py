@@ -1,6 +1,8 @@
+import math
 import uuid
 
 from django.db import transaction
+from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import serializers
 
@@ -20,6 +22,23 @@ class BusinessSerializer(serializers.ModelSerializer):
     )
     current_user_role = serializers.SerializerMethodField()
     active_team_members = serializers.SerializerMethodField()
+    isTrialActive = serializers.BooleanField(
+        source="is_trial_active",
+        read_only=True,
+    )
+    hasActiveSubscription = serializers.BooleanField(
+        source="has_active_subscription",
+        read_only=True,
+    )
+    subscriptionReminderDue = serializers.BooleanField(
+        source="subscription_reminder_due",
+        read_only=True,
+    )
+    hasSystemAccess = serializers.BooleanField(
+        source="has_system_access",
+        read_only=True,
+    )
+    trialDaysRemaining = serializers.SerializerMethodField()
     invoicePrefix = serializers.RegexField(
         source="invoice_prefix",
         regex=r"^[A-Za-z0-9-]+$",
@@ -64,6 +83,16 @@ class BusinessSerializer(serializers.ModelSerializer):
             "owner_email",
             "current_user_role",
             "active_team_members",
+            "trial_started_at",
+            "trial_ends_at",
+            "trialDaysRemaining",
+            "subscription_status",
+            "subscription_started_at",
+            "subscription_ends_at",
+            "isTrialActive",
+            "hasActiveSubscription",
+            "subscriptionReminderDue",
+            "hasSystemAccess",
             "created_at",
             "updated_at",
         )
@@ -74,6 +103,16 @@ class BusinessSerializer(serializers.ModelSerializer):
             "owner_email",
             "current_user_role",
             "active_team_members",
+            "trial_started_at",
+            "trial_ends_at",
+            "trialDaysRemaining",
+            "subscription_status",
+            "subscription_started_at",
+            "subscription_ends_at",
+            "isTrialActive",
+            "hasActiveSubscription",
+            "subscriptionReminderDue",
+            "hasSystemAccess",
             "created_at",
             "updated_at",
         )
@@ -106,6 +145,13 @@ class BusinessSerializer(serializers.ModelSerializer):
     def get_active_team_members(self, obj):
         # Counts active memberships without exposing private team details.
         return obj.memberships.filter(is_active=True).count()
+
+    def get_trialDaysRemaining(self, obj):
+        # Returns whole calendar-style days without exposing negative values.
+        remaining_seconds = (
+            obj.trial_ends_at - timezone.now()
+        ).total_seconds()
+        return max(0, math.ceil(remaining_seconds / 86400))
 
     def _generate_unique_slug(self, business_name):
         # Builds a readable slug and adds a suffix only when necessary.

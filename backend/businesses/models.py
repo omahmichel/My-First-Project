@@ -1,8 +1,15 @@
+from datetime import timedelta
 import uuid
 
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
+
+
+def default_trial_ends_at():
+    # Sets a new business trial expiry exactly 60 days after creation.
+    return timezone.now() + timedelta(days=60)
 
 
 document_prefix_validator = RegexValidator(
@@ -28,6 +35,12 @@ class Business(models.Model):
         ACTIVE = "active", "Active"
         INACTIVE = "inactive", "Inactive"
 
+    class SubscriptionStatus(models.TextChoices):
+        TRIAL = "trial", "Free trial"
+        ACTIVE = "active", "Active"
+        EXPIRED = "expired", "Expired"
+        CANCELLED = "cancelled", "Cancelled"
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -47,6 +60,17 @@ class Business(models.Model):
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
     location = models.CharField(max_length=255, blank=True)
+
+    # Starts every new business on a 60-day free trial.
+    trial_started_at = models.DateTimeField(default=timezone.now)
+    trial_ends_at = models.DateTimeField(default=default_trial_ends_at)
+    subscription_status = models.CharField(
+        max_length=20,
+        choices=SubscriptionStatus.choices,
+        default=SubscriptionStatus.TRIAL,
+    )
+    subscription_started_at = models.DateTimeField(blank=True, null=True)
+    subscription_ends_at = models.DateTimeField(blank=True, null=True)
 
     # Controls the business-specific numbers shown on invoices and receipts.
     invoice_prefix = models.CharField(
@@ -74,6 +98,38 @@ class Business(models.Model):
             models.Index(fields=("owner", "status")),
             models.Index(fields=("business_type", "status")),
         ]
+
+    @property
+    def has_active_subscription(self):
+        # Grants paid access only while the verified subscription is current.
+        return bool(
+            self.subscription_status == self.SubscriptionStatus.ACTIVE
+            and self.subscription_ends_at
+            and self.subscription_ends_at > timezone.now()
+        )
+
+    @property
+    def is_trial_active(self):
+        # Keeps free access available until the full 60-day trial ends.
+        return bool(
+            self.subscription_status == self.SubscriptionStatus.TRIAL
+            and self.trial_ends_at > timezone.now()
+        )
+
+    @property
+    def subscription_reminder_due(self):
+        # Starts reminders 15 days before the 60-day trial expires.
+        reminder_starts_at = self.trial_ends_at - timedelta(days=15)
+        now = timezone.now()
+        return bool(
+            self.is_trial_active
+            and reminder_starts_at <= now < self.trial_ends_at
+        )
+
+    @property
+    def has_system_access(self):
+        # Allows access during the trial or an active paid subscription.
+        return self.is_trial_active or self.has_active_subscription
 
     def __str__(self):
         return self.name
