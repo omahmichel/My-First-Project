@@ -1,23 +1,109 @@
-MICRO INVENTORY & INVOICE GENERATOR — FRONTEND DELIVERY
+STOCKFLOW — CURRENT PROJECT HANDOFF
 
-1. Extract the ZIP file.
-2. Open the micro_inventory_invoice_generator folder in VS Code.
-3. Open a VS Code terminal.
-4. Run:
+PROJECT NAME
+StockFlow, also called the Micro Inventory & Invoice Generator.
 
-   cd frontend
-   npm install
-   npm run dev
+PROJECT ROOT
+C:\Users\omahm\OneDrive\Documents\Attachments\Desktop\micro_inventory_invoice_generator
 
-5. Open the Vite address shown in the terminal.
+BACKEND
+C:\Users\omahm\OneDrive\Documents\Attachments\Desktop\micro_inventory_invoice_generator\backend
 
-DEMO LOGIN
-Email: owner@stockflow.demo
-Password: password123
+FRONTEND
+C:\Users\omahm\OneDrive\Documents\Attachments\Desktop\micro_inventory_invoice_generator\frontend
 
-STANDALONE LANDING PAGE
-Open landing-page-static/index.html directly in your browser.
+CURRENT STACK
+Frontend: React 18 + Vite
+Backend: Django 6.0.7 + Django REST Framework
+Authentication: SimpleJWT with refresh-token rotation and blacklisting
+Development database: SQLite
+Currency: Ghana cedis only — GHS / GH₵ / ₵
+
+GIT STATE
+Repository: https://github.com/omahmichel/My-First-Project
+Active branch: development
+Latest verified pushed commit:
+e494522 Add environment-controlled production security settings
+
+CURRENT VERIFIED FEATURES
+- Real registration and login
+- Automatic access-token refresh
+- Logout with refresh-token blacklisting
+- Business workspace isolation
+- Building-materials and boutique business types
+- Real inventory APIs
+- Tile-specific product fields
+- Stock adjustments and stock movements
+- Real customer records
+- Debt-payment recording
+- Real sales checkout
+- Idempotency protection for sales
+- Invoices and receipts
+- Persistent waybills
+- Customer purchase records
+- Reports and statement exports
+- Team-member creation and removal
+- Owner and cashier permissions
+- Business settings
+- Real onboarding and business creation
+- API authentication rate limiting
+- Environment-controlled production security settings
+- Backend dependency file at backend\requirements.txt
 
 IMPORTANT
-The frontend currently uses browser local storage as a temporary demo database.
-The Django backend will be connected in the next project phase through src/services/api.js.
+The project no longer uses frontend seed data or browser local storage as a fake business database.
+There is no demo login. Use a real StockFlow account.
+Never share backend\.env.
+Do not switch branches unless genuinely necessary.
+Preserve all existing working features.
+
+RUN THE BACKEND
+Open Windows CMD in the backend folder and run:
+
+venv\Scripts\activate
+python manage.py runserver
+
+Backend URL:
+http://127.0.0.1:8000/
+
+RUN THE FRONTEND
+Open a second Windows CMD in the frontend folder and run:
+
+npm run dev
+
+Frontend URL:
+http://localhost:5173/
+
+VERIFICATION RULES
+After backend changes:
+python manage.py check
+python manage.py test
+
+After frontend changes:
+npm --prefix ..\frontend run build
+
+Before committing:
+git --no-pager status --short && git --no-pager diff --check && git --no-pager diff --stat
+
+WORKING METHOD
+- Use Windows CMD.
+- Give only one controlled step at a time.
+- State the exact folder and exact command.
+- Wait for the complete terminal output.
+- Back up files before modifying them.
+- Add short, precise comments to new or modified code.
+- Do not claim something works until terminal or browser verification confirms it.
+- Do not rewrite large files unnecessarily.
+
+CURRENT DOCUMENTATION UPDATE
+README.md and START_HERE.txt have been updated in the working tree to reflect the verified project state.
+Neither documentation change has been committed yet.
+
+DEFERRED ARCHITECTURE ITEMS
+The following were inspected but intentionally not implemented:
+- HttpOnly-cookie migration for refresh tokens
+- Backend pagination for business collections
+- Frontend Content Security Policy enforcement
+- Final production hosting and domain configuration
+
+These require coordinated decisions and must not be implemented casually.
