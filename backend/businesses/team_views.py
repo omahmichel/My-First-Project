@@ -2,14 +2,14 @@ import secrets
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Business, BusinessMembership
+from .access import get_business_and_role_for_user
+from .models import BusinessMembership
 from .team_serializers import (
     TeamMemberCreateSerializer,
     TeamMemberSerializer,
@@ -22,28 +22,16 @@ class BusinessTeamAccessMixin:
     # Resolves only businesses the requester is allowed to manage.
 
     def get_manageable_business(self):
-        user = self.request.user
-
-        queryset = (
-            Business.objects.filter(
-                Q(owner=user)
-                | Q(
-                    memberships__user=user,
-                    memberships__is_active=True,
-                    memberships__role__in=(
-                        BusinessMembership.Role.OWNER,
-                        BusinessMembership.Role.MANAGER,
-                    ),
-                )
-            )
-            .select_related("owner")
-            .distinct()
+        business, _ = get_business_and_role_for_user(
+            user=self.request.user,
+            business_id=self.kwargs["business_id"],
+            membership_roles=(
+                BusinessMembership.Role.OWNER,
+                BusinessMembership.Role.MANAGER,
+            ),
+            active_only=False,
         )
-
-        return get_object_or_404(
-            queryset,
-            pk=self.kwargs["business_id"],
-        )
+        return business
 
     def requester_is_owner(self, business):
         # Treats the database owner field as the final ownership authority.

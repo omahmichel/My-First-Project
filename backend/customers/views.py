@@ -1,11 +1,11 @@
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from businesses.models import Business, BusinessMembership
+from businesses.access import get_business_and_role_for_user
+from businesses.models import BusinessMembership
 from .models import Customer
 from .serializers import CustomerSerializer
 
@@ -17,34 +17,10 @@ class BusinessCustomerAccessMixin:
         if hasattr(self, "_business_and_role"):
             return self._business_and_role
 
-        user = self.request.user
-
-        business = get_object_or_404(
-            Business.objects.filter(
-                Q(owner=user)
-                | Q(
-                    memberships__user=user,
-                    memberships__is_active=True,
-                )
-            )
-            .select_related("owner")
-            .distinct(),
-            pk=self.kwargs["business_id"],
-            status=Business.Status.ACTIVE,
+        self._business_and_role = get_business_and_role_for_user(
+            user=self.request.user,
+            business_id=self.kwargs["business_id"],
         )
-
-        if business.owner_id == user.id:
-            role = BusinessMembership.Role.OWNER
-        else:
-            membership = get_object_or_404(
-                BusinessMembership,
-                business=business,
-                user=user,
-                is_active=True,
-            )
-            role = membership.role
-
-        self._business_and_role = (business, role)
         return self._business_and_role
 
     def require_customer_write_access(self):
