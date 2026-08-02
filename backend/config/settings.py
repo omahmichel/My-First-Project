@@ -16,13 +16,13 @@ from pathlib import Path
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
-from dotenv import load_dotenv
+from config.secure_env import load_backend_environment
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Loads development secrets locally and deployment variables in production.
-load_dotenv(BASE_DIR / ".env")
+# Loads encrypted local secrets or protected deployment variables.
+load_backend_environment(BASE_DIR)
 
 
 def get_required_env(name):
