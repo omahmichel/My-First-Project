@@ -1,6 +1,10 @@
 from django.contrib import admin
 
-from .models import Business, BusinessMembership
+from .models import (
+    Business,
+    BusinessMembership,
+    SubscriptionPayment,
+)
 
 
 class BusinessMembershipInline(admin.TabularInline):
@@ -151,3 +155,71 @@ class BusinessMembershipAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+
+@admin.register(SubscriptionPayment)
+class SubscriptionPaymentAdmin(admin.ModelAdmin):
+    """Provides a read-only audit trail for subscription payments."""
+
+    list_display = (
+        "business",
+        "amount",
+        "currency",
+        "status",
+        "gateway",
+        "reference",
+        "fulfilled_at",
+        "created_at",
+    )
+    list_filter = (
+        "status",
+        "gateway",
+        "currency",
+        "created_at",
+    )
+    search_fields = (
+        "reference",
+        "provider_transaction_id",
+        "business__name",
+        "initiated_by_email",
+        "initiated_by_name",
+    )
+    ordering = ("-created_at",)
+    autocomplete_fields = (
+        "business",
+        "initiated_by",
+    )
+    readonly_fields = (
+        "id",
+        "business",
+        "initiated_by",
+        "initiated_by_email",
+        "initiated_by_name",
+        "amount",
+        "amount_subunit",
+        "currency",
+        "duration_days",
+        "gateway",
+        "reference",
+        "provider_transaction_id",
+        "provider_status",
+        "channel",
+        "authorization_url",
+        "access_code",
+        "status",
+        "failure_reason",
+        "provider_response",
+        "paid_at",
+        "verified_at",
+        "fulfilled_at",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        # Prevents administrators from fabricating payment attempts.
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Keeps the payment audit trail immutable.
+        return False

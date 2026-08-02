@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 import uuid
 
 from django.conf import settings
@@ -10,6 +11,12 @@ from django.utils import timezone
 def default_trial_ends_at():
     # Sets a new business trial expiry exactly 60 days after creation.
     return timezone.now() + timedelta(days=60)
+
+
+def generate_subscription_payment_reference():
+    # Creates a unique Paystack-safe reference without business details.
+    timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+    return f"STF-{timestamp}-{uuid.uuid4().hex[:12].upper()}"
 
 
 document_prefix_validator = RegexValidator(
@@ -190,4 +197,119 @@ class BusinessMembership(models.Model):
         return (
             f"{self.user.email} - "
             f"{self.business.name} ({self.get_role_display()})"
+        )
+
+
+class SubscriptionPayment(models.Model):
+    """Audits one owner-initiated StockFlow subscription payment."""
+
+    class Gateway(models.TextChoices):
+        PAYSTACK = "paystack", "Paystack"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCESSFUL = "successful", "Successful"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="subscription_payments",
+    )
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="initiated_subscription_payments",
+        blank=True,
+        null=True,
+    )
+    initiated_by_email = models.EmailField()
+    initiated_by_name = models.CharField(max_length=150)
+
+    # Stores the exact commercial terms used for this payment attempt.
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("99.00"),
+    )
+    amount_subunit = models.PositiveIntegerField(default=9900)
+    currency = models.CharField(max_length=3, default="GHS")
+    duration_days = models.PositiveSmallIntegerField(default=40)
+
+    gateway = models.CharField(
+        max_length=30,
+        choices=Gateway.choices,
+        default=Gateway.PAYSTACK,
+    )
+    reference = models.CharField(
+        max_length=80,
+        unique=True,
+        default=generate_subscription_payment_reference,
+        editable=False,
+    )
+    provider_transaction_id = models.CharField(
+        max_length=80,
+        blank=True,
+    )
+    provider_status = models.CharField(max_length=40, blank=True)
+    channel = models.CharField(max_length=40, blank=True)
+    authorization_url = models.URLField(max_length=500, blank=True)
+    access_code = models.CharField(max_length=160, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    failure_reason = models.TextField(blank=True)
+    provider_response = models.JSONField(default=dict, blank=True)
+
+    paid_at = models.DateTimeField(blank=True, null=True)
+    verified_at = models.DateTimeField(blank=True, null=True)
+    fulfilled_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0),
+                name="subscription_payment_amount_above_zero",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(amount_subunit__gt=0),
+                name="subscription_payment_subunit_above_zero",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(duration_days__gt=0),
+                name="subscription_payment_duration_above_zero",
+            ),
+            models.UniqueConstraint(
+                fields=("gateway", "provider_transaction_id"),
+                condition=~models.Q(provider_transaction_id=""),
+                name="unique_subscription_provider_transaction",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "status")),
+            models.Index(fields=("business", "created_at")),
+            models.Index(fields=("status", "created_at")),
+        ]
+
+    @property
+    def is_fulfilled(self):
+        # Treats fulfillment time as the source of truth for value delivery.
+        return self.fulfilled_at is not None
+
+    def __str__(self):
+        return (
+            f"{self.business.name} - "
+            f"{self.currency} {self.amount} - {self.status}"
         )
