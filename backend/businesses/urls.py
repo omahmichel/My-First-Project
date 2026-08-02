@@ -1,6 +1,11 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from .subscription_views import (
+    PaystackWebhookAPIView,
+    SubscriptionPaymentInitializeAPIView,
+    SubscriptionPaymentVerifyAPIView,
+)
 from .team_views import (
     BusinessTeamDeleteAPIView,
     BusinessTeamListCreateAPIView,
@@ -12,6 +17,27 @@ router = DefaultRouter()
 router.register("businesses", BusinessViewSet, basename="business")
 
 urlpatterns = [
+    path(
+        "payments/paystack/webhook/",
+        PaystackWebhookAPIView.as_view(),
+        name="paystack-webhook",
+    ),
+    path(
+        (
+            "businesses/<uuid:business_id>/"
+            "subscription/payments/initialize/"
+        ),
+        SubscriptionPaymentInitializeAPIView.as_view(),
+        name="subscription-payment-initialize",
+    ),
+    path(
+        (
+            "businesses/<uuid:business_id>/"
+            "subscription/payments/<str:reference>/verify/"
+        ),
+        SubscriptionPaymentVerifyAPIView.as_view(),
+        name="subscription-payment-verify",
+    ),
     path(
         "businesses/<uuid:business_id>/team/",
         BusinessTeamListCreateAPIView.as_view(),

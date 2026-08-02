@@ -85,8 +85,8 @@ PAYMENT_GATEWAY_PUBLIC_KEY = os.getenv(
     "PAYMENT_GATEWAY_PUBLIC_KEY",
     "",
 ).strip()
-PAYMENT_WEBHOOK_SECRET = os.getenv(
-    "PAYMENT_WEBHOOK_SECRET",
+PAYMENT_CALLBACK_URL = os.getenv(
+    "PAYMENT_CALLBACK_URL",
     "",
 ).strip()
 
@@ -249,6 +249,18 @@ REST_FRAMEWORK = {
         "auth_register": os.getenv("THROTTLE_RATE_REGISTER", "5/hour"),
         "auth_refresh": os.getenv("THROTTLE_RATE_REFRESH", "30/min"),
         "auth_logout": os.getenv("THROTTLE_RATE_LOGOUT", "20/min"),
+        "subscription_payment_initialize": os.getenv(
+            "THROTTLE_RATE_SUBSCRIPTION_PAYMENT_INITIALIZE",
+            "10/min",
+        ),
+        "subscription_payment_verify": os.getenv(
+            "THROTTLE_RATE_SUBSCRIPTION_PAYMENT_VERIFY",
+            "30/min",
+        ),
+        "paystack_webhook": os.getenv(
+            "THROTTLE_RATE_PAYSTACK_WEBHOOK",
+            "300/min",
+        ),
     },
 }
 
