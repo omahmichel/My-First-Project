@@ -76,6 +76,133 @@ class PaystackClientTests(SimpleTestCase):
             },
         )
 
+    def test_create_mobile_money_charge_sends_ghana_payload(self):
+        # The backend controls the amount, reference, number and provider.
+        self.session.request.return_value = self.build_response(
+            {
+                "status": True,
+                "message": "Charge attempted",
+                "data": {
+                    "reference": "STF-MOMO-001",
+                    "status": "pay_offline",
+                    "display_text": (
+                        "Please complete authorization process "
+                        "on your mobile phone"
+                    ),
+                },
+            }
+        )
+
+        data = self.client.create_mobile_money_charge(
+            email="customer@stockflow.test",
+            amount_subunit=12500,
+            reference="STF-MOMO-001",
+            phone="0551234987",
+            provider="MTN",
+            currency="GHS",
+            metadata={
+                "business_id": "business-123",
+                "payment_id": "payment-123",
+            },
+        )
+
+        self.assertEqual(data["status"], "pay_offline")
+        self.session.request.assert_called_once_with(
+            "POST",
+            "https://api.paystack.co/charge",
+            headers={
+                "Authorization": "Bearer sk_test_stockflow",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            timeout=(5, 20),
+            json={
+                "email": "customer@stockflow.test",
+                "amount": 12500,
+                "reference": "STF-MOMO-001",
+                "currency": "GHS",
+                "mobile_money": {
+                    "phone": "0551234987",
+                    "provider": "mtn",
+                },
+                "metadata": {
+                    "business_id": "business-123",
+                    "payment_id": "payment-123",
+                },
+            },
+        )
+
+    def test_mobile_money_charge_rejects_unsupported_provider(self):
+        # Only Paystack's Ghana provider codes are accepted locally.
+        with self.assertRaises(ValueError) as context:
+            self.client.create_mobile_money_charge(
+                email="customer@stockflow.test",
+                amount_subunit=100,
+                reference="STF-MOMO-002",
+                phone="0551234987",
+                provider="unsupported",
+            )
+
+        self.assertEqual(
+            str(context.exception),
+            "The Mobile Money provider is not supported in Ghana.",
+        )
+        self.session.request.assert_not_called()
+
+    def test_incomplete_mobile_money_response_is_rejected(self):
+        # StockFlow cannot track a prompt without its status and message.
+        self.session.request.return_value = self.build_response(
+            {
+                "status": True,
+                "message": "Charge attempted",
+                "data": {
+                    "reference": "STF-MOMO-003",
+                },
+            }
+        )
+
+        with self.assertRaises(PaystackRequestError) as context:
+            self.client.create_mobile_money_charge(
+                email="customer@stockflow.test",
+                amount_subunit=100,
+                reference="STF-MOMO-003",
+                phone="0551234987",
+                provider="mtn",
+            )
+
+        self.assertEqual(
+            context.exception.code,
+            "paystack_invalid_response",
+        )
+
+    def test_mobile_money_reference_mismatch_is_rejected(self):
+        # A gateway response cannot be attached to another local payment.
+        self.session.request.return_value = self.build_response(
+            {
+                "status": True,
+                "message": "Charge attempted",
+                "data": {
+                    "reference": "WRONG-REFERENCE",
+                    "status": "pay_offline",
+                    "display_text": "Approve the payment on your phone.",
+                },
+            }
+        )
+
+        with self.assertRaises(PaystackRequestError) as context:
+            self.client.create_mobile_money_charge(
+                email="customer@stockflow.test",
+                amount_subunit=100,
+                reference="STF-MOMO-004",
+                phone="0551234987",
+                provider="mtn",
+            )
+
+        self.assertEqual(
+            context.exception.code,
+            "paystack_invalid_response",
+        )
+
     def test_verify_transaction_encodes_reference(self):
         # Special characters cannot alter the Paystack verification path.
         self.session.request.return_value = self.build_response(

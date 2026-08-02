@@ -34,6 +34,15 @@ class PaystackClient:
     base_url = "https://api.paystack.co"
     timeout = (5, 20)
 
+    # Paystack provider codes supported for Ghana Mobile Money charges.
+    ghana_mobile_money_providers = frozenset(
+        {
+            "mtn",
+            "atl",
+            "vod",
+        }
+    )
+
     def __init__(self, *, session=None, secret_key=None):
         # Refuses to run against an unintended payment provider.
         gateway = settings.PAYMENT_GATEWAY
@@ -120,6 +129,80 @@ class PaystackClient:
         if missing_fields:
             raise PaystackRequestError(
                 "Paystack returned an incomplete initialization response.",
+                code="paystack_invalid_response",
+            )
+
+        return data
+
+    def create_mobile_money_charge(
+        self,
+        *,
+        email,
+        amount_subunit,
+        reference,
+        phone,
+        provider,
+        currency="GHS",
+        metadata=None,
+    ):
+        # Initiates one Ghana Mobile Money prompt using server values.
+        if not email:
+            raise ValueError("A customer email address is required.")
+
+        if not isinstance(amount_subunit, int) or amount_subunit <= 0:
+            raise ValueError(
+                "The payment amount must be a positive integer."
+            )
+
+        if not reference:
+            raise ValueError("A payment reference is required.")
+
+        normalized_phone = str(phone or "").strip()
+        normalized_provider = str(provider or "").strip().lower()
+
+        if not normalized_phone:
+            raise ValueError(
+                "A customer Mobile Money number is required."
+            )
+
+        if normalized_provider not in self.ghana_mobile_money_providers:
+            raise ValueError(
+                "The Mobile Money provider is not supported in Ghana."
+            )
+
+        payload = {
+            "email": email,
+            "amount": amount_subunit,
+            "reference": reference,
+            "currency": currency,
+            "mobile_money": {
+                "phone": normalized_phone,
+                "provider": normalized_provider,
+            },
+        }
+
+        if metadata:
+            payload["metadata"] = metadata
+
+        data = self._request(
+            "POST",
+            "/charge",
+            json=payload,
+        )
+
+        # A prompt cannot continue without its reference and current state.
+        required_fields = (
+            "reference",
+            "status",
+            "display_text",
+        )
+        missing_fields = [
+            field for field in required_fields if not data.get(field)
+        ]
+
+        if missing_fields or data["reference"] != reference:
+            raise PaystackRequestError(
+                "Paystack returned an incomplete Mobile Money response.",
                 code="paystack_invalid_response",
             )
 
