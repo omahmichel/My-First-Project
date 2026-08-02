@@ -52,6 +52,28 @@ def get_env_bool(name, default=False):
     }
 
 
+def get_env_positive_int(name, default):
+    # Reads a strictly positive integer from an environment variable.
+    raw_value = os.getenv(name)
+
+    if raw_value is None or not raw_value.strip():
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ImproperlyConfigured(
+            f"The environment variable {name} must be a positive integer."
+        ) from exc
+
+    if value <= 0:
+        raise ImproperlyConfigured(
+            f"The environment variable {name} must be a positive integer."
+        )
+
+    return value
+
+
 def get_env_list(name, default=""):
     # Converts a comma-separated environment variable into a clean list.
     return [
@@ -89,6 +111,12 @@ PAYMENT_CALLBACK_URL = os.getenv(
     "PAYMENT_CALLBACK_URL",
     "",
 ).strip()
+
+# Keeps stock reserved briefly while a Mobile Money prompt is pending.
+MOBILE_MONEY_RESERVATION_MINUTES = get_env_positive_int(
+    "MOBILE_MONEY_RESERVATION_MINUTES",
+    default=5,
+)
 
 
 # Application definition
