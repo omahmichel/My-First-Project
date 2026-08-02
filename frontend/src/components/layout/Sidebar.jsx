@@ -4,6 +4,7 @@ import {
   Boxes,
   CircleDollarSign,
   ClipboardList,
+  CreditCard,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -33,6 +34,7 @@ const commonNavigation = [
   { to: "/app/stock-movements", label: "Stock movements", icon: FileText },
   { to: "/app/reports", label: "Reports", icon: BarChart3 },
   { to: "/app/team", label: "Team", icon: Users },
+  { to: "/app/subscription", label: "Subscription", icon: CreditCard },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];
 
@@ -75,11 +77,18 @@ export default function Sidebar({ open, onClose }) {
 
   // Insert only the inventory page that belongs to the current business type.
   const currentIndustryNavigation = industryNavigation[business.type];
-  const navigation = [
+  const fullNavigation = [
     ...commonNavigation.slice(0, 2),
     ...(currentIndustryNavigation ? [currentIndustryNavigation] : []),
     ...commonNavigation.slice(2),
   ];
+
+  // Expired workspaces expose only the renewal destination.
+  const navigation = business.hasSystemAccess
+    ? fullNavigation
+    : fullNavigation.filter(
+        (item) => item.to === "/app/subscription",
+      );
 
   return (
     <>

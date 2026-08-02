@@ -75,7 +75,7 @@ export default function RegisterPage() {
             <span>S</span>Stock<strong>Flow</strong>
           </Link>
           <div className="auth-heading">
-            <span>14-day planned trial</span>
+            <span>60-day free trial</span>
             <h2>Create your business account</h2>
             <p>
               You will configure the business type and invoice information in

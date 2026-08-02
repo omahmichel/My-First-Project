@@ -20,6 +20,7 @@ import CustomerPurchaseRecordsPage from "./pages/customers/CustomerPurchaseRecor
 import ReportsPage from "./pages/reports/ReportsPage";
 import TeamPage from "./pages/team/TeamPage";
 import SettingsPage from "./pages/settings/SettingsPage";
+import SubscriptionPage from "./pages/settings/SubscriptionPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="purchases" element={<CustomerPurchaseRecordsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="team" element={<TeamPage />} />
+          <Route path="subscription" element={<SubscriptionPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Route>

@@ -29,6 +29,17 @@ const EMPTY_BUSINESS = Object.freeze({
   ownerEmail: "",
   currentUserRole: "",
   activeTeamMembers: 0,
+  // Holds backend-authoritative trial and subscription access state.
+  trialStartedAt: null,
+  trialEndsAt: null,
+  trialDaysRemaining: 0,
+  subscriptionStatus: "",
+  subscriptionStartedAt: null,
+  subscriptionEndsAt: null,
+  isTrialActive: false,
+  hasActiveSubscription: false,
+  subscriptionReminderDue: false,
+  hasSystemAccess: false,
 });
 
 
@@ -52,6 +63,17 @@ function normalizeBusiness(record) {
     activeTeamMembers: record.active_team_members ?? 0,
     createdAt: record.created_at ?? null,
     updatedAt: record.updated_at ?? null,
+    // Preserves subscription state returned by the Django business API.
+    trialStartedAt: record.trial_started_at ?? null,
+    trialEndsAt: record.trial_ends_at ?? null,
+    trialDaysRemaining: Number(record.trialDaysRemaining ?? 0),
+    subscriptionStatus: record.subscription_status ?? "trial",
+    subscriptionStartedAt: record.subscription_started_at ?? null,
+    subscriptionEndsAt: record.subscription_ends_at ?? null,
+    isTrialActive: Boolean(record.isTrialActive),
+    hasActiveSubscription: Boolean(record.hasActiveSubscription),
+    subscriptionReminderDue: Boolean(record.subscriptionReminderDue),
+    hasSystemAccess: Boolean(record.hasSystemAccess),
   };
 }
 
@@ -502,6 +524,29 @@ export function StoreProvider({ children }) {
 
     if (!activeBusinessId || !businessExists) return;
 
+    const activeBusiness = businesses.find(
+      (item) => String(item.id) === String(activeBusinessId),
+    );
+
+    // Avoids blocked operational requests after trial or subscription expiry.
+    if (!activeBusiness?.hasSystemAccess) {
+      setProducts((current) =>
+        current.filter(
+          (record) =>
+            resolveRecordBusinessId(record) !== String(activeBusinessId),
+        ),
+      );
+      setStockMovements((current) =>
+        current.filter(
+          (record) =>
+            resolveRecordBusinessId(record) !== String(activeBusinessId),
+        ),
+      );
+      setInventoryLoading(false);
+      setInventoryError('');
+      return;
+    }
+
     loadInventory(activeBusinessId).catch(() => {
       // The exposed error state lets inventory pages report the failure.
     });
@@ -531,6 +576,23 @@ export function StoreProvider({ children }) {
 
     if (!activeBusinessId || !businessExists) return;
 
+    const activeBusiness = businesses.find(
+      (item) => String(item.id) === String(activeBusinessId),
+    );
+
+    // Removes inaccessible customer records without requesting the blocked API.
+    if (!activeBusiness?.hasSystemAccess) {
+      setCustomers((current) =>
+        current.filter(
+          (record) =>
+            resolveRecordBusinessId(record) !== String(activeBusinessId),
+        ),
+      );
+      setCustomersLoading(false);
+      setCustomersError('');
+      return;
+    }
+
     loadCustomers(activeBusinessId).catch(() => {
       // The exposed error state lets the customer page report the failure.
     });
@@ -559,6 +621,29 @@ export function StoreProvider({ children }) {
     );
 
     if (!activeBusinessId || !businessExists) return;
+
+    const activeBusiness = businesses.find(
+      (item) => String(item.id) === String(activeBusinessId),
+    );
+
+    // Removes inaccessible sales data without requesting the blocked API.
+    if (!activeBusiness?.hasSystemAccess) {
+      setSales((current) =>
+        current.filter(
+          (record) =>
+            resolveRecordBusinessId(record) !== String(activeBusinessId),
+        ),
+      );
+      setPayments((current) =>
+        current.filter(
+          (record) =>
+            resolveRecordBusinessId(record) !== String(activeBusinessId),
+        ),
+      );
+      setSalesLoading(false);
+      setSalesError('');
+      return;
+    }
 
     loadSales(activeBusinessId).catch(() => {
       // The exposed error state lets sales pages report the failure.
@@ -664,6 +749,14 @@ export function StoreProvider({ children }) {
       setTeam([]);
       setTeamLoading(false);
       setTeamError("");
+      return;
+    }
+
+    // Team operations are also unavailable after subscription expiry.
+    if (!business.hasSystemAccess) {
+      setTeam([]);
+      setTeamLoading(false);
+      setTeamError('');
       return;
     }
 
