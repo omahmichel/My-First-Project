@@ -12,6 +12,7 @@ from businesses.paystack_client import (
     PaystackError,
     PaystackRequestError,
 )
+from customers.models import Customer
 from inventory.models import Product, StockMovement
 
 from .models import Payment, Sale, SaleItem
@@ -19,6 +20,7 @@ from .services import (
     _load_customer,
     _load_products,
     _next_document_numbers,
+    _next_receipt_number,
     _prepare_lines,
 )
 
@@ -449,3 +451,469 @@ def initialize_mobile_money_sale(
         payment_id=payment.id,
     )
     return sale, payment, False
+
+def _get_mobile_money_sale_payment(reference):
+    # Finds only Paystack Mobile Money payments attached to pending sales.
+    try:
+        return (
+            Payment.objects.select_related(
+                "business",
+                "sale",
+                "customer",
+                "initiated_by",
+            )
+            .get(
+                gateway="paystack",
+                gateway_reference=reference,
+                method=Payment.Method.MOBILE_MONEY,
+                payment_type=Payment.PaymentType.SALE_PAYMENT,
+                sale__isnull=False,
+            )
+        )
+    except Payment.DoesNotExist as exc:
+        raise MobileMoneyPaymentError(
+            "The Mobile Money payment reference was not found.",
+            code="mobile_money_payment_not_found",
+        ) from exc
+
+
+def _locked_sale_inventory(sale):
+    # Locks the reserved sale lines and their products before changing stock.
+    items = list(
+        SaleItem.objects.select_for_update()
+        .filter(sale=sale)
+        .order_by("id")
+    )
+    product_ids = [item.product_id for item in items]
+    products = {
+        product.id: product
+        for product in Product.objects.select_for_update().filter(
+            id__in=product_ids
+        )
+    }
+
+    if len(products) != len(set(product_ids)):
+        raise MobileMoneyPaymentError(
+            "One or more reserved products could not be found.",
+            code="mobile_money_reserved_product_missing",
+        )
+
+    return items, products
+
+
+def _release_verified_failure_locked(
+    *,
+    sale,
+    payment,
+    payment_status,
+    reason,
+):
+    # Releases reserved stock after a definite failure or mismatch.
+    items, products = _locked_sale_inventory(sale)
+
+    for item in items:
+        product = products[item.product_id]
+        product.reserved_stock = max(
+            0,
+            product.reserved_stock - item.quantity,
+        )
+        product.save(
+            update_fields=("reserved_stock", "updated_at")
+        )
+
+    sale.status = (
+        Sale.Status.CANCELLED
+        if payment_status == Payment.Status.CANCELLED
+        else Sale.Status.FAILED
+    )
+    sale.reservation_expires_at = None
+    sale.save(
+        update_fields=(
+            "status",
+            "reservation_expires_at",
+            "updated_at",
+        )
+    )
+
+    payment.status = payment_status
+    payment.failure_reason = reason
+    payment.note = "The reserved stock was released."
+    payment.save(
+        update_fields=(
+            "status",
+            "failure_reason",
+            "note",
+            "updated_at",
+        )
+    )
+
+
+def _payment_status_for_terminal_provider_status(provider_status):
+    # Maps final Paystack states onto StockFlow payment states.
+    if provider_status == "reversed":
+        return Payment.Status.REVERSED
+
+    if provider_status in {"abandoned", "cancelled"}:
+        return Payment.Status.CANCELLED
+
+    return Payment.Status.FAILED
+
+
+def _successful_verification_error(payment, verification):
+    # Validates every value needed before StockFlow delivers the sale.
+    expected_values = {
+        "reference": payment.gateway_reference,
+        "amount": int(payment.amount * Decimal("100")),
+        "currency": "GHS",
+        "channel": "mobile_money",
+    }
+    received_values = {
+        "reference": verification.get("reference"),
+        "amount": verification.get("amount"),
+        "currency": str(
+            verification.get("currency", "")
+        ).upper(),
+        "channel": str(
+            verification.get("channel", "")
+        ).lower(),
+    }
+    mismatched_fields = [
+        field
+        for field, expected in expected_values.items()
+        if received_values[field] != expected
+    ]
+
+    if mismatched_fields:
+        return (
+            MobileMoneyPaymentError(
+                "The verified Mobile Money payment did not match "
+                "the expected StockFlow sale.",
+                code="mobile_money_payment_mismatch",
+            ),
+            True,
+            (
+                "Paystack verification did not match the expected "
+                + ", ".join(mismatched_fields)
+                + "."
+            ),
+        )
+
+    provider_reference = str(
+        verification.get("id", "")
+    ).strip()
+
+    if not provider_reference:
+        return (
+            MobileMoneyPaymentError(
+                "The verified Mobile Money payment was incomplete.",
+                code="mobile_money_verification_incomplete",
+            ),
+            False,
+            "Paystack verification did not include a transaction ID.",
+        )
+
+    duplicate_transaction = (
+        Payment.objects.exclude(pk=payment.pk)
+        .filter(
+            gateway=payment.gateway,
+            provider_reference=provider_reference,
+        )
+        .exists()
+    )
+
+    if duplicate_transaction:
+        return (
+            MobileMoneyPaymentError(
+                "This Mobile Money transaction has already been processed.",
+                code="mobile_money_transaction_reused",
+            ),
+            True,
+            (
+                "The Paystack transaction was already used by another "
+                "StockFlow payment."
+            ),
+        )
+
+    return None, False, ""
+
+
+def _finalize_mobile_money_sale_locked(
+    *,
+    sale,
+    payment,
+    verification,
+):
+    # Converts one verified reservation into stock, receipt and sale records.
+    if payment.amount > sale.total:
+        raise MobileMoneyPaymentError(
+            "The Mobile Money payment exceeds the sale total.",
+            code="mobile_money_amount_invalid",
+        )
+
+    if (
+        sale.payment_method == Sale.PaymentMethod.MOBILE_MONEY
+        and payment.amount != sale.total
+    ):
+        raise MobileMoneyPaymentError(
+            "The full Mobile Money payment does not match the sale total.",
+            code="mobile_money_amount_invalid",
+        )
+
+    outstanding_balance = sale.total - payment.amount
+
+    if outstanding_balance > Decimal("0.00") and not sale.customer_id:
+        raise MobileMoneyPaymentError(
+            "A customer is required for a part-payment sale.",
+            code="mobile_money_customer_required",
+        )
+
+    items, products = _locked_sale_inventory(sale)
+
+    for item in items:
+        product = products[item.product_id]
+
+        if (
+            product.stock < item.quantity
+            or product.reserved_stock < item.quantity
+        ):
+            raise MobileMoneyPaymentError(
+                "The reserved stock is no longer available for this sale.",
+                code="mobile_money_reservation_invalid",
+            )
+
+    receipt_number = _next_receipt_number(sale.business)
+    now = timezone.now()
+
+    for item in items:
+        product = products[item.product_id]
+        previous_stock = product.stock
+        new_stock = previous_stock - item.quantity
+
+        product.stock = new_stock
+        product.reserved_stock -= item.quantity
+        product.save(
+            update_fields=(
+                "stock",
+                "reserved_stock",
+                "updated_at",
+            )
+        )
+
+        StockMovement.objects.create(
+            business=sale.business,
+            product=product,
+            movement_type=StockMovement.MovementType.SALE,
+            quantity=-item.quantity,
+            previous_stock=previous_stock,
+            new_stock=new_stock,
+            reason=f"Sale {sale.sale_number}",
+            created_by=sale.cashier,
+        )
+
+    if sale.customer_id:
+        customer = (
+            Customer.objects.select_for_update()
+            .get(pk=sale.customer_id)
+        )
+        customer.total_purchases += sale.total
+        customer.outstanding_balance += outstanding_balance
+        customer.save(
+            update_fields=(
+                "total_purchases",
+                "outstanding_balance",
+                "updated_at",
+            )
+        )
+
+    sale.amount_paid = payment.amount
+    sale.outstanding_balance = outstanding_balance
+    sale.status = (
+        Sale.Status.COMPLETED
+        if outstanding_balance == Decimal("0.00")
+        else Sale.Status.PARTIALLY_PAID
+    )
+    sale.reservation_expires_at = None
+    sale.completed_at = now
+    sale.save(
+        update_fields=(
+            "amount_paid",
+            "outstanding_balance",
+            "status",
+            "reservation_expires_at",
+            "completed_at",
+            "updated_at",
+        )
+    )
+
+    payment.status = Payment.Status.SUCCESSFUL
+    payment.provider_reference = str(verification["id"])
+    payment.receipt_number = receipt_number
+    payment.failure_reason = ""
+    payment.note = "Mobile Money payment verified by Paystack."
+    payment.verified_at = now
+    payment.save(
+        update_fields=(
+            "status",
+            "provider_reference",
+            "receipt_number",
+            "failure_reason",
+            "note",
+            "verified_at",
+            "updated_at",
+        )
+    )
+
+
+def verify_and_finalize_mobile_money_sale(
+    *,
+    reference,
+    client=None,
+):
+    # Verifies Paystack server-to-server and delivers the sale exactly once.
+    existing_payment = _get_mobile_money_sale_payment(reference)
+    existing_sale = existing_payment.sale
+
+    if (
+        existing_payment.status == Payment.Status.SUCCESSFUL
+        and existing_sale.status
+        in {
+            Sale.Status.COMPLETED,
+            Sale.Status.PARTIALLY_PAID,
+        }
+    ):
+        return existing_payment, existing_sale, False
+
+    gateway_client = client or PaystackClient()
+    verification = gateway_client.verify_transaction(reference)
+    deferred_error = None
+
+    with transaction.atomic():
+        payment = (
+            Payment.objects.select_for_update()
+            .select_related(
+                "business",
+                "sale",
+                "customer",
+                "initiated_by",
+            )
+            .get(pk=existing_payment.pk)
+        )
+        sale = (
+            Sale.objects.select_for_update()
+            .select_related(
+                "business",
+                "customer",
+                "cashier",
+            )
+            .get(pk=payment.sale_id)
+        )
+
+        if (
+            payment.status == Payment.Status.SUCCESSFUL
+            and sale.status
+            in {
+                Sale.Status.COMPLETED,
+                Sale.Status.PARTIALLY_PAID,
+            }
+        ):
+            return payment, sale, False
+
+        if sale.status != Sale.Status.PENDING_PAYMENT:
+            raise MobileMoneyPaymentError(
+                "This Mobile Money sale is no longer pending.",
+                code="mobile_money_sale_not_pending",
+            )
+
+        provider_status = str(
+            verification.get("status", "")
+        ).strip().lower()
+
+        if provider_status != "success":
+            if provider_status in {
+                "failed",
+                "abandoned",
+                "cancelled",
+                "reversed",
+            }:
+                reason = (
+                    "Paystack verification returned the final status "
+                    f"{provider_status}."
+                )
+                _release_verified_failure_locked(
+                    sale=sale,
+                    payment=payment,
+                    payment_status=(
+                        _payment_status_for_terminal_provider_status(
+                            provider_status
+                        )
+                    ),
+                    reason=reason,
+                )
+                deferred_error = MobileMoneyPaymentError(
+                    "The Mobile Money payment was not successful.",
+                    code="mobile_money_payment_failed",
+                )
+            else:
+                payment.failure_reason = ""
+                payment.note = (
+                    "Waiting for Paystack confirmation. "
+                    f"Current status: {provider_status or 'unknown'}."
+                )
+                payment.save(
+                    update_fields=(
+                        "failure_reason",
+                        "note",
+                        "updated_at",
+                    )
+                )
+                deferred_error = MobileMoneyPaymentError(
+                    "The Mobile Money payment is still pending.",
+                    code="mobile_money_payment_pending",
+                )
+        else:
+            (
+                verification_error,
+                should_release,
+                failure_reason,
+            ) = _successful_verification_error(
+                payment,
+                verification,
+            )
+
+            if verification_error is not None:
+                if should_release:
+                    _release_verified_failure_locked(
+                        sale=sale,
+                        payment=payment,
+                        payment_status=Payment.Status.FAILED,
+                        reason=failure_reason,
+                    )
+                else:
+                    payment.failure_reason = failure_reason
+                    payment.note = (
+                        "The payment needs another server verification."
+                    )
+                    payment.save(
+                        update_fields=(
+                            "failure_reason",
+                            "note",
+                            "updated_at",
+                        )
+                    )
+
+                deferred_error = verification_error
+            else:
+                _finalize_mobile_money_sale_locked(
+                    sale=sale,
+                    payment=payment,
+                    verification=verification,
+                )
+
+    if deferred_error is not None:
+        raise deferred_error
+
+    sale, payment = _reload_sale_and_payment(
+        sale_id=existing_sale.id,
+        payment_id=existing_payment.id,
+    )
+    return payment, sale, True

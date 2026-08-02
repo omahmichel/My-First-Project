@@ -11,7 +11,11 @@ from businesses.paystack_client import PaystackRequestError
 from customers.models import Customer
 from inventory.models import Product, StockMovement
 
-from .mobile_money_service import initialize_mobile_money_sale
+from .mobile_money_service import (
+    MobileMoneyPaymentError,
+    initialize_mobile_money_sale,
+    verify_and_finalize_mobile_money_sale,
+)
 from .models import Payment, Sale
 
 
@@ -265,3 +269,300 @@ class MobileMoneySaleInitializationTests(TestCase):
             payment.note,
         )
         self.assertEqual(StockMovement.objects.count(), 0)
+
+    def verification_client(
+        self,
+        *,
+        payment,
+        status="success",
+        amount=15000,
+        transaction_id=900001,
+    ):
+        # Returns a deterministic server-side Paystack verification.
+        client = Mock()
+        client.verify_transaction.return_value = {
+            "id": transaction_id,
+            "status": status,
+            "reference": payment.gateway_reference,
+            "amount": amount,
+            "currency": "GHS",
+            "channel": "mobile_money",
+        }
+        return client
+
+    def test_successful_verification_finalizes_sale_once(self):
+        # Verified money deducts stock and creates one receipt and movement.
+        sale, payment, _ = initialize_mobile_money_sale(
+            business=self.business,
+            user=self.owner,
+            data=self.payload(),
+            idempotency_key="momo-verify-success",
+            client=self.successful_client(),
+        )
+        client = self.verification_client(payment=payment)
+
+        verified_payment, verified_sale, fulfilled = (
+            verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=client,
+            )
+        )
+
+        self.assertTrue(fulfilled)
+        self.assertEqual(
+            verified_payment.status,
+            Payment.Status.SUCCESSFUL,
+        )
+        self.assertEqual(
+            verified_payment.provider_reference,
+            "900001",
+        )
+        self.assertEqual(
+            verified_payment.receipt_number,
+            "RCT-00001",
+        )
+        self.assertIsNotNone(verified_payment.verified_at)
+        self.assertEqual(
+            verified_sale.status,
+            Sale.Status.COMPLETED,
+        )
+        self.assertEqual(
+            verified_sale.amount_paid,
+            Decimal("150.00"),
+        )
+        self.assertEqual(
+            verified_sale.outstanding_balance,
+            Decimal("0.00"),
+        )
+        self.assertIsNone(verified_sale.reservation_expires_at)
+        self.assertIsNotNone(verified_sale.completed_at)
+
+        self.product.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(self.product.stock, 9)
+        self.assertEqual(self.product.reserved_stock, 0)
+        self.assertEqual(
+            self.customer.total_purchases,
+            Decimal("150.00"),
+        )
+        self.assertEqual(
+            self.customer.outstanding_balance,
+            Decimal("0.00"),
+        )
+
+        movement = StockMovement.objects.get()
+        self.assertEqual(movement.quantity, -1)
+        self.assertEqual(movement.previous_stock, 10)
+        self.assertEqual(movement.new_stock, 9)
+        client.verify_transaction.assert_called_once_with(
+            payment.gateway_reference
+        )
+
+    def test_duplicate_success_verification_delivers_nothing_twice(self):
+        # A callback and webhook cannot create duplicate financial changes.
+        sale, payment, _ = initialize_mobile_money_sale(
+            business=self.business,
+            user=self.owner,
+            data=self.payload(),
+            idempotency_key="momo-verify-replay",
+            client=self.successful_client(),
+        )
+        first_client = self.verification_client(payment=payment)
+        verify_and_finalize_mobile_money_sale(
+            reference=payment.gateway_reference,
+            client=first_client,
+        )
+        second_client = Mock()
+
+        replay_payment, replay_sale, fulfilled = (
+            verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=second_client,
+            )
+        )
+
+        self.assertFalse(fulfilled)
+        self.assertEqual(replay_payment.id, payment.id)
+        self.assertEqual(replay_sale.id, sale.id)
+        second_client.verify_transaction.assert_not_called()
+
+        self.product.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(self.product.stock, 9)
+        self.assertEqual(self.product.reserved_stock, 0)
+        self.assertEqual(
+            self.customer.total_purchases,
+            Decimal("150.00"),
+        )
+        self.assertEqual(StockMovement.objects.count(), 1)
+        self.assertEqual(
+            Payment.objects.exclude(receipt_number="").count(),
+            1,
+        )
+
+    def test_pending_verification_keeps_stock_reserved(self):
+        # A non-final Paystack state cannot deliver or release the sale.
+        sale, payment, _ = initialize_mobile_money_sale(
+            business=self.business,
+            user=self.owner,
+            data=self.payload(),
+            idempotency_key="momo-verify-pending",
+            client=self.successful_client(),
+        )
+        client = self.verification_client(
+            payment=payment,
+            status="pending",
+        )
+
+        with self.assertRaisesRegex(
+            MobileMoneyPaymentError,
+            "still pending",
+        ):
+            verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=client,
+            )
+
+        self.product.refresh_from_db()
+        self.customer.refresh_from_db()
+        sale.refresh_from_db()
+        payment.refresh_from_db()
+
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 1)
+        self.assertEqual(sale.status, Sale.Status.PENDING_PAYMENT)
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertEqual(StockMovement.objects.count(), 0)
+        self.assertEqual(
+            self.customer.total_purchases,
+            Decimal("0.00"),
+        )
+
+    def test_terminal_failure_releases_reserved_stock(self):
+        # A final failed gateway state frees stock without creating value.
+        sale, payment, _ = initialize_mobile_money_sale(
+            business=self.business,
+            user=self.owner,
+            data=self.payload(),
+            idempotency_key="momo-verify-failed",
+            client=self.successful_client(),
+        )
+        client = self.verification_client(
+            payment=payment,
+            status="failed",
+        )
+
+        with self.assertRaises(MobileMoneyPaymentError):
+            verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=client,
+            )
+
+        self.product.refresh_from_db()
+        self.customer.refresh_from_db()
+        sale.refresh_from_db()
+        payment.refresh_from_db()
+
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 0)
+        self.assertEqual(sale.status, Sale.Status.FAILED)
+        self.assertIsNone(sale.reservation_expires_at)
+        self.assertEqual(payment.status, Payment.Status.FAILED)
+        self.assertEqual(StockMovement.objects.count(), 0)
+        self.assertEqual(
+            self.customer.total_purchases,
+            Decimal("0.00"),
+        )
+
+    def test_wrong_verified_amount_is_rejected_and_released(self):
+        # Paid value must match the server-controlled payment amount.
+        sale, payment, _ = initialize_mobile_money_sale(
+            business=self.business,
+            user=self.owner,
+            data=self.payload(),
+            idempotency_key="momo-verify-mismatch",
+            client=self.successful_client(),
+        )
+        client = self.verification_client(
+            payment=payment,
+            amount=14900,
+        )
+
+        with self.assertRaisesRegex(
+            MobileMoneyPaymentError,
+            "did not match",
+        ):
+            verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=client,
+            )
+
+        self.product.refresh_from_db()
+        sale.refresh_from_db()
+        payment.refresh_from_db()
+
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 0)
+        self.assertEqual(sale.status, Sale.Status.FAILED)
+        self.assertEqual(payment.status, Payment.Status.FAILED)
+        self.assertEqual(payment.receipt_number, "")
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+    def test_verified_part_payment_creates_customer_debt(self):
+        # A verified credit deposit records the sale and remaining balance.
+        data = self.payload()
+        data["paymentMethod"] = Sale.PaymentMethod.CREDIT
+        data["amountPaidMethod"] = Payment.Method.MOBILE_MONEY
+        data["amountPaid"] = Decimal("50.00")
+
+        sale, payment, _ = initialize_mobile_money_sale(
+            business=self.business,
+            user=self.owner,
+            data=data,
+            idempotency_key="momo-verify-part-payment",
+            client=self.successful_client(),
+        )
+        client = self.verification_client(
+            payment=payment,
+            amount=5000,
+            transaction_id=900002,
+        )
+
+        verified_payment, verified_sale, fulfilled = (
+            verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=client,
+            )
+        )
+
+        self.assertTrue(fulfilled)
+        self.assertEqual(
+            verified_payment.amount,
+            Decimal("50.00"),
+        )
+        self.assertEqual(
+            verified_sale.status,
+            Sale.Status.PARTIALLY_PAID,
+        )
+        self.assertEqual(
+            verified_sale.amount_paid,
+            Decimal("50.00"),
+        )
+        self.assertEqual(
+            verified_sale.outstanding_balance,
+            Decimal("100.00"),
+        )
+
+        self.product.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(self.product.stock, 9)
+        self.assertEqual(self.product.reserved_stock, 0)
+        self.assertEqual(
+            self.customer.total_purchases,
+            Decimal("150.00"),
+        )
+        self.assertEqual(
+            self.customer.outstanding_balance,
+            Decimal("100.00"),
+        )
+        self.assertEqual(StockMovement.objects.count(), 1)
