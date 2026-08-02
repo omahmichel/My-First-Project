@@ -471,6 +471,11 @@ class Payment(models.Model):
                 condition=~models.Q(provider_reference=""),
                 name="unique_provider_payment_reference",
             ),
+            models.UniqueConstraint(
+                fields=("gateway", "gateway_reference"),
+                condition=~models.Q(gateway_reference=""),
+                name="unique_gateway_payment_reference",
+            ),
         ]
         indexes = [
             models.Index(fields=("business", "created_at")),
