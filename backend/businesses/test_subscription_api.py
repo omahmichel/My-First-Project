@@ -12,6 +12,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from businesses.models import Business, SubscriptionPayment
 from businesses.subscription_service import SubscriptionPaymentError
+from sales.mobile_money_service import MobileMoneyPaymentError
 
 
 TEST_PAYMENT_SETTINGS = {
@@ -329,5 +330,129 @@ class PaystackWebhookAPITests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
+        )
+        self.assertFalse(response.data["processed"])
+
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_sale"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_fulfill_subscription_payment"
+    )
+    def test_signed_sale_charge_routes_to_mobile_money_finalization(
+        self,
+        subscription_verify_mock,
+        sale_verify_mock,
+    ):
+        # A non-subscription charge is verified through the sales service.
+        subscription_verify_mock.side_effect = SubscriptionPaymentError(
+            "The subscription payment reference was not found.",
+            code="subscription_payment_not_found",
+        )
+        sale_verify_mock.return_value = (object(), object(), True)
+
+        response = self.signed_post(
+            {
+                "event": "charge.success",
+                "data": {
+                    "reference": "STF-SALE-WEBHOOK-001",
+                },
+            }
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.assertTrue(response.data["processed"])
+        self.assertTrue(response.data["saleFinalized"])
+        subscription_verify_mock.assert_called_once_with(
+            reference="STF-SALE-WEBHOOK-001",
+        )
+        sale_verify_mock.assert_called_once_with(
+            reference="STF-SALE-WEBHOOK-001",
+        )
+
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_sale"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_fulfill_subscription_payment"
+    )
+    def test_temporary_sale_verification_error_requests_retry(
+        self,
+        subscription_verify_mock,
+        sale_verify_mock,
+    ):
+        # Pending gateway verification returns 503 for webhook redelivery.
+        subscription_verify_mock.side_effect = SubscriptionPaymentError(
+            "The subscription payment reference was not found.",
+            code="subscription_payment_not_found",
+        )
+        sale_verify_mock.side_effect = MobileMoneyPaymentError(
+            "The Mobile Money payment is still pending.",
+            code="mobile_money_payment_pending",
+        )
+
+        response = self.signed_post(
+            {
+                "event": "charge.success",
+                "data": {
+                    "reference": "STF-SALE-PENDING-001",
+                },
+            }
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["code"],
+            "mobile_money_payment_pending",
+        )
+
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_sale"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_fulfill_subscription_payment"
+    )
+    def test_permanent_sale_mismatch_is_acknowledged(
+        self,
+        subscription_verify_mock,
+        sale_verify_mock,
+    ):
+        # An audited mismatch is acknowledged so Paystack does not retry.
+        subscription_verify_mock.side_effect = SubscriptionPaymentError(
+            "The subscription payment reference was not found.",
+            code="subscription_payment_not_found",
+        )
+        sale_verify_mock.side_effect = MobileMoneyPaymentError(
+            "The verified Mobile Money payment did not match.",
+            code="mobile_money_payment_mismatch",
+        )
+
+        response = self.signed_post(
+            {
+                "event": "charge.success",
+                "data": {
+                    "reference": "STF-SALE-MISMATCH-001",
+                },
+            }
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
         )
         self.assertFalse(response.data["processed"])

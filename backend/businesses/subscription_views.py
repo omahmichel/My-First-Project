@@ -10,6 +10,11 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from sales.mobile_money_service import (
+    MobileMoneyPaymentError,
+    verify_and_finalize_mobile_money_sale,
+)
+
 from .models import SubscriptionPayment
 from .paystack_client import (
     PaystackConfigurationError,
@@ -254,17 +259,75 @@ class PaystackWebhookAPIView(APIView):
                 )
             )
         except SubscriptionPaymentError as exc:
-            # Other Paystack transactions can share the same account.
+            # A non-subscription reference may belong to a sales payment.
             if exc.code == "subscription_payment_not_found":
+                try:
+                    _, _, finalized = (
+                        verify_and_finalize_mobile_money_sale(
+                            reference=reference,
+                        )
+                    )
+                except MobileMoneyPaymentError as sale_exc:
+                    # Unknown Paystack charges remain safely ignored.
+                    if sale_exc.code == "mobile_money_payment_not_found":
+                        return Response(
+                            {
+                                "received": True,
+                                "processed": False,
+                            },
+                            status=status.HTTP_200_OK,
+                        )
+
+                    # Permanent sale failures are already audited locally.
+                    if sale_exc.code in {
+                        "mobile_money_payment_mismatch",
+                        "mobile_money_transaction_reused",
+                        "mobile_money_payment_failed",
+                        "mobile_money_sale_not_pending",
+                        "mobile_money_reservation_invalid",
+                        "mobile_money_amount_invalid",
+                        "mobile_money_customer_required",
+                        "mobile_money_reserved_product_missing",
+                    }:
+                        return Response(
+                            {
+                                "received": True,
+                                "processed": False,
+                            },
+                            status=status.HTTP_200_OK,
+                        )
+
+                    # Temporary verification states should be retried.
+                    return Response(
+                        {
+                            "detail": str(sale_exc),
+                            "code": sale_exc.code,
+                        },
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+                except (
+                    PaystackConfigurationError,
+                    PaystackRequestError,
+                ):
+                    return Response(
+                        {
+                            "detail": (
+                                "Payment verification is unavailable."
+                            )
+                        },
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+
                 return Response(
                     {
                         "received": True,
-                        "processed": False,
+                        "processed": True,
+                        "saleFinalized": finalized,
                     },
                     status=status.HTTP_200_OK,
                 )
 
-            # Permanent mismatches are audited and should not be retried.
+            # Permanent subscription mismatches should not be retried.
             if exc.code in {
                 "subscription_payment_mismatch",
                 "subscription_payment_invalid_response",
