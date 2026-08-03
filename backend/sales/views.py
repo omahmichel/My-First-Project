@@ -13,7 +13,9 @@ from businesses.paystack_client import (
 )
 from .mobile_money_service import (
     MobileMoneyPaymentError,
+    initialize_mobile_money_debt_payment,
     initialize_mobile_money_sale,
+    verify_and_finalize_mobile_money_debt_payment,
     verify_and_finalize_mobile_money_sale,
 )
 from .models import DocumentSequence, Payment, Sale, Waybill
@@ -47,12 +49,18 @@ def _mobile_money_service_error_response(exc):
     # Maps controlled payment states to stable frontend response codes.
     status_code = status.HTTP_400_BAD_REQUEST
 
-    if exc.code == "mobile_money_payment_not_found":
+    if exc.code in {
+        "mobile_money_payment_not_found",
+        "mobile_money_debt_payment_not_found",
+        "mobile_money_customer_not_found",
+    }:
         status_code = status.HTTP_404_NOT_FOUND
     elif exc.code in {
         "mobile_money_payment_pending",
         "mobile_money_payment_failed",
         "mobile_money_sale_not_pending",
+        "mobile_money_debt_not_pending",
+        "mobile_money_debt_balance_changed",
         "mobile_money_transaction_reused",
         "mobile_money_reservation_invalid",
     }:
@@ -364,6 +372,52 @@ class BusinessMobileMoneySaleVerifyAPIView(
         return response
 
 
+
+
+class BusinessMobileMoneyDebtPaymentVerifyAPIView(
+    BusinessSaleAccessMixin,
+    APIView,
+):
+    # Verifies one business-isolated Mobile Money debt payment.
+
+    permission_classes = (IsAuthenticated,)
+    throttle_scope = "mobile_money_debt_verify"
+
+    def post(self, request, business_id, customer_id, reference):
+        business, _, denied_response = self.require_sales_access()
+        if denied_response:
+            return denied_response
+
+        get_object_or_404(
+            Payment.objects.select_related("sale", "customer"),
+            business=business,
+            customer_id=customer_id,
+            gateway="paystack",
+            gateway_reference=reference,
+            method=Payment.Method.MOBILE_MONEY,
+            payment_type=Payment.PaymentType.DEBT_PAYMENT,
+            sale__isnull=False,
+        )
+        try:
+            payment, _, _, finalized = (
+                verify_and_finalize_mobile_money_debt_payment(
+                    reference=reference,
+                )
+            )
+        except (PaystackConfigurationError, PaystackRequestError) as exc:
+            return _mobile_money_gateway_error_response(exc)
+        except MobileMoneyPaymentError as exc:
+            return _mobile_money_service_error_response(exc)
+
+        response = Response(
+            PaymentSerializer(payment).data,
+            status=status.HTTP_200_OK,
+        )
+        if not finalized:
+            response["Idempotent-Replay"] = "true"
+        return response
+
+
 class BusinessSaleDetailAPIView(
     BusinessSaleAccessMixin,
     APIView,
@@ -494,6 +548,15 @@ class BusinessCustomerDebtPaymentAPIView(
 
     permission_classes = (IsAuthenticated,)
 
+    def get_throttles(self):
+        # Applies the stricter scope only to Mobile Money debt requests.
+        self.throttle_scope = (
+            "mobile_money_debt_initialize"
+            if _request_uses_mobile_money(self.request)
+            else None
+        )
+        return super().get_throttles()
+
     def post(self, request, business_id, customer_id):
         business, _, denied_response = self.require_sales_access()
 
@@ -549,6 +612,45 @@ class BusinessCustomerDebtPaymentAPIView(
 
         serializer = DebtPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+
+        if (
+            serializer.validated_data["paymentMethod"]
+            == Payment.Method.MOBILE_MONEY
+        ):
+            try:
+                payment, replayed = initialize_mobile_money_debt_payment(
+                    business=business,
+                    customer_id=customer_id,
+                    user=request.user,
+                    data=serializer.validated_data,
+                    idempotency_key=idempotency_key,
+                )
+            except (PaystackConfigurationError, PaystackRequestError) as exc:
+                return _mobile_money_gateway_error_response(exc)
+            except MobileMoneyPaymentError as exc:
+                return _mobile_money_service_error_response(exc)
+            except IntegrityError:
+                payment = get_object_or_404(
+                    Payment.objects.select_related(
+                        "business", "sale", "customer", "initiated_by"
+                    ),
+                    business=business,
+                    idempotency_key=idempotency_key,
+                )
+                replayed = True
+
+            response = Response(
+                PaymentSerializer(payment).data,
+                status=(
+                    status.HTTP_200_OK
+                    if replayed
+                    else status.HTTP_201_CREATED
+                ),
+            )
+            if replayed:
+                response["Idempotent-Replay"] = "true"
+            return response
 
         try:
             payment, replayed = record_customer_debt_payment(

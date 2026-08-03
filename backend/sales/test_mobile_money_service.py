@@ -13,7 +13,9 @@ from inventory.models import Product, StockMovement
 
 from .mobile_money_service import (
     MobileMoneyPaymentError,
+    initialize_mobile_money_debt_payment,
     initialize_mobile_money_sale,
+    verify_and_finalize_mobile_money_debt_payment,
     verify_and_finalize_mobile_money_sale,
 )
 from .models import Payment, Sale
@@ -566,3 +568,336 @@ class MobileMoneySaleInitializationTests(TestCase):
             Decimal("100.00"),
         )
         self.assertEqual(StockMovement.objects.count(), 1)
+
+@override_settings(
+    PAYMENT_GATEWAY="paystack",
+    PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+)
+class MobileMoneyDebtPaymentTests(TestCase):
+    """Protects pending customer debt payments and verified settlement."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="owner.debt.momo@stockflow.test",
+            password="StrongPass123!",
+            full_name="Debt Mobile Money Owner",
+        )
+        self.business = Business.objects.create(
+            owner=self.owner,
+            name="Debt Mobile Money Test Shop",
+            slug="debt-mobile-money-test-shop",
+            business_type="building_materials",
+            email="debt.shop@stockflow.test",
+            invoice_prefix="INV",
+            receipt_prefix="RCT",
+        )
+        self.customer = Customer.objects.create(
+            business=self.business,
+            name="Ama Debt",
+            phone="0241234567",
+            email="ama.debt@example.com",
+            outstanding_balance=Decimal("100.00"),
+            total_purchases=Decimal("140.00"),
+            created_by=self.owner,
+        )
+        self.sale = Sale.objects.create(
+            business=self.business,
+            customer=self.customer,
+            sale_number="SAL-00001",
+            invoice_number="INV-00001",
+            payment_method=Sale.PaymentMethod.CREDIT,
+            status=Sale.Status.PARTIALLY_PAID,
+            subtotal=Decimal("150.00"),
+            discount=Decimal("10.00"),
+            total=Decimal("140.00"),
+            amount_paid=Decimal("40.00"),
+            outstanding_balance=Decimal("100.00"),
+            cashier=self.owner,
+        )
+
+    def payload(self, amount=Decimal("60.00")):
+        # Returns one normalized Mobile Money debt request.
+        return {
+            "amount": amount,
+            "saleId": self.sale.id,
+            "paymentMethod": Payment.Method.MOBILE_MONEY,
+            "reference": "CUSTOMER-DEBT-001",
+            "note": "Customer debt settlement.",
+            "mobileMoneyNetwork": "mtn",
+            "mobileMoneyNumber": "0241234567",
+        }
+
+    def prompt_client(self):
+        # Returns one deterministic Paystack prompt response.
+        client = Mock()
+        client.create_mobile_money_charge.side_effect = lambda **kwargs: {
+            "reference": kwargs["reference"],
+            "status": "pay_offline",
+            "display_text": "Approve the payment on your phone.",
+        }
+        return client
+
+    def verification_client(
+        self,
+        payment,
+        *,
+        status="success",
+        amount=6000,
+        transaction_id=700001,
+    ):
+        # Returns one deterministic server-side verification.
+        client = Mock()
+        client.verify_transaction.return_value = {
+            "id": transaction_id,
+            "status": status,
+            "reference": payment.gateway_reference,
+            "amount": amount,
+            "currency": "GHS",
+            "channel": "mobile_money",
+        }
+        return client
+
+    def initialize(self, key, *, amount=Decimal("60.00"), client=None):
+        # Starts one pending debt payment through the public service.
+        return initialize_mobile_money_debt_payment(
+            business=self.business,
+            customer_id=self.customer.id,
+            user=self.owner,
+            data=self.payload(amount),
+            idempotency_key=key,
+            client=client or self.prompt_client(),
+        )
+
+    def assert_balances(self, *, sale_paid="40.00", outstanding="100.00"):
+        # Reloads and checks both linked financial balances.
+        self.sale.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(self.sale.amount_paid, Decimal(sale_paid))
+        self.assertEqual(self.sale.outstanding_balance, Decimal(outstanding))
+        self.assertEqual(
+            self.customer.outstanding_balance,
+            Decimal(outstanding),
+        )
+
+    def test_initialization_is_pending_and_does_not_change_balances(self):
+        # No receipt or balance change occurs before verification.
+        client = self.prompt_client()
+        payment, replayed = self.initialize("momo-debt-001", client=client)
+
+        self.assertFalse(replayed)
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertEqual(payment.receipt_number, "")
+        self.assertTrue(payment.gateway_reference.startswith("STF-DEBT-"))
+        self.assert_balances()
+        client.create_mobile_money_charge.assert_called_once_with(
+            email="ama.debt@example.com",
+            amount_subunit=6000,
+            reference=payment.gateway_reference,
+            phone="0241234567",
+            provider="mtn",
+            currency="GHS",
+            metadata={
+                "business_id": str(self.business.id),
+                "sale_id": str(self.sale.id),
+                "customer_id": str(self.customer.id),
+                "payment_id": str(payment.id),
+                "payment_type": Payment.PaymentType.DEBT_PAYMENT,
+            },
+        )
+
+    def test_idempotent_replay_sends_no_second_prompt(self):
+        # Reusing one key returns the original pending payment.
+        first, _ = self.initialize("momo-debt-replay")
+        second_client = Mock()
+        replay, replayed = self.initialize(
+            "momo-debt-replay",
+            client=second_client,
+        )
+        self.assertTrue(replayed)
+        self.assertEqual(replay.id, first.id)
+        second_client.create_mobile_money_charge.assert_not_called()
+        self.assertEqual(Payment.objects.count(), 1)
+
+    def test_definitive_rejection_and_timeout_do_not_change_balances(self):
+        # Definite rejection fails; uncertain timeout remains pending.
+        rejected = Mock()
+        rejected.create_mobile_money_charge.side_effect = PaystackRequestError(
+            "The charge request was rejected.",
+            code="paystack_request_rejected",
+            status_code=400,
+        )
+        with self.assertRaises(PaystackRequestError):
+            self.initialize("momo-debt-rejected", client=rejected)
+        failed_payment = Payment.objects.get(
+            idempotency_key="momo-debt-rejected"
+        )
+        self.assertEqual(failed_payment.status, Payment.Status.FAILED)
+        self.assert_balances()
+
+        timeout = Mock()
+        timeout.create_mobile_money_charge.side_effect = PaystackRequestError(
+            "Paystack did not respond in time.",
+            code="paystack_timeout",
+        )
+        with self.assertRaises(PaystackRequestError):
+            self.initialize("momo-debt-timeout", client=timeout)
+        pending_payment = Payment.objects.get(
+            idempotency_key="momo-debt-timeout"
+        )
+        self.assertEqual(pending_payment.status, Payment.Status.PENDING)
+        self.assertIn("Verify this payment", pending_payment.note)
+        self.assert_balances()
+
+    def test_successful_verification_updates_balances_once(self):
+        # Verified value creates one receipt and cannot be applied twice.
+        payment, _ = self.initialize("momo-debt-success")
+        verified, sale, customer, finalized = (
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=payment.gateway_reference,
+                client=self.verification_client(payment),
+            )
+        )
+        self.assertTrue(finalized)
+        self.assertEqual(verified.status, Payment.Status.SUCCESSFUL)
+        self.assertEqual(verified.receipt_number, "RCT-00001")
+        self.assertEqual(sale.amount_paid, Decimal("100.00"))
+        self.assertEqual(sale.outstanding_balance, Decimal("40.00"))
+        self.assertEqual(customer.outstanding_balance, Decimal("40.00"))
+
+        replay_client = Mock()
+        _, replay_sale, replay_customer, finalized_again = (
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=payment.gateway_reference,
+                client=replay_client,
+            )
+        )
+        self.assertFalse(finalized_again)
+        self.assertEqual(replay_sale.outstanding_balance, Decimal("40.00"))
+        self.assertEqual(
+            replay_customer.outstanding_balance,
+            Decimal("40.00"),
+        )
+        replay_client.verify_transaction.assert_not_called()
+        self.assertEqual(
+            Payment.objects.exclude(receipt_number="").count(),
+            1,
+        )
+
+    def test_pending_failure_and_wrong_amount_change_no_balance(self):
+        # Pending, terminal failure, and mismatch cannot settle debt.
+        pending, _ = self.initialize("momo-debt-pending")
+        with self.assertRaisesRegex(MobileMoneyPaymentError, "still pending"):
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=pending.gateway_reference,
+                client=self.verification_client(
+                    pending,
+                    status="pending",
+                ),
+            )
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, Payment.Status.PENDING)
+        self.assert_balances()
+
+        failed, _ = self.initialize("momo-debt-failed")
+        with self.assertRaises(MobileMoneyPaymentError):
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=failed.gateway_reference,
+                client=self.verification_client(
+                    failed,
+                    status="failed",
+                    transaction_id=700002,
+                ),
+            )
+        failed.refresh_from_db()
+        self.assertEqual(failed.status, Payment.Status.FAILED)
+        self.assert_balances()
+
+        mismatch, _ = self.initialize("momo-debt-mismatch")
+        with self.assertRaisesRegex(MobileMoneyPaymentError, "did not match"):
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=mismatch.gateway_reference,
+                client=self.verification_client(
+                    mismatch,
+                    amount=5900,
+                    transaction_id=700003,
+                ),
+            )
+        mismatch.refresh_from_db()
+        self.assertEqual(mismatch.status, Payment.Status.FAILED)
+        self.assert_balances()
+
+    def test_full_settlement_and_reused_transaction_protection(self):
+        # Full payment closes the invoice; reused provider IDs are rejected.
+        payment, _ = self.initialize(
+            "momo-debt-full",
+            amount=Decimal("100.00"),
+        )
+        _, sale, customer, finalized = (
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=payment.gateway_reference,
+                client=self.verification_client(
+                    payment,
+                    amount=10000,
+                    transaction_id=700004,
+                ),
+            )
+        )
+        self.assertTrue(finalized)
+        self.assertEqual(sale.status, Sale.Status.COMPLETED)
+        self.assertEqual(sale.outstanding_balance, Decimal("0.00"))
+        self.assertEqual(customer.outstanding_balance, Decimal("0.00"))
+
+        second_customer = Customer.objects.create(
+            business=self.business,
+            name="Second Debt Customer",
+            phone="0200000000",
+            email="second.debt@example.com",
+            outstanding_balance=Decimal("20.00"),
+            total_purchases=Decimal("20.00"),
+            created_by=self.owner,
+        )
+        second_sale = Sale.objects.create(
+            business=self.business,
+            customer=second_customer,
+            sale_number="SAL-00002",
+            invoice_number="INV-00002",
+            payment_method=Sale.PaymentMethod.CREDIT,
+            status=Sale.Status.PARTIALLY_PAID,
+            subtotal=Decimal("20.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("20.00"),
+            amount_paid=Decimal("0.00"),
+            outstanding_balance=Decimal("20.00"),
+            cashier=self.owner,
+        )
+        data = self.payload(Decimal("20.00"))
+        data["saleId"] = second_sale.id
+        reused, _ = initialize_mobile_money_debt_payment(
+            business=self.business,
+            customer_id=second_customer.id,
+            user=self.owner,
+            data=data,
+            idempotency_key="momo-debt-reused",
+            client=self.prompt_client(),
+        )
+        with self.assertRaisesRegex(
+            MobileMoneyPaymentError,
+            "already been processed",
+        ):
+            verify_and_finalize_mobile_money_debt_payment(
+                reference=reused.gateway_reference,
+                client=self.verification_client(
+                    reused,
+                    amount=2000,
+                    transaction_id=700004,
+                ),
+            )
+        reused.refresh_from_db()
+        second_sale.refresh_from_db()
+        second_customer.refresh_from_db()
+        self.assertEqual(reused.status, Payment.Status.FAILED)
+        self.assertEqual(second_sale.outstanding_balance, Decimal("20.00"))
+        self.assertEqual(
+            second_customer.outstanding_balance,
+            Decimal("20.00"),
+        )

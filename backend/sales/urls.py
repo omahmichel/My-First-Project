@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     BusinessCustomerDebtPaymentAPIView,
+    BusinessMobileMoneyDebtPaymentVerifyAPIView,
     BusinessMobileMoneySaleVerifyAPIView,
     BusinessSaleDetailAPIView,
     BusinessSaleListCreateAPIView,
@@ -16,6 +17,13 @@ urlpatterns = [
         "<uuid:customer_id>/payments/",
         BusinessCustomerDebtPaymentAPIView.as_view(),
         name="business-customer-debt-payment",
+    ),
+    path(
+        "businesses/<uuid:business_id>/customers/"
+        "<uuid:customer_id>/payments/mobile-money/"
+        "<str:reference>/verify/",
+        BusinessMobileMoneyDebtPaymentVerifyAPIView.as_view(),
+        name="business-mobile-money-debt-payment-verify",
     ),
     path(
         "businesses/<uuid:business_id>/sales/",

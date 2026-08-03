@@ -778,6 +778,207 @@ class SalesRegressionTests(APITestCase):
         self.assertEqual(Sale.objects.count(), 0)
         self.assertEqual(Payment.objects.count(), 0)
 
+
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    @patch(
+        "sales.mobile_money_service."
+        "PaystackClient.create_mobile_money_charge"
+    )
+    def test_mobile_money_debt_checkout_is_pending_and_idempotent(
+        self,
+        mock_charge,
+    ):
+        # Pending debt checkout creates no receipt or balance change.
+        sale_response = self.create_credit_sale(
+            key="momo-debt-api-sale-001"
+        )
+        mock_charge.side_effect = lambda **kwargs: {
+            "reference": kwargs["reference"],
+            "status": "pay_offline",
+            "display_text": "Approve the payment on your phone.",
+        }
+        payload = {
+            "amount": "60.00",
+            "saleId": sale_response.data["id"],
+            "paymentMethod": "mobile_money",
+            "mobileMoneyNetwork": "MTN",
+            "mobileMoneyNumber": "024-123-4567",
+        }
+        headers = self.idempotency_headers("momo-debt-api-001")
+
+        first = self.client.post(
+            self.customer_payment_url,
+            payload,
+            format="json",
+            **headers,
+        )
+        replay = self.client.post(
+            self.customer_payment_url,
+            payload,
+            format="json",
+            **headers,
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(first.data["status"], "pending")
+        self.assertEqual(first.data["paymentType"], "debt_payment")
+        self.assertEqual(first.data["receiptNumber"], "")
+        self.assertTrue(first.data["gatewayReference"].startswith("STF-DEBT-"))
+        self.assertEqual(replay.status_code, status.HTTP_200_OK)
+        self.assertEqual(replay["Idempotent-Replay"], "true")
+        self.assertEqual(replay.data["id"], first.data["id"])
+        self.assertEqual(mock_charge.call_count, 1)
+
+        sale = Sale.objects.get(pk=sale_response.data["id"])
+        self.customer.refresh_from_db()
+        self.assertEqual(sale.amount_paid, Decimal("40.00"))
+        self.assertEqual(sale.outstanding_balance, Decimal("100.00"))
+        self.assertEqual(
+            self.customer.outstanding_balance,
+            Decimal("100.00"),
+        )
+
+        payment = Payment.objects.get(pk=first.data["id"])
+        mock_charge.assert_called_once_with(
+            email="ama.tests@example.com",
+            amount_subunit=6000,
+            reference=payment.gateway_reference,
+            phone="0241234567",
+            provider="mtn",
+            currency="GHS",
+            metadata={
+                "business_id": str(self.business.id),
+                "sale_id": str(sale.id),
+                "customer_id": str(self.customer.id),
+                "payment_id": str(payment.id),
+                "payment_type": Payment.PaymentType.DEBT_PAYMENT,
+            },
+        )
+
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    @patch(
+        "sales.mobile_money_service."
+        "PaystackClient.verify_transaction"
+    )
+    @patch(
+        "sales.mobile_money_service."
+        "PaystackClient.create_mobile_money_charge"
+    )
+    def test_mobile_money_debt_verification_updates_balances_once(
+        self,
+        mock_charge,
+        mock_verify,
+    ):
+        # Verification settles debt once and returns the serialized payment.
+        sale_response = self.create_credit_sale(
+            key="momo-debt-api-verify-sale"
+        )
+        mock_charge.side_effect = lambda **kwargs: {
+            "reference": kwargs["reference"],
+            "status": "pay_offline",
+            "display_text": "Approve the payment on your phone.",
+        }
+        checkout = self.client.post(
+            self.customer_payment_url,
+            {
+                "amount": "60.00",
+                "saleId": sale_response.data["id"],
+                "paymentMethod": "mobile_money",
+                "mobileMoneyNetwork": "mtn",
+                "mobileMoneyNumber": "0241234567",
+            },
+            format="json",
+            **self.idempotency_headers("momo-debt-api-verify"),
+        )
+        reference = checkout.data["gatewayReference"]
+        mock_verify.return_value = {
+            "id": 810001,
+            "status": "success",
+            "reference": reference,
+            "amount": 6000,
+            "currency": "GHS",
+            "channel": "mobile_money",
+        }
+        verify_url = (
+            f"/api/businesses/{self.business.id}/customers/"
+            f"{self.customer.id}/payments/mobile-money/"
+            f"{reference}/verify/"
+        )
+
+        verified = self.client.post(verify_url, {}, format="json")
+        replay = self.client.post(verify_url, {}, format="json")
+
+        self.assertEqual(
+            verified.status_code,
+            status.HTTP_200_OK,
+            verified.data,
+        )
+        self.assertEqual(verified.data["status"], "successful")
+        self.assertEqual(verified.data["receiptNumber"], "RCT-00002")
+        self.assertEqual(verified.data["providerReference"], "810001")
+        self.assertEqual(replay["Idempotent-Replay"], "true")
+        self.assertEqual(mock_verify.call_count, 1)
+
+        sale = Sale.objects.get(pk=sale_response.data["id"])
+        self.customer.refresh_from_db()
+        self.assertEqual(sale.amount_paid, Decimal("100.00"))
+        self.assertEqual(sale.outstanding_balance, Decimal("40.00"))
+        self.assertEqual(
+            self.customer.outstanding_balance,
+            Decimal("40.00"),
+        )
+
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    @patch(
+        "sales.mobile_money_service."
+        "PaystackClient.create_mobile_money_charge"
+    )
+    def test_mobile_money_debt_verification_is_business_isolated(
+        self,
+        mock_charge,
+    ):
+        # Another business cannot discover or verify the payment reference.
+        sale_response = self.create_credit_sale(
+            key="momo-debt-api-isolation-sale"
+        )
+        mock_charge.side_effect = lambda **kwargs: {
+            "reference": kwargs["reference"],
+            "status": "pay_offline",
+            "display_text": "Approve the payment on your phone.",
+        }
+        checkout = self.client.post(
+            self.customer_payment_url,
+            {
+                "amount": "60.00",
+                "saleId": sale_response.data["id"],
+                "paymentMethod": "mobile_money",
+                "mobileMoneyNetwork": "mtn",
+                "mobileMoneyNumber": "0241234567",
+            },
+            format="json",
+            **self.idempotency_headers("momo-debt-api-isolation"),
+        )
+        hidden_url = (
+            f"/api/businesses/{self.other_business.id}/customers/"
+            f"{self.customer.id}/payments/mobile-money/"
+            f"{checkout.data['gatewayReference']}/verify/"
+        )
+
+        response = self.client.post(hidden_url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        payment = Payment.objects.get(pk=checkout.data["id"])
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+
     def test_waybill_create_update_and_persist(self):
         # One waybill remains attached to its sale after API reloads.
         self.authenticate(self.owner)

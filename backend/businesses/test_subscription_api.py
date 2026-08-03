@@ -456,3 +456,107 @@ class PaystackWebhookAPITests(APITestCase):
             response.data,
         )
         self.assertFalse(response.data["processed"])
+
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_debt_payment"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_sale"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_fulfill_subscription_payment"
+    )
+    def test_signed_debt_charge_routes_to_debt_finalization(
+        self,
+        subscription_verify_mock,
+        sale_verify_mock,
+        debt_verify_mock,
+    ):
+        # A reference unknown to subscriptions and sales falls through to debt.
+        subscription_verify_mock.side_effect = SubscriptionPaymentError(
+            "The subscription payment reference was not found.",
+            code="subscription_payment_not_found",
+        )
+        sale_verify_mock.side_effect = MobileMoneyPaymentError(
+            "The Mobile Money payment reference was not found.",
+            code="mobile_money_payment_not_found",
+        )
+        debt_verify_mock.return_value = (
+            object(), object(), object(), True
+        )
+
+        response = self.signed_post(
+            {
+                "event": "charge.success",
+                "data": {"reference": "STF-DEBT-WEBHOOK-001"},
+            }
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data["processed"])
+        self.assertTrue(response.data["debtPaymentFinalized"])
+        debt_verify_mock.assert_called_once_with(
+            reference="STF-DEBT-WEBHOOK-001",
+        )
+
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_debt_payment"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_finalize_mobile_money_sale"
+    )
+    @patch(
+        "businesses.subscription_views."
+        "verify_and_fulfill_subscription_payment"
+    )
+    def test_debt_webhook_retries_temporary_and_acknowledges_permanent_errors(
+        self,
+        subscription_verify_mock,
+        sale_verify_mock,
+        debt_verify_mock,
+    ):
+        # Pending states retry; audited balance conflicts are acknowledged.
+        subscription_verify_mock.side_effect = SubscriptionPaymentError(
+            "The subscription payment reference was not found.",
+            code="subscription_payment_not_found",
+        )
+        sale_verify_mock.side_effect = MobileMoneyPaymentError(
+            "The Mobile Money payment reference was not found.",
+            code="mobile_money_payment_not_found",
+        )
+        debt_verify_mock.side_effect = MobileMoneyPaymentError(
+            "The Mobile Money payment is still pending.",
+            code="mobile_money_payment_pending",
+        )
+        pending = self.signed_post(
+            {
+                "event": "charge.success",
+                "data": {"reference": "STF-DEBT-PENDING-001"},
+            }
+        )
+        self.assertEqual(
+            pending.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+        self.assertEqual(
+            pending.data["code"],
+            "mobile_money_payment_pending",
+        )
+
+        debt_verify_mock.side_effect = MobileMoneyPaymentError(
+            "The invoice balance changed before verification.",
+            code="mobile_money_debt_balance_changed",
+        )
+        permanent = self.signed_post(
+            {
+                "event": "charge.success",
+                "data": {"reference": "STF-DEBT-CONFLICT-001"},
+            }
+        )
+        self.assertEqual(permanent.status_code, status.HTTP_200_OK)
+        self.assertFalse(permanent.data["processed"])
