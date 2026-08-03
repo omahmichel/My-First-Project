@@ -1,5 +1,7 @@
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -110,6 +112,19 @@ class SalesRegressionTests(APITestCase):
             "amountPaid": "150.00",
             "paymentMethod": "cash",
         }
+
+    def mobile_money_sale_payload(self):
+        # Returns one full GHS 150 Mobile Money checkout request.
+        payload = self.cash_sale_payload()
+        payload.update(
+            {
+                "customerId": str(self.customer.id),
+                "paymentMethod": "mobile_money",
+                "mobileMoneyNetwork": "mtn",
+                "mobileMoneyNumber": "0241234567",
+            }
+        )
+        return payload
 
     def credit_sale_payload(self):
         # Returns one part-paid GHS 140 credit checkout request.
@@ -401,33 +416,301 @@ class SalesRegressionTests(APITestCase):
             0,
         )
 
-    def test_mobile_money_checkout_is_blocked_without_gateway(self):
-        # The API must not fake a Mobile Money prompt or successful sale.
-        self.authenticate(self.owner)
-        payload = self.cash_sale_payload()
-        payload.update(
-            {
-                "paymentMethod": "mobile_money",
-                "mobileMoneyNetwork": "mtn",
-                "mobileMoneyNumber": "0241234567",
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    @patch(
+        "sales.mobile_money_service."
+        "PaystackClient.create_mobile_money_charge"
+    )
+    def test_mobile_money_checkout_creates_pending_sale(
+        self,
+        mock_charge,
+    ):
+        # The checkout reserves stock and returns one pending prompt record.
+        def charge_response(**kwargs):
+            return {
+                "reference": kwargs["reference"],
+                "status": "pay_offline",
+                "display_text": (
+                    "Approve the payment on your phone."
+                ),
             }
-        )
+
+        mock_charge.side_effect = charge_response
+        self.authenticate(self.owner)
+        headers = self.idempotency_headers("momo-checkout-001")
 
         response = self.client.post(
             self.sales_url,
-            payload,
+            self.mobile_money_sale_payload(),
             format="json",
-            **self.idempotency_headers("momo-checkout-001"),
+            **headers,
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("paymentMethod", response.data)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["status"],
+            Sale.Status.PENDING_PAYMENT,
+        )
+        self.assertIsNotNone(response.data["reservationExpiresAt"])
+        self.assertEqual(
+            response.data["payments"][0]["status"],
+            Payment.Status.PENDING,
+        )
+        self.assertTrue(
+            response.data["payments"][0][
+                "gatewayReference"
+            ].startswith("STF-SALE-")
+        )
+        self.assertEqual(
+            response.data["payments"][0]["note"],
+            "Approve the payment on your phone.",
+        )
 
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 1)
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+        replay = self.client.post(
+            self.sales_url,
+            self.mobile_money_sale_payload(),
+            format="json",
+            **headers,
+        )
+        self.assertEqual(replay.status_code, status.HTTP_200_OK)
+        self.assertEqual(replay["Idempotent-Replay"], "true")
+        self.assertEqual(replay.data["id"], response.data["id"])
+        self.assertEqual(mock_charge.call_count, 1)
+
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    def test_mobile_money_verification_finalizes_pending_sale(self):
+        # The business-scoped verification endpoint delivers value once.
+        self.authenticate(self.owner)
+
+        with patch(
+            "sales.mobile_money_service."
+            "PaystackClient.create_mobile_money_charge"
+        ) as mock_charge:
+            def charge_response(**kwargs):
+                return {
+                    "reference": kwargs["reference"],
+                    "status": "pay_offline",
+                    "display_text": (
+                        "Approve the payment on your phone."
+                    ),
+                }
+
+            mock_charge.side_effect = charge_response
+            checkout = self.client.post(
+                self.sales_url,
+                self.mobile_money_sale_payload(),
+                format="json",
+                **self.idempotency_headers(
+                    "momo-api-verify-success"
+                ),
+            )
+
+        self.assertEqual(
+            checkout.status_code,
+            status.HTTP_201_CREATED,
+            checkout.data,
+        )
+        payment = Payment.objects.get(
+            sale_id=checkout.data["id"]
+        )
+        verify_url = (
+            f"/api/businesses/{self.business.id}/sales/"
+            f"mobile-money/{payment.gateway_reference}/verify/"
+        )
+
+        with patch(
+            "sales.mobile_money_service."
+            "PaystackClient.verify_transaction"
+        ) as mock_verify:
+            mock_verify.return_value = {
+                "id": 770001,
+                "status": "success",
+                "reference": payment.gateway_reference,
+                "amount": 15000,
+                "currency": "GHS",
+                "channel": "mobile_money",
+            }
+            response = self.client.post(
+                verify_url,
+                {},
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["status"],
+            Sale.Status.COMPLETED,
+        )
+        self.assertEqual(
+            response.data["receiptNumber"],
+            "RCT-00001",
+        )
+        self.assertEqual(
+            response.data["payments"][0]["status"],
+            Payment.Status.SUCCESSFUL,
+        )
+
+        self.product.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(self.product.stock, 9)
         self.assertEqual(self.product.reserved_stock, 0)
-        self.assertEqual(Sale.objects.count(), 0)
-        self.assertEqual(Payment.objects.count(), 0)
+        self.assertEqual(
+            self.customer.total_purchases,
+            Decimal("150.00"),
+        )
+        self.assertEqual(StockMovement.objects.count(), 1)
+
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    def test_pending_mobile_money_verification_returns_conflict(self):
+        # A temporary Paystack state keeps the stock reservation intact.
+        self.authenticate(self.owner)
+
+        with patch(
+            "sales.mobile_money_service."
+            "PaystackClient.create_mobile_money_charge"
+        ) as mock_charge:
+            def charge_response(**kwargs):
+                return {
+                    "reference": kwargs["reference"],
+                    "status": "pay_offline",
+                    "display_text": (
+                        "Approve the payment on your phone."
+                    ),
+                }
+
+            mock_charge.side_effect = charge_response
+            checkout = self.client.post(
+                self.sales_url,
+                self.mobile_money_sale_payload(),
+                format="json",
+                **self.idempotency_headers(
+                    "momo-api-verify-pending"
+                ),
+            )
+
+        payment = Payment.objects.get(
+            sale_id=checkout.data["id"]
+        )
+        verify_url = (
+            f"/api/businesses/{self.business.id}/sales/"
+            f"mobile-money/{payment.gateway_reference}/verify/"
+        )
+
+        with patch(
+            "sales.mobile_money_service."
+            "PaystackClient.verify_transaction"
+        ) as mock_verify:
+            mock_verify.return_value = {
+                "id": 770002,
+                "status": "pending",
+                "reference": payment.gateway_reference,
+                "amount": 15000,
+                "currency": "GHS",
+                "channel": "mobile_money",
+            }
+            response = self.client.post(
+                verify_url,
+                {},
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_409_CONFLICT,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["code"],
+            "mobile_money_payment_pending",
+        )
+
+        self.product.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 1)
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+    @override_settings(
+        PAYMENT_GATEWAY="paystack",
+        PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow",
+    )
+    def test_mobile_money_verification_is_business_isolated(self):
+        # A valid reference remains hidden through another business URL.
+        self.authenticate(self.owner)
+
+        with patch(
+            "sales.mobile_money_service."
+            "PaystackClient.create_mobile_money_charge"
+        ) as mock_charge:
+            def charge_response(**kwargs):
+                return {
+                    "reference": kwargs["reference"],
+                    "status": "pay_offline",
+                    "display_text": (
+                        "Approve the payment on your phone."
+                    ),
+                }
+
+            mock_charge.side_effect = charge_response
+            checkout = self.client.post(
+                self.sales_url,
+                self.mobile_money_sale_payload(),
+                format="json",
+                **self.idempotency_headers(
+                    "momo-api-business-isolation"
+                ),
+            )
+
+        payment = Payment.objects.get(
+            sale_id=checkout.data["id"]
+        )
+        wrong_business_url = (
+            f"/api/businesses/{self.other_business.id}/sales/"
+            f"mobile-money/{payment.gateway_reference}/verify/"
+        )
+
+        with patch(
+            "sales.mobile_money_service."
+            "PaystackClient.verify_transaction"
+        ) as mock_verify:
+            response = self.client.post(
+                wrong_business_url,
+                {},
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        mock_verify.assert_not_called()
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 1)
         self.assertEqual(StockMovement.objects.count(), 0)
 
     def test_business_isolation_hides_customer_from_other_business(self):

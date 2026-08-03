@@ -7,6 +7,15 @@ from rest_framework.views import APIView
 
 from businesses.access import get_business_and_role_for_user
 from businesses.models import BusinessMembership
+from businesses.paystack_client import (
+    PaystackConfigurationError,
+    PaystackRequestError,
+)
+from .mobile_money_service import (
+    MobileMoneyPaymentError,
+    initialize_mobile_money_sale,
+    verify_and_finalize_mobile_money_sale,
+)
 from .models import DocumentSequence, Payment, Sale, Waybill
 from .serializers import (
     CreateSaleSerializer,
@@ -20,6 +29,58 @@ from .services import (
     create_completed_sale,
     record_customer_debt_payment,
 )
+
+
+def _request_uses_mobile_money(request):
+    # Applies the gateway throttle only to checkouts needing a phone prompt.
+    if request.method != "POST":
+        return False
+
+    data = request.data
+    return (
+        data.get("paymentMethod") == Sale.PaymentMethod.MOBILE_MONEY
+        or data.get("amountPaidMethod") == Payment.Method.MOBILE_MONEY
+    )
+
+
+def _mobile_money_service_error_response(exc):
+    # Maps controlled payment states to stable frontend response codes.
+    status_code = status.HTTP_400_BAD_REQUEST
+
+    if exc.code == "mobile_money_payment_not_found":
+        status_code = status.HTTP_404_NOT_FOUND
+    elif exc.code in {
+        "mobile_money_payment_pending",
+        "mobile_money_payment_failed",
+        "mobile_money_sale_not_pending",
+        "mobile_money_transaction_reused",
+        "mobile_money_reservation_invalid",
+    }:
+        status_code = status.HTTP_409_CONFLICT
+
+    return Response(
+        {
+            "detail": str(exc),
+            "code": exc.code,
+        },
+        status=status_code,
+    )
+
+
+def _mobile_money_gateway_error_response(exc):
+    # Hides credentials while distinguishing setup and gateway failures.
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    if isinstance(exc, PaystackConfigurationError):
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return Response(
+        {
+            "detail": str(exc),
+            "code": exc.code,
+        },
+        status=status_code,
+    )
 
 
 class BusinessSaleAccessMixin:
@@ -91,6 +152,15 @@ class BusinessSaleListCreateAPIView(
     # Lists sales and completes one protected checkout transaction.
 
     permission_classes = (IsAuthenticated,)
+
+    def get_throttles(self):
+        # Adds the stricter scope only to Mobile Money sale requests.
+        self.throttle_scope = (
+            "mobile_money_sale_initialize"
+            if _request_uses_mobile_money(self.request)
+            else None
+        )
+        return super().get_throttles()
 
     def get(self, request, business_id):
         business, _, denied_response = self.require_sales_access()
@@ -176,13 +246,40 @@ class BusinessSaleListCreateAPIView(
         serializer = CreateSaleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            sale, replayed = create_completed_sale(
-                business=business,
-                user=request.user,
-                data=serializer.validated_data,
-                idempotency_key=idempotency_key,
+        uses_mobile_money = (
+            serializer.validated_data["paymentMethod"]
+            == Sale.PaymentMethod.MOBILE_MONEY
+            or (
+                serializer.validated_data["paymentMethod"]
+                == Sale.PaymentMethod.CREDIT
+                and serializer.validated_data.get("amountPaid")
+                and serializer.validated_data.get("amountPaidMethod")
+                == Payment.Method.MOBILE_MONEY
             )
+        )
+
+        try:
+            if uses_mobile_money:
+                sale, _, replayed = initialize_mobile_money_sale(
+                    business=business,
+                    user=request.user,
+                    data=serializer.validated_data,
+                    idempotency_key=idempotency_key,
+                )
+            else:
+                sale, replayed = create_completed_sale(
+                    business=business,
+                    user=request.user,
+                    data=serializer.validated_data,
+                    idempotency_key=idempotency_key,
+                )
+        except (
+            PaystackConfigurationError,
+            PaystackRequestError,
+        ) as exc:
+            return _mobile_money_gateway_error_response(exc)
+        except MobileMoneyPaymentError as exc:
+            return _mobile_money_service_error_response(exc)
         except IntegrityError:
             sale = get_object_or_404(
                 Sale.objects.select_related(
@@ -208,6 +305,60 @@ class BusinessSaleListCreateAPIView(
         )
 
         if replayed:
+            response["Idempotent-Replay"] = "true"
+
+        return response
+
+
+class BusinessMobileMoneySaleVerifyAPIView(
+    BusinessSaleAccessMixin,
+    APIView,
+):
+    # Verifies one business-isolated Paystack Mobile Money sale.
+
+    permission_classes = (IsAuthenticated,)
+    throttle_scope = "mobile_money_sale_verify"
+
+    def post(self, request, business_id, reference):
+        business, _, denied_response = self.require_sales_access()
+
+        if denied_response:
+            return denied_response
+
+        # Hides references that belong to a different business.
+        get_object_or_404(
+            Payment.objects.select_related("sale"),
+            business=business,
+            gateway="paystack",
+            gateway_reference=reference,
+            method=Payment.Method.MOBILE_MONEY,
+            payment_type=Payment.PaymentType.SALE_PAYMENT,
+            sale__isnull=False,
+        )
+
+        try:
+            _, sale, finalized = (
+                verify_and_finalize_mobile_money_sale(
+                    reference=reference,
+                )
+            )
+        except (
+            PaystackConfigurationError,
+            PaystackRequestError,
+        ) as exc:
+            return _mobile_money_gateway_error_response(exc)
+        except MobileMoneyPaymentError as exc:
+            return _mobile_money_service_error_response(exc)
+
+        response = Response(
+            SaleSerializer(
+                sale,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+        if not finalized:
             response["Idempotent-Replay"] = "true"
 
         return response
