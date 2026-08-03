@@ -1308,3 +1308,188 @@ def verify_and_finalize_mobile_money_debt_payment(*, reference, client=None):
         raise deferred_error
     payment = _reload_debt_payment(existing.id)
     return payment, payment.sale, payment.customer, True
+
+
+@transaction.atomic
+def _expire_stale_mobile_money_sale(
+    *,
+    payment_id,
+    checked_at,
+):
+    # Releases one expired reservation only while it is still pending.
+    payment = (
+        Payment.objects.select_for_update()
+        .select_related("sale")
+        .get(pk=payment_id)
+    )
+    sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
+
+    if (
+        payment.status != Payment.Status.PENDING
+        or sale.status != Sale.Status.PENDING_PAYMENT
+        or sale.reservation_expires_at is None
+        or sale.reservation_expires_at > checked_at
+    ):
+        return payment, sale, False
+
+    items = list(
+        SaleItem.objects.select_for_update()
+        .filter(sale=sale)
+        .values("product_id", "quantity")
+    )
+    product_ids = [item["product_id"] for item in items]
+    products = {
+        product.id: product
+        for product in Product.objects.select_for_update().filter(
+            id__in=product_ids
+        )
+    }
+
+    if len(products) != len(set(product_ids)):
+        raise MobileMoneyPaymentError(
+            "One or more reserved products could not be found.",
+            code="mobile_money_reserved_product_missing",
+        )
+
+    for item in items:
+        product = products[item["product_id"]]
+        product.reserved_stock = max(
+            0,
+            product.reserved_stock - item["quantity"],
+        )
+        product.save(
+            update_fields=("reserved_stock", "updated_at")
+        )
+
+    sale.status = Sale.Status.FAILED
+    sale.reservation_expires_at = None
+    sale.save(
+        update_fields=(
+            "status",
+            "reservation_expires_at",
+            "updated_at",
+        )
+    )
+
+    payment.status = Payment.Status.FAILED
+    payment.failure_reason = (
+        "The Mobile Money reservation expired before Paystack "
+        "confirmed a successful payment."
+    )
+    payment.note = (
+        "The expired stock reservation was released after "
+        "server-side Paystack verification."
+    )
+    payment.save(
+        update_fields=(
+            "status",
+            "failure_reason",
+            "note",
+            "updated_at",
+        )
+    )
+
+    return payment, sale, True
+
+
+def _expired_mobile_money_payment_ids(*, checked_at, batch_size):
+    # Selects only expired pending sale payments in deterministic order.
+    return list(
+        Payment.objects.filter(
+            gateway="paystack",
+            method=Payment.Method.MOBILE_MONEY,
+            payment_type=Payment.PaymentType.SALE_PAYMENT,
+            status=Payment.Status.PENDING,
+            sale__status=Sale.Status.PENDING_PAYMENT,
+            sale__reservation_expires_at__isnull=False,
+            sale__reservation_expires_at__lte=checked_at,
+        )
+        .order_by("sale__reservation_expires_at", "created_at", "id")
+        .values_list("id", flat=True)[:batch_size]
+    )
+
+
+def cleanup_expired_mobile_money_reservations(
+    *,
+    checked_at=None,
+    batch_size=100,
+    client=None,
+):
+    # Reconciles expired reservations with Paystack before releasing stock.
+    if batch_size < 1:
+        raise ValueError("batch_size must be greater than zero.")
+
+    checked_at = checked_at or timezone.now()
+    payment_ids = _expired_mobile_money_payment_ids(
+        checked_at=checked_at,
+        batch_size=batch_size,
+    )
+    summary = {
+        "scanned": len(payment_ids),
+        "finalized": 0,
+        "released": 0,
+        "deferred": 0,
+        "skipped": 0,
+    }
+
+    for payment_id in payment_ids:
+        payment = (
+            Payment.objects.select_related("sale")
+            .filter(pk=payment_id)
+            .first()
+        )
+
+        if not payment:
+            summary["skipped"] += 1
+            continue
+
+        try:
+            _, _, finalized = verify_and_finalize_mobile_money_sale(
+                reference=payment.gateway_reference,
+                client=client,
+            )
+        except (
+            PaystackConfigurationError,
+            PaystackRequestError,
+        ):
+            # A gateway outage must never release stock without verification.
+            summary["deferred"] += 1
+            continue
+        except MobileMoneyPaymentError as exc:
+            payment.refresh_from_db()
+            payment.sale.refresh_from_db()
+
+            # Terminal verification failures already release the reservation.
+            if (
+                payment.status != Payment.Status.PENDING
+                and payment.sale.reservation_expires_at is None
+            ):
+                summary["released"] += 1
+                continue
+
+            if exc.code != "mobile_money_payment_pending":
+                # Incomplete or inconsistent verification requires review.
+                summary["deferred"] += 1
+                continue
+
+            try:
+                _, _, released = _expire_stale_mobile_money_sale(
+                    payment_id=payment.id,
+                    checked_at=checked_at,
+                )
+            except MobileMoneyPaymentError:
+                summary["deferred"] += 1
+                continue
+
+            if released:
+                summary["released"] += 1
+            else:
+                summary["skipped"] += 1
+            continue
+
+        if finalized:
+            summary["finalized"] += 1
+        else:
+            summary["skipped"] += 1
+
+    return summary
