@@ -285,6 +285,14 @@ REST_FRAMEWORK = {
             "THROTTLE_RATE_SUBSCRIPTION_PAYMENT_VERIFY",
             "30/min",
         ),
+        "mobile_money_sale_initialize": os.getenv(
+            "THROTTLE_RATE_MOBILE_MONEY_SALE_INITIALIZE",
+            "10/min",
+        ),
+        "mobile_money_sale_verify": os.getenv(
+            "THROTTLE_RATE_MOBILE_MONEY_SALE_VERIFY",
+            "30/min",
+        ),
         "paystack_webhook": os.getenv(
             "THROTTLE_RATE_PAYSTACK_WEBHOOK",
             "300/min",

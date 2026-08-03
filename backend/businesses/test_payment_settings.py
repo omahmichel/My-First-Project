@@ -1,6 +1,7 @@
 import os
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase
 
@@ -65,3 +66,22 @@ class PaymentSettingsTests(SimpleTestCase):
                     "TEST_POSITIVE_INTEGER",
                     default=5,
                 )
+
+    def test_mobile_money_sale_throttle_scopes_are_configured(self):
+        # Keeps gateway actions under explicit per-user rate limits.
+        rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+
+        self.assertEqual(
+            rates["mobile_money_sale_initialize"],
+            os.getenv(
+                "THROTTLE_RATE_MOBILE_MONEY_SALE_INITIALIZE",
+                "10/min",
+            ),
+        )
+        self.assertEqual(
+            rates["mobile_money_sale_verify"],
+            os.getenv(
+                "THROTTLE_RATE_MOBILE_MONEY_SALE_VERIFY",
+                "30/min",
+            ),
+        )
