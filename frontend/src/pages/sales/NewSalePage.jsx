@@ -70,6 +70,7 @@ export default function NewSalePage() {
   const [amountPaidMethod, setAmountPaidMethod] = useState("cash");
   const [discount, setDiscount] = useState(0);
   const [amountPaid, setAmountPaid] = useState(0);
+  const [debtDueDate, setDebtDueDate] = useState("");
   const [error, setError] = useState("");
   const [saleSaving, setSaleSaving] = useState(false);
   const [completedSale, setCompletedSale] = useState(null);
@@ -261,6 +262,7 @@ export default function NewSalePage() {
     } else {
       setAmountPaid(total);
       setAmountPaidMethod("");
+      setDebtDueDate("");
     }
 
     if (method !== "mobile_money") {
@@ -295,6 +297,10 @@ export default function NewSalePage() {
         amountPaidMethod:
           paymentMethod === "credit" && Number(amountPaid) > 0
             ? amountPaidMethod
+            : "",
+        debtDueDate:
+          paymentMethod === "credit" && outstanding > 0
+            ? debtDueDate
             : "",
         mobileMoneyNetwork:
           paymentMethod === "mobile_money"
@@ -331,6 +337,7 @@ export default function NewSalePage() {
       setAmountPaidMethod("cash");
       setDiscount(0);
       setAmountPaid(0);
+      setDebtDueDate("");
       setMobileMoneyNetwork("");
       setMobileMoneyNumber("");
       resetCheckoutKey();
@@ -750,6 +757,23 @@ export default function NewSalePage() {
                         Bank transfer
                       </option>
                     </select>
+                  </label>
+                ) : null}
+
+                {outstanding > 0 ? (
+                  <label>
+                    Debt due date
+                    <input
+                      type="date"
+                      value={debtDueDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(event) => {
+                        resetCheckoutKey();
+                        setDebtDueDate(event.target.value);
+                      }}
+                      disabled={saleSaving}
+                      required
+                    />
                   </label>
                 ) : null}
 

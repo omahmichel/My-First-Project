@@ -1187,6 +1187,7 @@ export function StoreProvider({ children }) {
     amountPaid,
     paymentMethod,
     amountPaidMethod = "",
+    debtDueDate = "",
     mobileMoneyNetwork = "",
     mobileMoneyNumber = "",
     idempotencyKey,
@@ -1262,6 +1263,21 @@ export function StoreProvider({ children }) {
       );
     }
 
+    const outstandingBalance = Math.max(
+      0,
+      total - safeAmountPaid,
+    );
+
+    if (
+      paymentMethod === "credit" &&
+      outstandingBalance > 0 &&
+      !String(debtDueDate || "").trim()
+    ) {
+      throw new Error(
+        "Select the date when this debt is due.",
+      );
+    }
+
     const requestKey =
       idempotencyKey ||
       (typeof window.crypto?.randomUUID === "function"
@@ -1290,6 +1306,11 @@ export function StoreProvider({ children }) {
             paymentMethod === "credit" && safeAmountPaid > 0
               ? amountPaidMethod
               : "",
+          debtDueDate:
+            paymentMethod === "credit" &&
+            outstandingBalance > 0
+              ? String(debtDueDate).trim()
+              : null,
           mobileMoneyNetwork:
             paymentMethod === "mobile_money"
               ? String(mobileMoneyNetwork).trim()
