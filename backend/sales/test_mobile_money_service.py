@@ -510,12 +510,36 @@ class MobileMoneySaleInitializationTests(TestCase):
         self.assertEqual(payment.receipt_number, "")
         self.assertEqual(StockMovement.objects.count(), 0)
 
+    def test_part_payment_requires_debt_due_date(self):
+        # Rejects the prompt before creating records when debt lacks a date.
+        data = self.payload()
+        data["paymentMethod"] = Sale.PaymentMethod.CREDIT
+        data["amountPaidMethod"] = Payment.Method.MOBILE_MONEY
+        data["amountPaid"] = Decimal("50.00")
+
+        with self.assertRaises(MobileMoneyPaymentError):
+            initialize_mobile_money_sale(
+                business=self.business,
+                user=self.owner,
+                data=data,
+                idempotency_key="momo-missing-debt-due-date",
+                client=self.successful_client(),
+            )
+
+        self.assertEqual(Sale.objects.count(), 0)
+        self.assertEqual(Payment.objects.count(), 0)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.product.reserved_stock, 0)
+
     def test_verified_part_payment_creates_customer_debt(self):
         # A verified credit deposit records the sale and remaining balance.
         data = self.payload()
         data["paymentMethod"] = Sale.PaymentMethod.CREDIT
         data["amountPaidMethod"] = Payment.Method.MOBILE_MONEY
         data["amountPaid"] = Decimal("50.00")
+        debt_due_date = timezone.localdate() + timedelta(days=30)
+        data["debtDueDate"] = debt_due_date
 
         sale, payment, _ = initialize_mobile_money_sale(
             business=self.business,
@@ -524,6 +548,12 @@ class MobileMoneySaleInitializationTests(TestCase):
             idempotency_key="momo-verify-part-payment",
             client=self.successful_client(),
         )
+        self.assertEqual(sale.debt_due_date, debt_due_date)
+        self.assertEqual(
+            sale.debt_principal_at_due,
+            Decimal("0.00"),
+        )
+
         client = self.verification_client(
             payment=payment,
             amount=5000,
@@ -552,6 +582,14 @@ class MobileMoneySaleInitializationTests(TestCase):
         )
         self.assertEqual(
             verified_sale.outstanding_balance,
+            Decimal("100.00"),
+        )
+        self.assertEqual(
+            verified_sale.debt_due_date,
+            debt_due_date,
+        )
+        self.assertEqual(
+            verified_sale.debt_principal_at_due,
             Decimal("100.00"),
         )
 

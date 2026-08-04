@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import DocumentSequence, Payment, Sale, SaleItem
+from .models import (
+    DebtOverdueCharge,
+    DebtReminderAttempt,
+    DebtReminderSchedule,
+    DocumentSequence,
+    Payment,
+    Sale,
+    SaleItem,
+)
 
 
 class ReadOnlyAuditAdminMixin:
@@ -166,6 +174,124 @@ class PaymentAdmin(ReadOnlyAuditAdminMixin, admin.ModelAdmin):
     )
     ordering = ("-created_at",)
     date_hierarchy = "created_at"
+    list_per_page = 50
+
+
+@admin.register(DebtOverdueCharge)
+class DebtOverdueChargeAdmin(
+    ReadOnlyAuditAdminMixin,
+    admin.ModelAdmin,
+):
+    # Provides a protected audit trail of overdue tier changes.
+
+    list_display = (
+        "sale",
+        "business",
+        "customer",
+        "tier_percentage",
+        "principal_base",
+        "total_charge_required",
+        "incremental_amount",
+        "applied_at",
+    )
+    list_filter = (
+        "tier_percentage",
+        "business",
+        "applied_at",
+    )
+    search_fields = (
+        "sale__sale_number",
+        "sale__invoice_number",
+        "customer__name",
+        "business__name",
+    )
+    list_select_related = (
+        "business",
+        "customer",
+        "sale",
+    )
+    ordering = ("-applied_at",)
+    date_hierarchy = "applied_at"
+    list_per_page = 50
+
+
+@admin.register(DebtReminderSchedule)
+class DebtReminderScheduleAdmin(
+    ReadOnlyAuditAdminMixin,
+    admin.ModelAdmin,
+):
+    # Shows each deterministic reminder slot and its final state.
+
+    list_display = (
+        "sale",
+        "business",
+        "customer",
+        "scheduled_for",
+        "reminder_sequence_number",
+        "status",
+        "last_attempted_at",
+    )
+    list_filter = (
+        "status",
+        "business",
+        "scheduled_for",
+    )
+    search_fields = (
+        "sale__sale_number",
+        "sale__invoice_number",
+        "customer__name",
+        "business__name",
+    )
+    list_select_related = (
+        "business",
+        "customer",
+        "sale",
+    )
+    ordering = ("-scheduled_for", "-created_at")
+    date_hierarchy = "scheduled_for"
+    list_per_page = 50
+
+
+@admin.register(DebtReminderAttempt)
+class DebtReminderAttemptAdmin(
+    ReadOnlyAuditAdminMixin,
+    admin.ModelAdmin,
+):
+    # Shows every send, retry, failure, and safe reminder skip.
+
+    list_display = (
+        "schedule",
+        "sale",
+        "business",
+        "customer",
+        "attempt_number",
+        "status",
+        "provider",
+        "attempted_at",
+    )
+    list_filter = (
+        "status",
+        "provider",
+        "business",
+        "attempted_at",
+    )
+    search_fields = (
+        "sale__sale_number",
+        "sale__invoice_number",
+        "customer__name",
+        "recipient_snapshot",
+        "provider_reference",
+        "failure_reason",
+        "business__name",
+    )
+    list_select_related = (
+        "schedule",
+        "business",
+        "customer",
+        "sale",
+    )
+    ordering = ("-attempted_at",)
+    date_hierarchy = "attempted_at"
     list_per_page = 50
 
 

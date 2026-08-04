@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Payment, Sale, SaleItem, Waybill
@@ -38,6 +39,10 @@ class CreateSaleSerializer(serializers.Serializer):
         min_value=Decimal("0.00"),
         required=False,
         default=Decimal("0.00"),
+    )
+    debtDueDate = serializers.DateField(
+        required=False,
+        allow_null=True,
     )
     paymentMethod = serializers.ChoiceField(
         choices=Sale.PaymentMethod.choices,
@@ -140,6 +145,22 @@ class CreateSaleSerializer(serializers.Serializer):
 
         attrs["mobileMoneyNetwork"] = network.lower()
         attrs["mobileMoneyNumber"] = normalized_phone
+
+        # Validates the submitted date itself without trusting item prices.
+        debt_due_date = attrs.get("debtDueDate")
+
+        if (
+            debt_due_date
+            and debt_due_date < timezone.localdate()
+        ):
+            raise serializers.ValidationError(
+                {
+                    "debtDueDate": (
+                        "Debt due date cannot be in the past."
+                    )
+                }
+            )
+
         return attrs
 
 
@@ -580,6 +601,17 @@ class SaleSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
+    debtDueDate = serializers.DateField(
+        source="debt_due_date",
+        read_only=True,
+        allow_null=True,
+    )
+    debtPrincipalAtDue = serializers.DecimalField(
+        source="debt_principal_at_due",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+    )
     cashier = serializers.CharField(
         source="cashier_name",
         read_only=True,
@@ -624,6 +656,8 @@ class SaleSerializer(serializers.ModelSerializer):
             "total",
             "amountPaid",
             "outstandingBalance",
+            "debtDueDate",
+            "debtPrincipalAtDue",
             "paymentMethod",
             "status",
             "cashier",

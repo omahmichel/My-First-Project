@@ -247,6 +247,30 @@ def create_completed_sale(
             }
         )
 
+    # Uses the trusted server-calculated balance for due-date rules.
+    debt_due_date = data.get("debtDueDate")
+
+    if (
+        outstanding_balance > Decimal("0.00")
+        and not debt_due_date
+    ):
+        raise serializers.ValidationError(
+            {
+                "debtDueDate": (
+                    "Select the date when this debt is due."
+                )
+            }
+        )
+
+    if outstanding_balance == Decimal("0.00"):
+        debt_due_date = None
+
+    debt_principal_at_due = (
+        outstanding_balance
+        if outstanding_balance > Decimal("0.00")
+        else Decimal("0.00")
+    )
+
     issue_receipt = amount_paid > Decimal("0.00")
     sale_number, invoice_number, receipt_number = (
         _next_document_numbers(
@@ -274,6 +298,8 @@ def create_completed_sale(
         total=total,
         amount_paid=amount_paid,
         outstanding_balance=outstanding_balance,
+        debt_due_date=debt_due_date,
+        debt_principal_at_due=debt_principal_at_due,
         cashier=user,
         completed_at=timezone.now(),
     )

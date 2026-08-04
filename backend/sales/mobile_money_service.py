@@ -178,6 +178,22 @@ def _create_pending_mobile_money_records(
             code="mobile_money_customer_required",
         )
 
+    # Uses trusted totals to decide whether verified debt will remain.
+    expected_outstanding_balance = total - payment_amount
+    debt_due_date = data.get("debtDueDate")
+
+    if (
+        expected_outstanding_balance > Decimal("0.00")
+        and not debt_due_date
+    ):
+        raise MobileMoneyPaymentError(
+            "Select the date when this debt is due.",
+            code="mobile_money_debt_due_date_required",
+        )
+
+    if expected_outstanding_balance == Decimal("0.00"):
+        debt_due_date = None
+
     sale_number, invoice_number, _ = _next_document_numbers(
         business,
         issue_receipt=False,
@@ -199,6 +215,9 @@ def _create_pending_mobile_money_records(
         total=total,
         amount_paid=Decimal("0.00"),
         outstanding_balance=total,
+        # Keeps the trusted due date but waits for debt verification.
+        debt_due_date=debt_due_date,
+        debt_principal_at_due=Decimal("0.00"),
         cashier=user,
         reservation_expires_at=reservation_expires_at,
     )
@@ -727,6 +746,17 @@ def _finalize_mobile_money_sale_locked(
 
     sale.amount_paid = payment.amount
     sale.outstanding_balance = outstanding_balance
+
+    # Activates the frozen debt principal only after verified success.
+    sale.debt_principal_at_due = (
+        outstanding_balance
+        if outstanding_balance > Decimal("0.00")
+        else Decimal("0.00")
+    )
+
+    if outstanding_balance == Decimal("0.00"):
+        sale.debt_due_date = None
+
     sale.status = (
         Sale.Status.COMPLETED
         if outstanding_balance == Decimal("0.00")
@@ -738,6 +768,8 @@ def _finalize_mobile_money_sale_locked(
         update_fields=(
             "amount_paid",
             "outstanding_balance",
+            "debt_due_date",
+            "debt_principal_at_due",
             "status",
             "reservation_expires_at",
             "completed_at",

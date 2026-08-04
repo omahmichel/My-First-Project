@@ -1,7 +1,9 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -141,6 +143,9 @@ class SalesRegressionTests(APITestCase):
             "amountPaid": "40.00",
             "paymentMethod": "credit",
             "amountPaidMethod": "cash",
+            "debtDueDate": (
+                timezone.localdate() + timedelta(days=30)
+            ).isoformat(),
         }
 
     def create_credit_sale(self, key="credit-sale-test"):
@@ -158,6 +163,123 @@ class SalesRegressionTests(APITestCase):
             response.data,
         )
         return response
+
+    def test_credit_sale_requires_debt_due_date(self):
+        # Blocks unpaid principal when no due date was supplied.
+        self.authenticate(self.owner)
+        payload = self.credit_sale_payload()
+        payload.pop("debtDueDate")
+        sale_count = Sale.objects.count()
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers(
+                "credit-sale-missing-due-date"
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            response.data,
+        )
+        self.assertIn("debtDueDate", response.data)
+        self.assertEqual(Sale.objects.count(), sale_count)
+
+    def test_credit_sale_rejects_past_debt_due_date(self):
+        # Prevents a newly created debt from starting already overdue.
+        self.authenticate(self.owner)
+        payload = self.credit_sale_payload()
+        payload["debtDueDate"] = (
+            timezone.localdate() - timedelta(days=1)
+        ).isoformat()
+        sale_count = Sale.objects.count()
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers(
+                "credit-sale-past-due-date"
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            response.data,
+        )
+        self.assertIn("debtDueDate", response.data)
+        self.assertEqual(Sale.objects.count(), sale_count)
+
+    def test_credit_sale_saves_due_date_and_principal_snapshot(self):
+        # Stores the trusted unpaid balance for later overdue processing.
+        self.authenticate(self.owner)
+        due_date = timezone.localdate() + timedelta(days=30)
+        payload = self.credit_sale_payload()
+        payload["debtDueDate"] = due_date.isoformat()
+        key = "credit-sale-valid-due-date"
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers(key),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            response.data,
+        )
+        sale = Sale.objects.get(
+            business=self.business,
+            idempotency_key=key,
+        )
+        self.assertEqual(sale.debt_due_date, due_date)
+        self.assertEqual(
+            sale.outstanding_balance,
+            Decimal("100.00"),
+        )
+        self.assertEqual(
+            sale.debt_principal_at_due,
+            Decimal("100.00"),
+        )
+
+    def test_fully_paid_credit_sale_discards_debt_metadata(self):
+        # Keeps settled sales outside the debt and reminder workflow.
+        self.authenticate(self.owner)
+        payload = self.credit_sale_payload()
+        payload["amountPaid"] = "140.00"
+        key = "credit-sale-fully-paid"
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers(key),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            response.data,
+        )
+        sale = Sale.objects.get(
+            business=self.business,
+            idempotency_key=key,
+        )
+        self.assertEqual(
+            sale.outstanding_balance,
+            Decimal("0.00"),
+        )
+        self.assertIsNone(sale.debt_due_date)
+        self.assertEqual(
+            sale.debt_principal_at_due,
+            Decimal("0.00"),
+        )
 
     def test_cash_sale_creates_documents_payment_and_stock_movement(self):
         # A successful cash sale must commit all related records together.

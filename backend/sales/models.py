@@ -113,6 +113,19 @@ class Sale(models.Model):
         default=0,
     )
 
+    # Stores the agreed due date for credit or part-payment debt.
+    debt_due_date = models.DateField(
+        blank=True,
+        null=True,
+    )
+
+    # Freezes the principal used for non-compounding overdue tiers.
+    debt_principal_at_due = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+    )
+
     cashier = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,
@@ -168,6 +181,16 @@ class Sale(models.Model):
                 name="sale_outstanding_not_negative",
             ),
             models.CheckConstraint(
+                condition=models.Q(debt_principal_at_due__gte=0),
+                name="sale_debt_principal_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    debt_principal_at_due__lte=models.F("total"),
+                ),
+                name="sale_debt_principal_not_above_total",
+            ),
+            models.CheckConstraint(
                 condition=models.Q(
                     discount__lte=models.F("subtotal"),
                 ),
@@ -185,6 +208,7 @@ class Sale(models.Model):
             models.Index(fields=("business", "status")),
             models.Index(fields=("business", "payment_method")),
             models.Index(fields=("business", "reservation_expires_at")),
+            models.Index(fields=("business", "debt_due_date")),
             models.Index(fields=("customer", "created_at")),
         ]
 
@@ -250,7 +274,337 @@ class Sale(models.Model):
         return f"{self.sale_number} - {self.business.name}"
 
 
+class DebtOverdueCharge(models.Model):
+    # Audits each non-compounding overdue tier applied to one sale.
+
+    class Tier(models.IntegerChoices):
+        FIVE = 5, "5%"
+        TEN = 10, "10%"
+        FIFTEEN = 15, "15%"
+        TWENTY = 20, "20%"
+        TWENTY_FIVE = 25, "25%"
+        THIRTY = 30, "30%"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="debt_overdue_charges",
+    )
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name="debt_overdue_charges",
+    )
+    sale = models.ForeignKey(
+        Sale,
+        on_delete=models.CASCADE,
+        related_name="overdue_charges",
+    )
+    tier_percentage = models.PositiveSmallIntegerField(
+        choices=Tier.choices,
+    )
+    principal_base = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+    total_charge_required = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+    incremental_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+    applied_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("applied_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("sale", "tier_percentage"),
+                name="unique_overdue_tier_per_sale",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    tier_percentage__in=(5, 10, 15, 20, 25, 30),
+                ),
+                name="valid_overdue_tier_percentage",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(principal_base__gte=0),
+                name="overdue_principal_base_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(total_charge_required__gte=0),
+                name="overdue_total_charge_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(incremental_amount__gte=0),
+                name="overdue_increment_not_negative",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "applied_at")),
+            models.Index(fields=("customer", "applied_at")),
+            models.Index(fields=("sale", "tier_percentage")),
+        ]
+
+    def clean(self):
+        # Prevents overdue records from crossing account boundaries.
+        errors = {}
+
+        if (
+            self.sale_id
+            and self.business_id
+            and self.sale.business_id != self.business_id
+        ):
+            errors["business"] = (
+                "The overdue charge business must match the sale."
+            )
+
+        if (
+            self.sale_id
+            and self.customer_id
+            and self.sale.customer_id != self.customer_id
+        ):
+            errors["customer"] = (
+                "The overdue charge customer must match the sale."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.sale.sale_number} - "
+            f"{self.tier_percentage}% overdue tier"
+        )
+
+
+class DebtReminderSchedule(models.Model):
+    # Owns one deterministic 10-day reminder slot for one sale.
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Skipped"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="debt_reminder_schedules",
+    )
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name="debt_reminder_schedules",
+    )
+    sale = models.ForeignKey(
+        Sale,
+        on_delete=models.CASCADE,
+        related_name="debt_reminder_schedules",
+    )
+    scheduled_for = models.DateField()
+    reminder_sequence_number = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    last_attempted_at = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("scheduled_for", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("sale", "scheduled_for"),
+                name="unique_debt_reminder_schedule_per_sale",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reminder_sequence_number__gt=0),
+                name="debt_reminder_sequence_above_zero",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "scheduled_for")),
+            models.Index(fields=("customer", "scheduled_for")),
+            models.Index(fields=("status", "scheduled_for")),
+        ]
+
+    def clean(self):
+        # Prevents reminder schedules from crossing account boundaries.
+        errors = {}
+
+        if (
+            self.sale_id
+            and self.business_id
+            and self.sale.business_id != self.business_id
+        ):
+            errors["business"] = (
+                "The reminder business must match the sale."
+            )
+
+        if (
+            self.sale_id
+            and self.customer_id
+            and self.sale.customer_id != self.customer_id
+        ):
+            errors["customer"] = (
+                "The reminder customer must match the sale."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.sale.sale_number} - reminder "
+            f"{self.reminder_sequence_number}"
+        )
+
+
+class DebtReminderAttempt(models.Model):
+    # Audits every send, failure, retry, or safe reminder skip.
+
+    class Status(models.TextChoices):
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Skipped"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    schedule = models.ForeignKey(
+        DebtReminderSchedule,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="debt_reminder_attempts",
+    )
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name="debt_reminder_attempts",
+    )
+    sale = models.ForeignKey(
+        Sale,
+        on_delete=models.CASCADE,
+        related_name="debt_reminder_attempts",
+    )
+    attempt_number = models.PositiveIntegerField()
+    attempted_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+    )
+    recipient_snapshot = models.CharField(
+        max_length=30,
+        blank=True,
+    )
+    message_snapshot = models.TextField(blank=True)
+    provider = models.CharField(
+        max_length=50,
+        blank=True,
+    )
+    provider_reference = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+    provider_response_summary = models.TextField(blank=True)
+    failure_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("attempted_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("schedule", "attempt_number"),
+                name="unique_debt_reminder_attempt_number",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(attempt_number__gt=0),
+                name="debt_reminder_attempt_above_zero",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "attempted_at")),
+            models.Index(fields=("customer", "attempted_at")),
+            models.Index(fields=("status", "attempted_at")),
+        ]
+
+    def clean(self):
+        # Keeps every attempt aligned with its locked schedule slot.
+        errors = {}
+
+        if self.schedule_id:
+            if (
+                self.business_id
+                and self.schedule.business_id != self.business_id
+            ):
+                errors["business"] = (
+                    "The attempt business must match its schedule."
+                )
+
+            if (
+                self.customer_id
+                and self.schedule.customer_id != self.customer_id
+            ):
+                errors["customer"] = (
+                    "The attempt customer must match its schedule."
+                )
+
+            if (
+                self.sale_id
+                and self.schedule.sale_id != self.sale_id
+            ):
+                errors["sale"] = (
+                    "The attempt sale must match its schedule."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.schedule.sale.sale_number} - attempt "
+            f"{self.attempt_number}"
+        )
+
+
 class SaleItem(models.Model):
+
     # Stores immutable product and price snapshots for one sale line.
 
     id = models.UUIDField(
