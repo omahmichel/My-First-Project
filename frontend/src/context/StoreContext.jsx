@@ -1187,6 +1187,8 @@ export function StoreProvider({ children }) {
     amountPaid,
     paymentMethod,
     amountPaidMethod = "",
+    mobileMoneyNetwork = "",
+    mobileMoneyNumber = "",
     idempotencyKey,
   }) {
     if (!cartItems.length) {
@@ -1229,9 +1231,13 @@ export function StoreProvider({ children }) {
     }
 
     if (paymentMethod === "mobile_money") {
-      throw new Error(
-        "Mobile Money checkout will be enabled after the real payment gateway is connected.",
-      );
+      if (!String(mobileMoneyNetwork || "").trim()) {
+        throw new Error("Select the customer's Mobile Money network.");
+      }
+
+      if (!String(mobileMoneyNumber || "").trim()) {
+        throw new Error("Enter the customer's Mobile Money number.");
+      }
     }
 
     if (paymentMethod === "credit" && !selectedCustomer) {
@@ -1284,8 +1290,14 @@ export function StoreProvider({ children }) {
             paymentMethod === "credit" && safeAmountPaid > 0
               ? amountPaidMethod
               : "",
-          mobileMoneyNetwork: "",
-          mobileMoneyNumber: "",
+          mobileMoneyNetwork:
+            paymentMethod === "mobile_money"
+              ? String(mobileMoneyNetwork).trim()
+              : "",
+          mobileMoneyNumber:
+            paymentMethod === "mobile_money"
+              ? String(mobileMoneyNumber).trim()
+              : "",
         }),
       },
     );
@@ -1302,6 +1314,12 @@ export function StoreProvider({ children }) {
         current,
       ),
     );
+
+    if (nextSale.status === "pending_payment") {
+      // Refreshes reserved stock without pretending payment has completed.
+      loadInventory(business.id).catch(() => {});
+      return nextSale;
+    }
 
     // Updates the visible stock immediately from the confirmed invoice.
     setProducts((current) =>
@@ -1373,6 +1391,45 @@ export function StoreProvider({ children }) {
 
     return nextSale;
   }
+
+  async function verifyMobileMoneySale(reference) {
+    const safeReference = String(reference || "").trim();
+
+    if (!safeReference) {
+      throw new Error("The Mobile Money payment reference is missing.");
+    }
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/sales/mobile-money/${encodeURIComponent(
+        safeReference,
+      )}/verify/`,
+      {
+        method: "POST",
+      },
+    );
+    const nextSale = normalizeSale(response);
+
+    setSales((current) =>
+      upsertBusinessRecord(current, nextSale),
+    );
+
+    setPayments((current) =>
+      (nextSale.payments ?? []).reduce(
+        (records, payment) =>
+          upsertBusinessRecord(records, payment),
+        current,
+      ),
+    );
+
+    // Uses backend-authoritative stock, movement and customer balances.
+    await Promise.allSettled([
+      loadInventory(business.id),
+      loadCustomers(business.id),
+    ]);
+
+    return nextSale;
+  }
+
 
   async function addTeamMember(member) {
     const response = await apiRequest(
@@ -1512,6 +1569,7 @@ export function StoreProvider({ children }) {
       recordCustomerPayment,
       saveWaybill,
       completeSale,
+      verifyMobileMoneySale,
       addTeamMember,
       deleteTeamMember,
     }),
