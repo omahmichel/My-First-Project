@@ -354,3 +354,22 @@ CSRF_TRUSTED_ORIGINS = get_env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 # Trust this proxy header only when the deployment proxy overwrites it safely.
 if get_env_bool("DJANGO_TRUST_PROXY_SSL_HEADER", default=False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Configures audited customer debt reminders through mNotify.
+MNOTIFY_API_URL = (
+    os.getenv(
+        "MNOTIFY_API_URL",
+        "https://api.mnotify.com/api/sms/quick",
+    ).strip()
+    or "https://api.mnotify.com/api/sms/quick"
+)
+MNOTIFY_API_KEY = os.getenv("MNOTIFY_API_KEY", "").strip()
+MNOTIFY_SENDER_ID = os.getenv("MNOTIFY_SENDER_ID", "").strip()
+MNOTIFY_TIMEOUT_SECONDS = get_env_positive_int(
+    "MNOTIFY_TIMEOUT_SECONDS",
+    default=15,
+)
+DEBT_REMINDER_RETRY_MINUTES = get_env_positive_int(
+    "DEBT_REMINDER_RETRY_MINUTES",
+    default=15,
+)
