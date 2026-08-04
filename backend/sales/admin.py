@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     DebtOverdueCharge,
+    DebtPaymentAllocation,
     DebtReminderAttempt,
     DebtReminderSchedule,
     DocumentSequence,
@@ -176,6 +177,46 @@ class PaymentAdmin(ReadOnlyAuditAdminMixin, admin.ModelAdmin):
     date_hierarchy = "created_at"
     list_per_page = 50
 
+
+
+
+@admin.register(DebtPaymentAllocation)
+class DebtPaymentAllocationAdmin(
+    ReadOnlyAuditAdminMixin,
+    admin.ModelAdmin,
+):
+    # Shows how each debt receipt was allocated.
+    list_display = (
+        "payment",
+        "business",
+        "customer",
+        "sale",
+        "amount_received",
+        "overdue_charge_paid",
+        "principal_paid",
+        "created_at",
+    )
+    list_filter = (
+        "business",
+        "created_at",
+    )
+    search_fields = (
+        "payment__receipt_number",
+        "payment__gateway_reference",
+        "sale__sale_number",
+        "sale__invoice_number",
+        "customer__name",
+        "business__name",
+    )
+    list_select_related = (
+        "payment",
+        "business",
+        "customer",
+        "sale",
+    )
+    ordering = ("-created_at",)
+    date_hierarchy = "created_at"
+    list_per_page = 50
 
 @admin.register(DebtOverdueCharge)
 class DebtOverdueChargeAdmin(

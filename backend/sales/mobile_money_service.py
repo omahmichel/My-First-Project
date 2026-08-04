@@ -17,11 +17,13 @@ from inventory.models import Product, StockMovement
 
 from .models import Payment, Sale, SaleItem
 from .services import (
+    _apply_debt_payment_allocation_locked,
     _load_customer,
     _load_products,
     _next_document_numbers,
     _next_receipt_number,
     _prepare_lines,
+    debt_payment_split,
 )
 
 
@@ -994,11 +996,6 @@ def _create_pending_mobile_money_debt_payment(
         )
 
     amount = data["amount"]
-    if amount > customer.outstanding_balance:
-        raise MobileMoneyPaymentError(
-            "Payment cannot exceed the customer's outstanding balance.",
-            code="mobile_money_debt_amount_invalid",
-        )
 
     unpaid_sales = Sale.objects.select_for_update().filter(
         business=business,
@@ -1013,9 +1010,14 @@ def _create_pending_mobile_money_debt_payment(
             "No unpaid invoice was found for this customer.",
             code="mobile_money_invoice_not_found",
         )
-    if amount > sale.outstanding_balance:
+    split = debt_payment_split(
+        sale=sale,
+        amount=amount,
+    )
+
+    if amount > split["total_due"]:
         raise MobileMoneyPaymentError(
-            "Payment cannot exceed the selected invoice balance.",
+            "Payment cannot exceed the selected invoice total due.",
             code="mobile_money_debt_amount_invalid",
         )
 
@@ -1200,11 +1202,16 @@ def _debt_balance_verification_error(*, payment, sale, customer):
             "The Mobile Money debt payment no longer matches its invoice.",
             code="mobile_money_payment_mismatch",
         )
+    split = debt_payment_split(
+        sale=sale,
+        amount=payment.amount,
+    )
+
     if (
         sale.outstanding_balance <= Decimal("0.00")
         or customer.outstanding_balance <= Decimal("0.00")
-        or payment.amount > sale.outstanding_balance
-        or payment.amount > customer.outstanding_balance
+        or payment.amount > split["total_due"]
+        or split["principal_paid"] > customer.outstanding_balance
     ):
         return MobileMoneyPaymentError(
             "The invoice balance changed before this payment was verified.",
@@ -1218,20 +1225,6 @@ def _finalize_mobile_money_debt_locked(*, payment, sale, customer, verification)
     receipt_number = _next_receipt_number(payment.business)
     now = timezone.now()
 
-    sale.amount_paid += payment.amount
-    sale.outstanding_balance -= payment.amount
-    sale.status = (
-        Sale.Status.COMPLETED
-        if sale.outstanding_balance == Decimal("0.00")
-        else Sale.Status.PARTIALLY_PAID
-    )
-    sale.save(update_fields=(
-        "amount_paid", "outstanding_balance", "status", "updated_at"
-    ))
-
-    customer.outstanding_balance -= payment.amount
-    customer.save(update_fields=("outstanding_balance", "updated_at"))
-
     payment.status = Payment.Status.SUCCESSFUL
     payment.provider_reference = str(verification["id"])
     payment.receipt_number = receipt_number
@@ -1242,6 +1235,12 @@ def _finalize_mobile_money_debt_locked(*, payment, sale, customer, verification)
         "status", "provider_reference", "receipt_number", "failure_reason",
         "note", "verified_at", "updated_at"
     ))
+
+    _apply_debt_payment_allocation_locked(
+        payment=payment,
+        sale=sale,
+        customer=customer,
+    )
 
 
 def verify_and_finalize_mobile_money_debt_payment(*, reference, client=None):

@@ -991,3 +991,135 @@ class Waybill(models.Model):
 
     def __str__(self):
         return f"{self.waybill_number} - {self.sale.sale_number}"
+
+class DebtPaymentAllocation(models.Model):
+    # Audits how one successful debt payment was split.
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    payment = models.OneToOneField(
+        Payment,
+        on_delete=models.CASCADE,
+        related_name="debt_allocation",
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="debt_payment_allocations",
+    )
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name="debt_payment_allocations",
+    )
+    sale = models.ForeignKey(
+        Sale,
+        on_delete=models.PROTECT,
+        related_name="debt_payment_allocations",
+    )
+    amount_received = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+    overdue_charge_paid = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    principal_paid = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at",)
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount_received__gt=0),
+                name="debt_allocation_amount_above_zero",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(overdue_charge_paid__gte=0),
+                name="debt_allocation_charge_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(principal_paid__gte=0),
+                name="debt_allocation_principal_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    amount_received=(
+                        models.F("overdue_charge_paid")
+                        + models.F("principal_paid")
+                    )
+                ),
+                name="debt_allocation_parts_equal_amount",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "created_at")),
+            models.Index(fields=("customer", "created_at")),
+            models.Index(fields=("sale", "created_at")),
+        ]
+
+    def clean(self):
+        # Prevents allocation records from crossing financial boundaries.
+        errors = {}
+
+        if self.payment_id:
+            if self.payment.payment_type != Payment.PaymentType.DEBT_PAYMENT:
+                errors["payment"] = (
+                    "The allocation payment must be a debt payment."
+                )
+
+            if self.payment.status != Payment.Status.SUCCESSFUL:
+                errors["payment"] = (
+                    "The allocation payment must be successful."
+                )
+
+            if self.payment.business_id != self.business_id:
+                errors["business"] = (
+                    "The allocation business must match the payment."
+                )
+
+            if self.payment.sale_id != self.sale_id:
+                errors["sale"] = (
+                    "The allocation sale must match the payment."
+                )
+
+            if self.payment.customer_id != self.customer_id:
+                errors["customer"] = (
+                    "The allocation customer must match the payment."
+                )
+
+            if self.payment.amount != self.amount_received:
+                errors["amount_received"] = (
+                    "The allocation amount must match the payment."
+                )
+
+        if (
+            self.overdue_charge_paid + self.principal_paid
+            != self.amount_received
+        ):
+            errors["amount_received"] = (
+                "Charge and principal allocations must equal "
+                "the amount received."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.payment.receipt_number or self.payment.id} - "
+            f"charge {self.overdue_charge_paid}, "
+            f"principal {self.principal_paid}"
+        )

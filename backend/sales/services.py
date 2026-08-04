@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -7,7 +7,14 @@ from rest_framework import serializers
 
 from customers.models import Customer
 from inventory.models import Product, StockMovement
-from .models import DocumentSequence, Payment, Sale, SaleItem
+from .models import (
+    DebtOverdueCharge,
+    DebtPaymentAllocation,
+    DocumentSequence,
+    Payment,
+    Sale,
+    SaleItem,
+)
 
 
 def _load_customer(business, customer_id):
@@ -374,6 +381,187 @@ def create_completed_sale(
 
 
 
+
+OVERDUE_TIER_PERCENTAGES = (5, 10, 15, 20, 25, 30)
+
+
+def overdue_tier_percentage_for_days(days_overdue):
+    # Maps overdue age to the capped non-compounding percentage.
+    if days_overdue <= 0:
+        return 0
+
+    tier = (((days_overdue - 1) // 30) + 1) * 5
+    return min(tier, DebtOverdueCharge.Tier.THIRTY)
+
+
+def ensure_current_overdue_charges(*, sale, as_of_date=None):
+    # Creates every crossed tier once using the original due-date principal.
+    if (
+        not sale.debt_due_date
+        or sale.debt_principal_at_due <= Decimal("0.00")
+        or sale.outstanding_balance <= Decimal("0.00")
+        or not sale.customer_id
+    ):
+        return []
+
+    current_date = as_of_date or timezone.localdate()
+    days_overdue = (current_date - sale.debt_due_date).days
+    target_tier = overdue_tier_percentage_for_days(days_overdue)
+
+    if target_tier == 0:
+        return []
+
+    existing_tiers = set(
+        DebtOverdueCharge.objects.filter(
+            sale=sale,
+        ).values_list(
+            "tier_percentage",
+            flat=True,
+        )
+    )
+    principal_base = sale.debt_principal_at_due
+    created_charges = []
+    previous_total = Decimal("0.00")
+
+    for tier_percentage in OVERDUE_TIER_PERCENTAGES:
+        if tier_percentage > target_tier:
+            break
+
+        total_charge_required = (
+            principal_base
+            * Decimal(tier_percentage)
+            / Decimal("100")
+        ).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+        incremental_amount = (
+            total_charge_required - previous_total
+        )
+
+        if tier_percentage not in existing_tiers:
+            created_charges.append(
+                DebtOverdueCharge.objects.create(
+                    business=sale.business,
+                    customer=sale.customer,
+                    sale=sale,
+                    tier_percentage=tier_percentage,
+                    principal_base=principal_base,
+                    total_charge_required=total_charge_required,
+                    incremental_amount=incremental_amount,
+                )
+            )
+
+        previous_total = total_charge_required
+
+    return created_charges
+
+
+def debt_payment_split(*, sale, amount):
+    # Applies any current tier before allocating charges ahead of principal.
+    ensure_current_overdue_charges(sale=sale)
+
+    total_charge_required = sum(
+        DebtOverdueCharge.objects.filter(
+            sale=sale,
+        ).values_list(
+            "incremental_amount",
+            flat=True,
+        ),
+        Decimal("0.00"),
+    )
+    total_charge_paid = sum(
+        DebtPaymentAllocation.objects.filter(
+            sale=sale,
+        ).values_list(
+            "overdue_charge_paid",
+            flat=True,
+        ),
+        Decimal("0.00"),
+    )
+    unpaid_charge = max(
+        Decimal("0.00"),
+        total_charge_required - total_charge_paid,
+    )
+    total_due = sale.outstanding_balance + unpaid_charge
+    overdue_charge_paid = min(amount, unpaid_charge)
+    principal_paid = amount - overdue_charge_paid
+
+    return {
+        "unpaid_charge": unpaid_charge,
+        "total_due": total_due,
+        "overdue_charge_paid": overdue_charge_paid,
+        "principal_paid": principal_paid,
+    }
+
+
+def _apply_debt_payment_allocation_locked(
+    *,
+    payment,
+    sale,
+    customer,
+):
+    # Applies one successful payment to charges first, then principal.
+    split = debt_payment_split(
+        sale=sale,
+        amount=payment.amount,
+    )
+
+    if payment.amount > split["total_due"]:
+        raise serializers.ValidationError(
+            {
+                "amount": (
+                    "Payment cannot exceed the selected invoice "
+                    f"total due of {split['total_due']}."
+                )
+            }
+        )
+
+    if split["principal_paid"] > customer.outstanding_balance:
+        raise serializers.ValidationError(
+            {
+                "amount": (
+                    "The customer principal balance changed before "
+                    "this payment was applied."
+                )
+            }
+        )
+
+    sale.amount_paid += split["principal_paid"]
+    sale.outstanding_balance -= split["principal_paid"]
+    sale.status = (
+        Sale.Status.COMPLETED
+        if sale.outstanding_balance == Decimal("0.00")
+        else Sale.Status.PARTIALLY_PAID
+    )
+    sale.save(
+        update_fields=(
+            "amount_paid",
+            "outstanding_balance",
+            "status",
+            "updated_at",
+        )
+    )
+
+    customer.outstanding_balance -= split["principal_paid"]
+    customer.save(
+        update_fields=(
+            "outstanding_balance",
+            "updated_at",
+        )
+    )
+
+    return DebtPaymentAllocation.objects.create(
+        payment=payment,
+        business=payment.business,
+        customer=customer,
+        sale=sale,
+        amount_received=payment.amount,
+        overdue_charge_paid=split["overdue_charge_paid"],
+        principal_paid=split["principal_paid"],
+    )
+
+
 @transaction.atomic
 def record_customer_debt_payment(
     *,
@@ -420,16 +608,6 @@ def record_customer_debt_payment(
 
     amount = data["amount"]
 
-    if amount > customer.outstanding_balance:
-        raise serializers.ValidationError(
-            {
-                "amount": (
-                    "Payment cannot exceed the customer's "
-                    "outstanding balance."
-                )
-            }
-        )
-
     unpaid_sales = (
         Sale.objects.select_for_update()
         .filter(
@@ -456,41 +634,22 @@ def record_customer_debt_payment(
             }
         )
 
-    if amount > sale.outstanding_balance:
+    split = debt_payment_split(
+        sale=sale,
+        amount=amount,
+    )
+
+    if amount > split["total_due"]:
         raise serializers.ValidationError(
             {
                 "amount": (
                     "Payment cannot exceed the selected invoice "
-                    f"balance of {sale.outstanding_balance}."
+                    f"total due of {split['total_due']}."
                 )
             }
         )
 
     receipt_number = _next_receipt_number(business)
-
-    sale.amount_paid += amount
-    sale.outstanding_balance -= amount
-    sale.status = (
-        Sale.Status.COMPLETED
-        if sale.outstanding_balance == Decimal("0.00")
-        else Sale.Status.PARTIALLY_PAID
-    )
-    sale.save(
-        update_fields=(
-            "amount_paid",
-            "outstanding_balance",
-            "status",
-            "updated_at",
-        )
-    )
-
-    customer.outstanding_balance -= amount
-    customer.save(
-        update_fields=(
-            "outstanding_balance",
-            "updated_at",
-        )
-    )
 
     payment = Payment.objects.create(
         business=business,
@@ -506,6 +665,12 @@ def record_customer_debt_payment(
         note=data.get("note", ""),
         initiated_by=user,
         verified_at=timezone.now(),
+    )
+
+    _apply_debt_payment_allocation_locked(
+        payment=payment,
+        sale=sale,
+        customer=customer,
     )
 
     payment = Payment.objects.select_related(
