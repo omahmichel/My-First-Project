@@ -546,3 +546,71 @@ button:disabled { cursor: not-allowed; opacity: .55; }
     flex-direction: column;
   }
 }
+
+/* Customer overdue-debt interface. */
+.customer-overdue-note {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid #efd5c7;
+  border-radius: 9px;
+  background: var(--danger-light);
+}
+
+.customer-overdue-note strong {
+  color: var(--danger);
+  font-size: 0.68rem;
+}
+
+.customer-overdue-note span {
+  color: #8b5c4a;
+  font-size: 0.61rem;
+}
+
+.debt-payment-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--canvas);
+}
+
+.debt-payment-summary > div {
+  min-width: 0;
+}
+
+.debt-payment-summary span,
+.debt-payment-summary strong {
+  display: block;
+}
+
+.debt-payment-summary span {
+  color: var(--subtle);
+  font-size: 0.61rem;
+}
+
+.debt-payment-summary strong {
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.debt-payment-summary small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+
+@media (max-width: 560px) {
+  .debt-payment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .debt-payment-summary small {
+    grid-column: auto;
+  }
+}
+

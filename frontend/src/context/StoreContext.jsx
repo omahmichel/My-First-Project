@@ -160,6 +160,18 @@ function normalizePayment(record) {
     saleId: record.saleId ? String(record.saleId) : null,
     customerId: record.customerId ? String(record.customerId) : null,
     amount: Number(record.amount ?? 0),
+    overdueChargePaid: Number(record.overdueChargePaid ?? 0),
+    principalPaid: Number(record.principalPaid ?? 0),
+    saleOutstandingBalance: normalizeOptionalNumber(
+      record.saleOutstandingBalance,
+    ),
+    customerOutstandingBalance: normalizeOptionalNumber(
+      record.customerOutstandingBalance,
+    ),
+    remainingOverdueCharge: Number(
+      record.remainingOverdueCharge ?? 0,
+    ),
+    totalDebtPayable: Number(record.totalDebtPayable ?? 0),
     cashier: record.initiatedBy ?? record.cashier ?? "",
   };
 }
@@ -195,6 +207,15 @@ function normalizeSale(record) {
     total: Number(record.total ?? 0),
     amountPaid: Number(record.amountPaid ?? 0),
     outstandingBalance: Number(record.outstandingBalance ?? 0),
+    debtPrincipalAtDue: Number(record.debtPrincipalAtDue ?? 0),
+    overdueCharge: Number(record.overdueCharge ?? 0),
+    totalDebtPayable: Number(
+      record.totalDebtPayable ??
+        Number(record.outstandingBalance ?? 0) +
+          Number(record.overdueCharge ?? 0),
+    ),
+    daysOverdue: Number(record.daysOverdue ?? 0),
+    overduePercentage: Number(record.overduePercentage ?? 0),
     items: (record.items ?? []).map(normalizeSaleItem),
     payments: nextPayments,
   };
@@ -1049,9 +1070,25 @@ export function StoreProvider({ children }) {
       throw new Error("Enter a valid payment amount.");
     }
 
-    if (paymentAmount > Number(customer.outstandingBalance ?? 0)) {
+    const selectedSale = currentSales.find(
+      (sale) =>
+        String(sale.id) === String(details.saleId) &&
+        String(sale.customerId) === String(customerId),
+    );
+
+    if (!selectedSale) {
+      throw new Error("Select an unpaid invoice for this payment.");
+    }
+
+    const selectedTotalDue = Number(
+      selectedSale.totalDebtPayable ??
+        Number(selectedSale.outstandingBalance ?? 0) +
+          Number(selectedSale.overdueCharge ?? 0),
+    );
+
+    if (paymentAmount > selectedTotalDue) {
       throw new Error(
-        "Payment cannot exceed the customer's outstanding balance.",
+        "Payment cannot exceed the selected invoice total payable.",
       );
     }
 
@@ -1069,7 +1106,7 @@ export function StoreProvider({ children }) {
         },
         body: JSON.stringify({
           amount: paymentAmount,
-          saleId: details.saleId || null,
+          saleId: selectedSale.id,
           paymentMethod: details.paymentMethod || "cash",
           reference: String(details.reference ?? "").trim(),
           note: String(details.note ?? "").trim(),
@@ -1083,11 +1120,9 @@ export function StoreProvider({ children }) {
         String(item.id) === String(customerId)
           ? {
               ...item,
-              outstandingBalance: Math.max(
-                0,
-                Number(item.outstandingBalance ?? 0) -
-                  nextPayment.amount,
-              ),
+              outstandingBalance:
+                nextPayment.customerOutstandingBalance ??
+                Number(item.outstandingBalance ?? 0),
             }
           : item,
       ),
@@ -1101,22 +1136,37 @@ export function StoreProvider({ children }) {
           }
 
           const nextAmountPaid =
-            Number(sale.amountPaid ?? 0) + nextPayment.amount;
-          const nextOutstandingBalance = Math.max(
-            0,
-            Number(sale.outstandingBalance ?? 0) -
-              nextPayment.amount,
+            Number(sale.amountPaid ?? 0) +
+            Number(nextPayment.principalPaid ?? 0);
+          const nextOutstandingBalance =
+            nextPayment.saleOutstandingBalance ??
+            Number(sale.outstandingBalance ?? 0);
+          const nextOverdueCharge = Number(
+            nextPayment.remainingOverdueCharge ?? 0,
+          );
+          const nextTotalDebtPayable = Number(
+            nextPayment.totalDebtPayable ??
+              nextOutstandingBalance + nextOverdueCharge,
           );
 
           return {
             ...sale,
             amountPaid: nextAmountPaid,
             outstandingBalance: nextOutstandingBalance,
+            overdueCharge: nextOverdueCharge,
+            totalDebtPayable: nextTotalDebtPayable,
             status:
               nextOutstandingBalance > 0
                 ? "partially_paid"
                 : "completed",
             latestReceiptNumber: nextPayment.receiptNumber,
+            payments: [
+              nextPayment,
+              ...(sale.payments ?? []).filter(
+                (payment) =>
+                  String(payment.id) !== String(nextPayment.id),
+              ),
+            ],
           };
         }),
       );

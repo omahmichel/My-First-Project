@@ -25,6 +25,7 @@ const emptyCustomerForm = {
 };
 
 const emptyPaymentForm = {
+  saleId: "",
   amount: "",
   paymentMethod: "cash",
   reference: "",
@@ -35,6 +36,7 @@ export default function CustomersPage() {
   const navigate = useNavigate();
   const {
     customers,
+    sales,
     customersLoading,
     customersError,
     addCustomer,
@@ -99,11 +101,81 @@ export default function CustomersPage() {
     }
   }, [currentPage, totalPages]);
 
+  const debtSummaryByCustomer = useMemo(() => {
+    // Groups unpaid invoices so the UI includes principal and overdue charges.
+    const summaries = new Map();
+
+    customers.forEach((customer) => {
+      summaries.set(String(customer.id), {
+        invoices: [],
+        principal: Number(customer.outstandingBalance ?? 0),
+        overdueCharge: 0,
+        totalPayable: Number(customer.outstandingBalance ?? 0),
+      });
+    });
+
+    sales
+      .filter(
+        (sale) =>
+          sale.customerId &&
+          Number(sale.totalDebtPayable ?? sale.outstandingBalance ?? 0) >
+            0,
+      )
+      .forEach((sale) => {
+        const customerId = String(sale.customerId);
+        const current = summaries.get(customerId) ?? {
+          invoices: [],
+          principal: 0,
+          overdueCharge: 0,
+          totalPayable: 0,
+        };
+        const invoice = {
+          ...sale,
+          outstandingBalance: Number(sale.outstandingBalance ?? 0),
+          overdueCharge: Number(sale.overdueCharge ?? 0),
+          totalDebtPayable: Number(
+            sale.totalDebtPayable ??
+              Number(sale.outstandingBalance ?? 0) +
+                Number(sale.overdueCharge ?? 0),
+          ),
+        };
+
+        current.invoices.push(invoice);
+        current.overdueCharge += invoice.overdueCharge;
+        current.totalPayable =
+          current.principal + current.overdueCharge;
+        summaries.set(customerId, current);
+      });
+
+    summaries.forEach((summary) => {
+      summary.invoices.sort(
+        (first, second) =>
+          new Date(first.createdAt).getTime() -
+          new Date(second.createdAt).getTime(),
+      );
+    });
+
+    return summaries;
+  }, [customers, sales]);
+
   const totalDebt = customers.reduce(
     (sum, customer) =>
-      sum + Number(customer.outstandingBalance ?? 0),
+      sum +
+      Number(
+        debtSummaryByCustomer.get(String(customer.id))?.totalPayable ??
+          customer.outstandingBalance ??
+          0,
+      ),
     0,
   );
+
+  const paymentDebtSummary = paymentCustomer
+    ? debtSummaryByCustomer.get(String(paymentCustomer.id))
+    : null;
+  const selectedPaymentSale =
+    paymentDebtSummary?.invoices.find(
+      (sale) => String(sale.id) === String(paymentForm.saleId),
+    ) ?? null;
 
   async function handleCustomerSubmit(event) {
     event.preventDefault();
@@ -143,6 +215,7 @@ export default function CustomersPage() {
         paymentCustomer.id,
         paymentForm.amount,
         {
+          saleId: paymentForm.saleId,
           paymentMethod: paymentForm.paymentMethod,
           reference: paymentForm.reference,
           note: paymentForm.note,
@@ -171,9 +244,16 @@ export default function CustomersPage() {
   }
 
   function openPaymentModal(customer) {
+    // Preserves the previous oldest-debt-first workflow while allowing choice.
+    const debtSummary = debtSummaryByCustomer.get(String(customer.id));
+    const defaultSale = debtSummary?.invoices[0] ?? null;
+
     setError("");
     setPaymentCustomer(customer);
-    setPaymentForm(emptyPaymentForm);
+    setPaymentForm({
+      ...emptyPaymentForm,
+      saleId: defaultSale?.id ?? "",
+    });
   }
 
   function closePaymentModal() {
@@ -272,15 +352,22 @@ export default function CustomersPage() {
 
               <div className="customer-card-details">
                 <div>
-                  <span>Outstanding balance</span>
+                  <span>Total payable</span>
                   <strong
                     className={
-                      Number(customer.outstandingBalance ?? 0) > 0
+                      Number(
+                        debtSummaryByCustomer.get(
+                          String(customer.id),
+                        )?.totalPayable ?? 0,
+                      ) > 0
                         ? "danger-text"
                         : "success-text"
                     }
                   >
-                    {formatCurrency(customer.outstandingBalance)}
+                    {formatCurrency(
+                      debtSummaryByCustomer.get(String(customer.id))
+                        ?.totalPayable ?? 0,
+                    )}
                   </strong>
                 </div>
                 <div>
@@ -290,6 +377,29 @@ export default function CustomersPage() {
                   </strong>
                 </div>
               </div>
+
+              {Number(
+                debtSummaryByCustomer.get(String(customer.id))
+                  ?.overdueCharge ?? 0,
+              ) > 0 ? (
+                <div className="customer-overdue-note">
+                  <strong>
+                    {formatCurrency(
+                      debtSummaryByCustomer.get(String(customer.id))
+                        ?.overdueCharge ?? 0,
+                    )}{" "}
+                    overdue charge
+                  </strong>
+                  <span>
+                    Across{" "}
+                    {
+                      debtSummaryByCustomer.get(String(customer.id))
+                        ?.invoices.length
+                    }{" "}
+                    unpaid invoice(s)
+                  </span>
+                </div>
+              ) : null}
 
               <p>{customer.address || "No address entered"}</p>
               <small>
@@ -311,7 +421,10 @@ export default function CustomersPage() {
                 <Button
                   size="small"
                   disabled={
-                    Number(customer.outstandingBalance ?? 0) <= 0
+                    Number(
+                      debtSummaryByCustomer.get(String(customer.id))
+                        ?.totalPayable ?? 0,
+                    ) <= 0
                   }
                   onClick={() => openPaymentModal(customer)}
                 >
@@ -460,8 +573,8 @@ export default function CustomersPage() {
         description={
           paymentCustomer
             ? `${paymentCustomer.name} owes ${formatCurrency(
-                paymentCustomer.outstandingBalance,
-              )}.`
+                paymentDebtSummary?.totalPayable ?? 0,
+              )} in total.`
             : ""
         }
       >
@@ -471,11 +584,68 @@ export default function CustomersPage() {
 
         <form className="simple-form" onSubmit={handlePaymentSubmit}>
           <label>
+            Unpaid invoice
+            <select
+              value={paymentForm.saleId}
+              onChange={(event) =>
+                setPaymentForm((current) => ({
+                  ...current,
+                  saleId: event.target.value,
+                  amount: "",
+                }))
+              }
+              required
+            >
+              <option value="">Select invoice</option>
+              {(paymentDebtSummary?.invoices ?? []).map((sale) => (
+                <option value={sale.id} key={sale.id}>
+                  {sale.invoiceNumber} - {formatCurrency(
+                    sale.totalDebtPayable,
+                  )} payable
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedPaymentSale ? (
+            <div className="debt-payment-summary">
+              <div>
+                <span>Principal balance</span>
+                <strong>
+                  {formatCurrency(
+                    selectedPaymentSale.outstandingBalance,
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Overdue charge</span>
+                <strong>
+                  {formatCurrency(selectedPaymentSale.overdueCharge)}
+                </strong>
+              </div>
+              <div>
+                <span>Total payable</span>
+                <strong>
+                  {formatCurrency(
+                    selectedPaymentSale.totalDebtPayable,
+                  )}
+                </strong>
+              </div>
+              <small>
+                Due {formatDate(selectedPaymentSale.debtDueDate)}
+                {selectedPaymentSale.daysOverdue > 0
+                  ? ` - ${selectedPaymentSale.daysOverdue} day(s) overdue - ${selectedPaymentSale.overduePercentage}% tier`
+                  : ""}
+              </small>
+            </div>
+          ) : null}
+
+          <label>
             Amount received (GHS)
             <input
               type="number"
               min="0.01"
-              max={paymentCustomer?.outstandingBalance || 0}
+              max={selectedPaymentSale?.totalDebtPayable || 0}
               step="0.01"
               value={paymentForm.amount}
               onChange={(event) =>
