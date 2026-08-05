@@ -189,8 +189,8 @@ export default function SalesHistoryPage() {
                 <th>Customer</th>
                 <th>Items</th>
                 <th>Payment</th>
-                <th>Paid</th>
-                <th>Balance</th>
+                <th>Principal paid</th>
+                <th>Total payable</th>
                 <th>Total</th>
                 <th>Status</th>
               </tr>
@@ -226,17 +226,34 @@ export default function SalesHistoryPage() {
                     {formatPaymentMethod(sale.paymentMethod)}
                   </td>
 
-                  <td data-label="Paid">
+                  <td data-label="Principal paid">
                     {formatCurrency(sale.amountPaid)}
                   </td>
 
                   <td
-                    data-label="Balance"
+                    data-label="Total payable"
                     className={
-                      sale.outstandingBalance > 0 ? "danger-text" : ""
+                      Number(
+                        sale.totalDebtPayable ??
+                          sale.outstandingBalance ??
+                          0,
+                      ) > 0
+                        ? "danger-text"
+                        : ""
                     }
                   >
-                    {formatCurrency(sale.outstandingBalance)}
+                    <strong>
+                      {formatCurrency(
+                        sale.totalDebtPayable ??
+                          sale.outstandingBalance ??
+                          0,
+                      )}
+                    </strong>
+                    {Number(sale.overdueCharge ?? 0) > 0 ? (
+                      <small>
+                        Includes {formatCurrency(sale.overdueCharge)} charge
+                      </small>
+                    ) : null}
                   </td>
 
                   <td data-label="Total">
@@ -246,14 +263,24 @@ export default function SalesHistoryPage() {
                   <td data-label="Status">
                     <Badge
                       tone={
-                        sale.outstandingBalance > 0
+                        Number(
+                          sale.totalDebtPayable ??
+                            sale.outstandingBalance ??
+                            0,
+                        ) > 0
                           ? "warning"
                           : "success"
                       }
                     >
-                      {sale.outstandingBalance > 0
-                        ? "Part paid"
-                        : "Completed"}
+                      {Number(sale.daysOverdue ?? 0) > 0
+                        ? `Overdue ${sale.daysOverdue} day(s)`
+                        : Number(
+                              sale.totalDebtPayable ??
+                                sale.outstandingBalance ??
+                                0,
+                            ) > 0
+                          ? "Part paid"
+                          : "Completed"}
                     </Badge>
                   </td>
                 </tr>
