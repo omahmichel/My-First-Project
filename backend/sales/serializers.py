@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Payment, Sale, SaleItem, Waybill
+from .services import debt_snapshot
 
 
 class CheckoutItemSerializer(serializers.Serializer):
@@ -389,6 +390,75 @@ class PaymentSerializer(serializers.ModelSerializer):
         source="updated_at",
         read_only=True,
     )
+    overdueChargePaid = serializers.SerializerMethodField()
+    principalPaid = serializers.SerializerMethodField()
+    saleOutstandingBalance = serializers.DecimalField(
+        source="sale.outstanding_balance",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+        allow_null=True,
+    )
+    customerOutstandingBalance = serializers.DecimalField(
+        source="customer.outstanding_balance",
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+        allow_null=True,
+    )
+    remainingOverdueCharge = serializers.SerializerMethodField()
+    totalDebtPayable = serializers.SerializerMethodField()
+
+    def _debt_allocation(self, obj):
+        # Reads the audited charge/principal split when it exists.
+        return (
+            obj.debt_allocation
+            if hasattr(obj, "debt_allocation")
+            else None
+        )
+
+    def _sale_debt_snapshot(self, obj):
+        # Caches one current debt calculation per serialized payment.
+        if not obj.sale_id:
+            return {
+                "overdue_charge": Decimal("0.00"),
+                "total_debt_payable": Decimal("0.00"),
+            }
+
+        cache = getattr(self, "_debt_snapshot_cache", {})
+        cache_key = str(obj.sale_id)
+
+        if cache_key not in cache:
+            cache[cache_key] = debt_snapshot(sale=obj.sale)
+            self._debt_snapshot_cache = cache
+
+        return cache[cache_key]
+
+    def get_overdueChargePaid(self, obj):
+        # Reports the amount applied to overdue charges.
+        allocation = self._debt_allocation(obj)
+        return (
+            allocation.overdue_charge_paid
+            if allocation
+            else Decimal("0.00")
+        )
+
+    def get_principalPaid(self, obj):
+        # Reports the amount that reduced invoice principal.
+        allocation = self._debt_allocation(obj)
+        return (
+            allocation.principal_paid
+            if allocation
+            else Decimal("0.00")
+        )
+
+    def get_remainingOverdueCharge(self, obj):
+        # Returns the unpaid charge after this payment.
+        return self._sale_debt_snapshot(obj)["overdue_charge"]
+
+    def get_totalDebtPayable(self, obj):
+        # Returns the invoice total still payable after this payment.
+        return self._sale_debt_snapshot(obj)["total_debt_payable"]
 
     def get_customerName(self, obj):
         # Returns the linked customer name or the sale snapshot.
@@ -430,6 +500,12 @@ class PaymentSerializer(serializers.ModelSerializer):
             "verifiedAt",
             "createdAt",
             "updatedAt",
+            "overdueChargePaid",
+            "principalPaid",
+            "saleOutstandingBalance",
+            "customerOutstandingBalance",
+            "remainingOverdueCharge",
+            "totalDebtPayable",
         )
         read_only_fields = fields
 
@@ -601,6 +677,10 @@ class SaleSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
+    overdueCharge = serializers.SerializerMethodField()
+    totalDebtPayable = serializers.SerializerMethodField()
+    daysOverdue = serializers.SerializerMethodField()
+    overduePercentage = serializers.SerializerMethodField()
     debtDueDate = serializers.DateField(
         source="debt_due_date",
         read_only=True,
@@ -636,6 +716,33 @@ class SaleSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     waybill = serializers.SerializerMethodField()
 
+    def _current_debt_snapshot(self, obj):
+        # Caches one current debt calculation per serialized sale.
+        cache = getattr(self, "_debt_snapshot_cache", {})
+        cache_key = str(obj.pk)
+
+        if cache_key not in cache:
+            cache[cache_key] = debt_snapshot(sale=obj)
+            self._debt_snapshot_cache = cache
+
+        return cache[cache_key]
+
+    def get_overdueCharge(self, obj):
+        # Returns only the currently unpaid overdue charge.
+        return self._current_debt_snapshot(obj)["overdue_charge"]
+
+    def get_totalDebtPayable(self, obj):
+        # Returns principal plus the currently unpaid overdue charge.
+        return self._current_debt_snapshot(obj)["total_debt_payable"]
+
+    def get_daysOverdue(self, obj):
+        # Returns zero until the original debt due date has passed.
+        return self._current_debt_snapshot(obj)["days_overdue"]
+
+    def get_overduePercentage(self, obj):
+        # Returns the active non-compounding overdue tier.
+        return self._current_debt_snapshot(obj)["overdue_percentage"]
+
     class Meta:
         model = Sale
         fields = (
@@ -656,6 +763,10 @@ class SaleSerializer(serializers.ModelSerializer):
             "total",
             "amountPaid",
             "outstandingBalance",
+            "overdueCharge",
+            "totalDebtPayable",
+            "daysOverdue",
+            "overduePercentage",
             "debtDueDate",
             "debtPrincipalAtDue",
             "paymentMethod",

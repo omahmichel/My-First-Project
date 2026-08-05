@@ -457,9 +457,18 @@ def ensure_current_overdue_charges(*, sale, as_of_date=None):
     return created_charges
 
 
-def debt_payment_split(*, sale, amount):
-    # Applies any current tier before allocating charges ahead of principal.
-    ensure_current_overdue_charges(sale=sale)
+def debt_snapshot(*, sale, as_of_date=None):
+    # Returns the current principal, overdue charge, and total debt payable.
+    current_date = as_of_date or timezone.localdate()
+
+    if (
+        sale.debt_due_date
+        and sale.outstanding_balance > Decimal("0.00")
+    ):
+        ensure_current_overdue_charges(
+            sale=sale,
+            as_of_date=current_date,
+        )
 
     total_charge_required = sum(
         DebtOverdueCharge.objects.filter(
@@ -483,13 +492,35 @@ def debt_payment_split(*, sale, amount):
         Decimal("0.00"),
         total_charge_required - total_charge_paid,
     )
-    total_due = sale.outstanding_balance + unpaid_charge
+    days_overdue = (
+        max(0, (current_date - sale.debt_due_date).days)
+        if sale.debt_due_date
+        else 0
+    )
+
+    return {
+        "principal_balance": sale.outstanding_balance,
+        "overdue_charge": unpaid_charge,
+        "total_debt_payable": (
+            sale.outstanding_balance + unpaid_charge
+        ),
+        "days_overdue": days_overdue,
+        "overdue_percentage": overdue_tier_percentage_for_days(
+            days_overdue,
+        ),
+    }
+
+
+def debt_payment_split(*, sale, amount):
+    # Applies any current tier before allocating charges ahead of principal.
+    snapshot = debt_snapshot(sale=sale)
+    unpaid_charge = snapshot["overdue_charge"]
     overdue_charge_paid = min(amount, unpaid_charge)
     principal_paid = amount - overdue_charge_paid
 
     return {
         "unpaid_charge": unpaid_charge,
-        "total_due": total_due,
+        "total_due": snapshot["total_debt_payable"],
         "overdue_charge_paid": overdue_charge_paid,
         "principal_paid": principal_paid,
     }

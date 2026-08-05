@@ -19,6 +19,7 @@ from .models import (
     Payment,
     Sale,
 )
+from .serializers import PaymentSerializer, SaleSerializer
 from .services import (
     ensure_current_overdue_charges,
     overdue_tier_percentage_for_days,
@@ -279,3 +280,112 @@ class DebtOverdueServiceTests(TestCase):
             customer.outstanding_balance,
             Decimal("45.00"),
         )
+
+class DebtSerializerContractTests(TestCase):
+    # Protects the API fields required by the React debt interface.
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="debt.serializer@stockflow.test",
+            password="StrongPass123!",
+            full_name="Debt Serializer Owner",
+        )
+        self.business = Business.objects.create(
+            owner=self.owner,
+            name="Debt Serializer Shop",
+            slug="debt-serializer-shop",
+            business_type="building_materials",
+            email="serializer.shop@stockflow.test",
+            invoice_prefix="INV",
+            receipt_prefix="RCT",
+        )
+        self.customer = Customer.objects.create(
+            business=self.business,
+            name="Akosua Debt Customer",
+            phone="0245550101",
+            outstanding_balance=Decimal("100.00"),
+            total_purchases=Decimal("140.00"),
+            created_by=self.owner,
+        )
+        self.sale = Sale.objects.create(
+            business=self.business,
+            customer=self.customer,
+            sale_number="SAL-SERIALIZER-0001",
+            invoice_number="INV-SERIALIZER-0001",
+            payment_method=Sale.PaymentMethod.CREDIT,
+            status=Sale.Status.PARTIALLY_PAID,
+            subtotal=Decimal("140.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("140.00"),
+            amount_paid=Decimal("40.00"),
+            outstanding_balance=Decimal("100.00"),
+            debt_due_date=timezone.localdate() - timedelta(days=1),
+            debt_principal_at_due=Decimal("100.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+        )
+
+    def test_sale_serializer_exposes_current_overdue_snapshot(self):
+        # React receives due date, charge, tier, and total payable together.
+        payload = SaleSerializer(self.sale).data
+
+        self.assertEqual(
+            Decimal(str(payload["overdueCharge"])),
+            Decimal("5.00"),
+        )
+        self.assertEqual(
+            Decimal(str(payload["totalDebtPayable"])),
+            Decimal("105.00"),
+        )
+        self.assertEqual(payload["daysOverdue"], 1)
+        self.assertEqual(payload["overduePercentage"], 5)
+        self.assertEqual(
+            DebtOverdueCharge.objects.filter(sale=self.sale).count(),
+            1,
+        )
+
+    def test_payment_serializer_exposes_charge_first_allocation(self):
+        # React can synchronize balances without subtracting the full payment.
+        payment, replayed = record_customer_debt_payment(
+            business=self.business,
+            customer_id=self.customer.id,
+            user=self.owner,
+            data={
+                "amount": Decimal("6.00"),
+                "saleId": self.sale.id,
+                "paymentMethod": Payment.Method.CASH,
+                "reference": "",
+                "note": "",
+            },
+            idempotency_key="serializer-allocation-0001",
+        )
+
+        self.assertFalse(replayed)
+
+        payload = PaymentSerializer(payment).data
+
+        self.assertEqual(
+            Decimal(str(payload["overdueChargePaid"])),
+            Decimal("5.00"),
+        )
+        self.assertEqual(
+            Decimal(str(payload["principalPaid"])),
+            Decimal("1.00"),
+        )
+        self.assertEqual(
+            Decimal(str(payload["saleOutstandingBalance"])),
+            Decimal("99.00"),
+        )
+        self.assertEqual(
+            Decimal(str(payload["customerOutstandingBalance"])),
+            Decimal("99.00"),
+        )
+        self.assertEqual(
+            Decimal(str(payload["remainingOverdueCharge"])),
+            Decimal("0.00"),
+        )
+        self.assertEqual(
+            Decimal(str(payload["totalDebtPayable"])),
+            Decimal("99.00"),
+        )
+
