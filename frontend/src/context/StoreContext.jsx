@@ -1578,10 +1578,19 @@ export function StoreProvider({ children }) {
         sale.discount,
       0,
     );
-    const customerDebt = currentCustomers.reduce(
-      (sum, customer) => sum + customer.outstandingBalance,
-      0,
-    );
+    // Includes current overdue charges in the dashboard debt metric.
+    const customerDebt = currentSales
+      .filter((sale) => Boolean(sale.customerId))
+      .reduce(
+        (sum, sale) =>
+          sum +
+          Number(
+            sale.totalDebtPayable ??
+              Number(sale.outstandingBalance ?? 0) +
+                Number(sale.overdueCharge ?? 0),
+          ),
+        0,
+      );
     const stockValue = currentProducts.reduce(
       (sum, product) =>
         sum + product.stock * Number(product.costPrice ?? 0),

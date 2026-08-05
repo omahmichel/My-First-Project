@@ -85,6 +85,29 @@ export default function NewSalePage() {
     useState("");
   const checkoutKeyRef = useRef(null);
 
+  const customerDebtById = useMemo(() => {
+    // Combines customer principal with current invoice overdue charges.
+    const totals = new Map(
+      customers.map((customer) => [
+        String(customer.id),
+        Number(customer.outstandingBalance ?? 0),
+      ]),
+    );
+
+    sales.forEach((sale) => {
+      if (!sale.customerId) return;
+
+      const customerKey = String(sale.customerId);
+      totals.set(
+        customerKey,
+        Number(totals.get(customerKey) ?? 0) +
+          Number(sale.overdueCharge ?? 0),
+      );
+    });
+
+    return totals;
+  }, [customers, sales]);
+
   const activeProducts = products.filter(
     (product) =>
       product.status === "active" &&
@@ -519,7 +542,7 @@ export default function NewSalePage() {
                 {customers.map((customer) => (
                   <option value={customer.id} key={customer.id}>
                     {customer.name} — {formatCurrency(
-                      customer.outstandingBalance,
+                      customerDebtById.get(String(customer.id)) ?? 0,
                     )} owed
                   </option>
                 ))}

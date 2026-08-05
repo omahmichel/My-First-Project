@@ -135,11 +135,19 @@ export default function ReportsPage() {
       0,
     );
 
-    const customerDebt = customers.reduce(
-      (sum, customer) =>
-        sum + Number(customer.outstandingBalance || 0),
-      0,
-    );
+    // Includes overdue charges in the report's customer debt total.
+    const customerDebt = sales
+      .filter((sale) => Boolean(sale.customerId))
+      .reduce(
+        (sum, sale) =>
+          sum +
+          Number(
+            sale.totalDebtPayable ??
+              Number(sale.outstandingBalance ?? 0) +
+                Number(sale.overdueCharge ?? 0),
+          ),
+        0,
+      );
 
     return {
       selectedSales,

@@ -219,16 +219,27 @@ export default function DashboardPage() {
                       <strong>{formatCurrency(sale.total)}</strong>
                     </td>
                     <td>
+                      {/* Uses full payable debt, including overdue charges. */}
                       <Badge
                         tone={
-                          sale.outstandingBalance > 0
+                          Number(
+                            sale.totalDebtPayable ??
+                              sale.outstandingBalance ??
+                              0,
+                          ) > 0
                             ? "warning"
                             : "success"
                         }
                       >
-                        {sale.outstandingBalance > 0
-                          ? "Part paid"
-                          : "Completed"}
+                        {Number(sale.daysOverdue ?? 0) > 0
+                          ? `Overdue ${sale.daysOverdue} day(s)`
+                          : Number(
+                                sale.totalDebtPayable ??
+                                  sale.outstandingBalance ??
+                                  0,
+                              ) > 0
+                            ? "Part paid"
+                            : "Completed"}
                       </Badge>
                     </td>
                   </tr>

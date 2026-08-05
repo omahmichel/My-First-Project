@@ -98,9 +98,11 @@ export function exportBusinessReportCsv({
       "Date",
       "Customer",
       "Payment method",
-      "Paid (GHS)",
-      "Balance (GHS)",
-      "Total (GHS)",
+      "Principal paid (GHS)",
+      "Principal balance (GHS)",
+      "Overdue charge (GHS)",
+      "Total payable (GHS)",
+      "Sale total (GHS)",
     ],
     ...report.selectedSales.map((sale) => [
       sale.saleNumber,
@@ -110,6 +112,12 @@ export function exportBusinessReportCsv({
       String(sale.paymentMethod || "").replaceAll("_", " "),
       Number(sale.amountPaid || 0).toFixed(2),
       Number(sale.outstandingBalance || 0).toFixed(2),
+      Number(sale.overdueCharge || 0).toFixed(2),
+      Number(
+        sale.totalDebtPayable ??
+          Number(sale.outstandingBalance ?? 0) +
+            Number(sale.overdueCharge ?? 0),
+      ).toFixed(2),
       Number(sale.total || 0).toFixed(2),
     ]),
   ];

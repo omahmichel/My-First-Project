@@ -66,6 +66,15 @@ function downloadBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 }
 
+// Resolves principal plus any current overdue charge for one sale.
+function resolveTotalDebtPayable(record) {
+  return Number(
+    record?.totalDebtPayable ??
+      Number(record?.outstandingBalance ?? 0) +
+        Number(record?.overdueCharge ?? 0),
+  );
+}
+
 export function exportInvoiceList(invoices, business) {
   if (!invoices.length) {
     throw new Error("There are no invoice records to export.");
@@ -80,9 +89,11 @@ export function exportInvoiceList(invoices, business) {
     "Item types",
     "Subtotal",
     "Discount",
-    "Amount paid",
-    "Outstanding balance",
-    "Total",
+    "Principal paid",
+    "Principal balance",
+    "Overdue charge",
+    "Total payable",
+    "Sale total",
     "Status",
   ];
 
@@ -97,8 +108,14 @@ export function exportInvoiceList(invoices, business) {
     Number(invoice.discount || 0).toFixed(2),
     Number(invoice.amountPaid || 0).toFixed(2),
     Number(invoice.outstandingBalance || 0).toFixed(2),
+    Number(invoice.overdueCharge || 0).toFixed(2),
+    resolveTotalDebtPayable(invoice).toFixed(2),
     Number(invoice.total || 0).toFixed(2),
-    Number(invoice.outstandingBalance || 0) > 0 ? "Balance due" : "Paid",
+    Number(invoice.daysOverdue || 0) > 0
+      ? "Overdue"
+      : resolveTotalDebtPayable(invoice) > 0
+        ? "Balance due"
+        : "Paid",
   ]);
 
   const csv = [header, ...rows]
@@ -262,18 +279,21 @@ export function createInvoicePdf(invoice, business) {
     totalsY += prominent ? 35 : 22;
   }
 
+  // Separates principal and overdue charges on the invoice PDF.
   drawTotal("Subtotal", invoice.subtotal);
   drawTotal("Discount", invoice.discount);
-  drawTotal("Amount paid", invoice.amountPaid);
-  drawTotal("Total", invoice.total, { prominent: true });
+  drawTotal("Principal paid", invoice.amountPaid);
+  drawTotal("Principal balance", invoice.outstandingBalance);
+  drawTotal("Overdue charge", invoice.overdueCharge ?? 0);
+  drawTotal("Sale total", invoice.total, { prominent: true });
 
-  if (Number(invoice.outstandingBalance || 0) > 0) {
+  if (resolveTotalDebtPayable(invoice) > 0) {
     pdf.setTextColor(170, 67, 44);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
-    pdf.text("Balance due", totalsLabelX, totalsY);
+    pdf.text("Total payable", totalsLabelX, totalsY);
     pdf.text(
-      formatPdfCurrency(invoice.outstandingBalance),
+      formatPdfCurrency(resolveTotalDebtPayable(invoice)),
       totalsValueX,
       totalsY,
       { align: "right" },
@@ -322,8 +342,16 @@ function buildInvoiceShareText(invoice, business) {
     `Date: ${formatDocumentDate(invoice.createdAt)}`,
     `Total: ${formatPdfCurrency(invoice.total)}`,
     `Payment: ${formatPaymentMethod(invoice.paymentMethod)}`,
-    Number(invoice.outstandingBalance || 0) > 0
-      ? `Balance due: ${formatPdfCurrency(invoice.outstandingBalance)}`
+    resolveTotalDebtPayable(invoice) > 0
+      ? `Total payable: ${formatPdfCurrency(
+          resolveTotalDebtPayable(invoice),
+        )}${
+          Number(invoice.overdueCharge || 0) > 0
+            ? ` (includes ${formatPdfCurrency(
+                invoice.overdueCharge,
+              )} overdue charge)`
+            : ""
+        }`
       : "Status: Paid",
   ].join("\\n");
 }
@@ -958,11 +986,17 @@ function createCustomerStatementPdf(
       formatPdfCurrency(item.unitPrice),
       formatPdfCurrency(item.total),
       itemIndex === 0
-        ? `Paid: ${formatPdfCurrency(
+        ? `Principal paid: ${formatPdfCurrency(
             sale.amountPaid,
-          )}\nBalance: ${formatPdfCurrency(
-            sale.outstandingBalance,
-          )}`
+          )}\nTotal payable: ${formatPdfCurrency(
+            resolveTotalDebtPayable(sale),
+          )}${
+            Number(sale.overdueCharge || 0) > 0
+              ? `\nOverdue charge: ${formatPdfCurrency(
+                  sale.overdueCharge,
+                )}`
+              : ""
+          }`
         : "",
     ]),
   );
@@ -1289,9 +1323,11 @@ export function exportSalesHistoryCsv(sales, business) {
     "Cashier",
     "Items",
     "Payment method",
-    "Amount paid",
-    "Outstanding balance",
-    "Total",
+    "Principal paid",
+    "Principal balance",
+    "Overdue charge",
+    "Total payable",
+    "Sale total",
     "Status",
   ];
 
@@ -1308,10 +1344,14 @@ export function exportSalesHistoryCsv(sales, business) {
     formatPaymentMethod(sale.paymentMethod),
     Number(sale.amountPaid || 0).toFixed(2),
     Number(sale.outstandingBalance || 0).toFixed(2),
+    Number(sale.overdueCharge || 0).toFixed(2),
+    resolveTotalDebtPayable(sale).toFixed(2),
     Number(sale.total || 0).toFixed(2),
-    Number(sale.outstandingBalance || 0) > 0
-      ? "Part paid"
-      : "Completed",
+    Number(sale.daysOverdue || 0) > 0
+      ? "Overdue"
+      : resolveTotalDebtPayable(sale) > 0
+        ? "Part paid"
+        : "Completed",
   ]);
 
   const csv = [header, ...rows]
@@ -1407,10 +1447,14 @@ export function exportSalesHistoryPdf(sales, business) {
     formatPaymentMethod(sale.paymentMethod),
     formatPdfCurrency(sale.amountPaid),
     formatPdfCurrency(sale.outstandingBalance),
+    formatPdfCurrency(sale.overdueCharge ?? 0),
+    formatPdfCurrency(resolveTotalDebtPayable(sale)),
     formatPdfCurrency(sale.total),
-    Number(sale.outstandingBalance || 0) > 0
-      ? "Part paid"
-      : "Completed",
+    Number(sale.daysOverdue || 0) > 0
+      ? "Overdue"
+      : resolveTotalDebtPayable(sale) > 0
+        ? "Part paid"
+        : "Completed",
   ]);
 
   autoTable(document, {
@@ -1423,9 +1467,11 @@ export function exportSalesHistoryPdf(sales, business) {
       "Cashier",
       "Purchased items",
       "Payment",
-      "Paid",
-      "Balance",
-      "Total",
+      "Principal paid",
+      "Principal balance",
+      "Overdue charge",
+      "Total payable",
+      "Sale total",
       "Status",
     ]],
     body: rows,
