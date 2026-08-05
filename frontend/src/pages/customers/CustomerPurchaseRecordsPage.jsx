@@ -109,7 +109,12 @@ export default function CustomerPurchaseRecordsPage() {
           purchases: summary.purchases + Number(sale.total || 0),
           paid: summary.paid + Number(sale.amountPaid || 0),
           balance:
-            summary.balance + Number(sale.outstandingBalance || 0),
+            summary.balance +
+            Number(
+              sale.totalDebtPayable ??
+                Number(sale.outstandingBalance ?? 0) +
+                  Number(sale.overdueCharge ?? 0),
+            ),
         }),
         { purchases: 0, paid: 0, balance: 0 },
       ),
@@ -356,7 +361,7 @@ export default function CustomerPurchaseRecordsPage() {
           <PackageCheck size={21} />
           <div>
             <strong>{formatCurrency(totals.balance)}</strong>
-            <span>Outstanding balance</span>
+            <span>Total payable</span>
           </div>
         </article>
       </section>
@@ -394,7 +399,7 @@ export default function CustomerPurchaseRecordsPage() {
                 <th>Receipt</th>
                 <th>Waybill</th>
                 <th>Total</th>
-                <th>Balance</th>
+                <th>Total payable</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -463,13 +468,28 @@ export default function CustomerPurchaseRecordsPage() {
                     <td>
                       <strong
                         className={
-                          Number(sale.outstandingBalance || 0) > 0
+                          Number(
+                            sale.totalDebtPayable ??
+                              sale.outstandingBalance ??
+                              0,
+                          ) > 0
                             ? "danger-text"
                             : "success-text"
                         }
                       >
-                        {formatCurrency(sale.outstandingBalance)}
+                        {formatCurrency(
+                          sale.totalDebtPayable ??
+                            sale.outstandingBalance ??
+                            0,
+                        )}
                       </strong>
+                      {Number(sale.overdueCharge ?? 0) > 0 ? (
+                        <small className="purchase-overdue-text">
+                          Includes {formatCurrency(sale.overdueCharge)} charge
+                        </small>
+                      ) : sale.debtDueDate ? (
+                        <small>Due {formatDate(sale.debtDueDate)}</small>
+                      ) : null}
                     </td>
 
                     <td>
@@ -702,18 +722,60 @@ export default function CustomerPurchaseRecordsPage() {
 
             <div className="purchase-detail-summary">
               <div>
-                <span>Total</span>
+                <span>Sale total</span>
                 <strong>{formatCurrency(selectedSale.total)}</strong>
               </div>
               <div>
-                <span>Amount paid</span>
+                <span>Principal paid</span>
                 <strong>{formatCurrency(selectedSale.amountPaid)}</strong>
               </div>
               <div>
-                <span>Balance</span>
+                <span>Principal balance</span>
                 <strong>
                   {formatCurrency(selectedSale.outstandingBalance)}
                 </strong>
+              </div>
+              <div>
+                <span>Overdue charge</span>
+                <strong
+                  className={
+                    Number(selectedSale.overdueCharge ?? 0) > 0
+                      ? "danger-text"
+                      : ""
+                  }
+                >
+                  {formatCurrency(selectedSale.overdueCharge ?? 0)}
+                </strong>
+              </div>
+              <div>
+                <span>Total payable</span>
+                <strong
+                  className={
+                    Number(
+                      selectedSale.totalDebtPayable ??
+                        selectedSale.outstandingBalance ??
+                        0,
+                    ) > 0
+                      ? "danger-text"
+                      : "success-text"
+                  }
+                >
+                  {formatCurrency(
+                    selectedSale.totalDebtPayable ??
+                      selectedSale.outstandingBalance ??
+                      0,
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Debt due date</span>
+                <strong>{formatDate(selectedSale.debtDueDate)}</strong>
+                {Number(selectedSale.daysOverdue ?? 0) > 0 ? (
+                  <small className="purchase-overdue-text">
+                    {selectedSale.daysOverdue} day(s) overdue at{" "}
+                    {selectedSale.overduePercentage}% tier
+                  </small>
+                ) : null}
               </div>
             </div>
 

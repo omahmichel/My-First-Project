@@ -402,3 +402,18 @@
     flex-direction: column;
   }
 }
+
+/* Purchase-record overdue debt details. */
+.purchase-overdue-text {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger) !important;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.purchase-detail-summary small {
+  display: block;
+  margin-top: 5px;
+  line-height: 1.45;
+}
