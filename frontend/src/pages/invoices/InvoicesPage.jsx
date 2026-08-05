@@ -197,13 +197,36 @@ export default function InvoicesPage() {
               <div className="invoice-list-total">
                 <span>Total</span>
                 <strong>{formatCurrency(invoice.total)}</strong>
+                {Number(invoice.overdueCharge ?? 0) > 0 ? (
+                  <small className="danger-text">
+                    {formatCurrency(invoice.overdueCharge)} overdue charge
+                  </small>
+                ) : invoice.debtDueDate ? (
+                  <small>Due {formatDate(invoice.debtDueDate)}</small>
+                ) : null}
               </div>
 
               <Badge
-                tone={invoice.outstandingBalance > 0 ? "warning" : "success"}
+                tone={
+                  Number(
+                    invoice.totalDebtPayable ??
+                      invoice.outstandingBalance ??
+                      0,
+                  ) > 0
+                    ? "warning"
+                    : "success"
+                }
               >
-                {invoice.outstandingBalance > 0
-                  ? `${formatCurrency(invoice.outstandingBalance)} due`
+                {Number(
+                  invoice.totalDebtPayable ??
+                    invoice.outstandingBalance ??
+                    0,
+                ) > 0
+                  ? `${formatCurrency(
+                      invoice.totalDebtPayable ??
+                        invoice.outstandingBalance ??
+                        0,
+                    )} payable`
                   : "Paid"}
               </Badge>
 
@@ -392,21 +415,54 @@ export default function InvoicesPage() {
               </div>
 
               <div>
-                <span>Amount paid</span>
+                <span>Principal paid</span>
                 <strong>{formatCurrency(selectedInvoice.amountPaid)}</strong>
               </div>
 
+              <div>
+                <span>Principal balance</span>
+                <strong>
+                  {formatCurrency(selectedInvoice.outstandingBalance)}
+                </strong>
+              </div>
+
+              <div>
+                <span>Overdue charge</span>
+                <strong>
+                  {formatCurrency(selectedInvoice.overdueCharge ?? 0)}
+                </strong>
+              </div>
+
+              <div>
+                <span>Debt due date</span>
+                <strong>{formatDate(selectedInvoice.debtDueDate)}</strong>
+              </div>
+
               <div className="invoice-document-grand">
-                <span>Total</span>
+                <span>Sale total</span>
                 <strong>{formatCurrency(selectedInvoice.total)}</strong>
               </div>
 
-              {selectedInvoice.outstandingBalance > 0 ? (
+              {Number(
+                selectedInvoice.totalDebtPayable ??
+                  selectedInvoice.outstandingBalance ??
+                  0,
+              ) > 0 ? (
                 <div className="invoice-balance-due">
-                  <span>Balance due</span>
+                  <span>Total payable</span>
                   <strong>
-                    {formatCurrency(selectedInvoice.outstandingBalance)}
+                    {formatCurrency(
+                      selectedInvoice.totalDebtPayable ??
+                        selectedInvoice.outstandingBalance ??
+                        0,
+                    )}
                   </strong>
+                  {Number(selectedInvoice.daysOverdue ?? 0) > 0 ? (
+                    <small>
+                      {selectedInvoice.daysOverdue} day(s) overdue at{" "}
+                      {selectedInvoice.overduePercentage}% tier
+                    </small>
+                  ) : null}
                 </div>
               ) : null}
             </div>
