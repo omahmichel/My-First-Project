@@ -123,9 +123,13 @@ export default function LoginPage() {
               <label className="checkbox-label">
                 <input type="checkbox" defaultChecked /> Remember me
               </label>
-              <button type="button" className="text-button">
+              <Link
+                to="/forgot-password"
+                state={{ email: form.email }}
+                className="text-button"
+              >
                 Forgot password?
-              </button>
+              </Link>
             </div>
 
             <Button
