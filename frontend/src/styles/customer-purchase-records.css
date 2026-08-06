@@ -417,3 +417,224 @@
   margin-top: 5px;
   line-height: 1.45;
 }
+
+/* StockFlow compact document polish v1. */
+
+.purchase-records-page .mini-stat-card,
+.purchase-records-page .purchase-records-panel {
+  border: 1px solid #d8e6de;
+  background: linear-gradient(145deg, #ffffff, #f8fbf9);
+  box-shadow:
+    0 3px 0 #e4ede8,
+    0 12px 26px rgba(23, 62, 45, 0.07);
+}
+
+.purchase-records-page .mini-stat-card {
+  padding: 13px 14px;
+  border-radius: 13px;
+}
+
+.purchase-records-page .mini-stat-card strong {
+  color: #142b20;
+  font-weight: 850;
+}
+
+.purchase-records-page .mini-stat-card span {
+  color: #5b7065;
+  font-weight: 700;
+}
+
+.purchase-records-toolbar {
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #fbfdfc, #f5f9f7);
+}
+
+.purchase-records-toolbar input,
+.purchase-records-toolbar select,
+.purchase-records-page .waybill-form input,
+.purchase-records-page .waybill-form textarea,
+.purchase-records-page .waybill-form select {
+  border-color: #cfdfd7;
+  background: linear-gradient(180deg, #ffffff, #f8fbf9);
+  color: #1f382b;
+  font-size: 0.74rem;
+  font-weight: 640;
+  box-shadow:
+    inset 0 1px 2px rgba(22, 58, 42, 0.05),
+    0 2px 0 #e8efeb;
+}
+
+.purchase-records-page .waybill-form label {
+  color: #344d40;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.purchase-records-table th {
+  background: #eaf4ee;
+  color: #234b38;
+  font-weight: 850;
+}
+
+.purchase-records-table td {
+  color: #2b4437;
+  font-weight: 610;
+}
+
+.purchase-records-table tbody tr:hover {
+  background: #f7fbf8;
+}
+
+.purchase-record-actions button,
+.purchase-receipt-row button,
+.purchase-waybill-actions button {
+  border-color: #cfe0d7;
+  background: linear-gradient(180deg, #ffffff, #f3f8f5);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #e1ebe6;
+}
+
+.purchase-record-actions button:hover,
+.purchase-receipt-row button:hover,
+.purchase-waybill-actions button:hover {
+  transform: translateY(-1px);
+}
+
+.purchase-detail-content {
+  gap: 12px;
+}
+
+.purchase-detail-documents {
+  gap: 8px;
+}
+
+.purchase-detail-documents div,
+.purchase-detail-summary div {
+  padding: 10px 11px;
+  border-color: #d7e5dd;
+  background: linear-gradient(145deg, #ffffff, #edf6f1);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 3px 0 #e2ece7,
+    0 8px 16px rgba(24, 66, 47, 0.05);
+}
+
+.purchase-detail-documents span,
+.purchase-detail-summary span {
+  color: #60756a;
+  font-weight: 760;
+  letter-spacing: 0.015em;
+}
+
+.purchase-detail-documents strong,
+.purchase-detail-summary strong {
+  color: #142b20;
+  font-weight: 850;
+}
+
+.purchase-detail-items {
+  gap: 6px;
+}
+
+.purchase-detail-items article {
+  padding: 9px 11px;
+  border-color: #dce8e1;
+  background: linear-gradient(145deg, #ffffff, #f8fbf9);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #edf3f0;
+}
+
+.purchase-detail-items article > strong {
+  color: #173f2d;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.purchase-receipt-section,
+.purchase-waybill-section {
+  gap: 8px;
+  padding: 10px 11px;
+  border-color: #d7e5dd;
+  background: linear-gradient(145deg, #ffffff, #f6faf8);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 3px 0 #e6eee9,
+    0 8px 16px rgba(24, 66, 47, 0.05);
+}
+
+.purchase-detail-section-heading > div:first-child span {
+  color: #60756a;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.purchase-detail-section-heading > div:first-child strong {
+  color: #142b20;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.purchase-receipt-row {
+  padding: 8px 9px;
+  border-color: #dce8e1;
+  background: linear-gradient(145deg, #ffffff, #f7faf8);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #edf3f0;
+}
+
+.purchase-receipt-row strong {
+  color: #142b20;
+  font-size: 0.73rem;
+  font-weight: 850;
+}
+
+.purchase-receipt-row small,
+.purchase-document-note,
+.purchase-waybill-summary {
+  color: #5d7267;
+  font-weight: 650;
+}
+
+.purchase-waybill-summary {
+  padding: 8px 9px;
+  border: 1px solid #e0e9e4;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.purchase-detail-summary > div:nth-child(4) {
+  border-color: #ead1cc;
+  background: linear-gradient(145deg, #fffafa, #fdf0ed);
+}
+
+.purchase-detail-summary > div:nth-child(5) {
+  border-color: #c4ded1;
+  background: linear-gradient(145deg, #f5fcf8, #e5f4eb);
+}
+
+.purchase-detail-summary > div:nth-child(5) strong {
+  font-size: 0.9rem;
+}
+
+.purchase-overdue-text {
+  font-weight: 800;
+}
+
+.purchase-records-page .modal-form-actions {
+  padding-top: 3px;
+}
+
+@media (max-width: 760px) {
+  .purchase-records-page .mini-stat-card {
+    padding: 11px 12px;
+  }
+
+  .purchase-detail-documents,
+  .purchase-detail-summary {
+    gap: 7px;
+  }
+}

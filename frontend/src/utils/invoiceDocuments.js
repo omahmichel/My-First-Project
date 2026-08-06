@@ -137,10 +137,11 @@ export function createInvoicePdf(invoice, business) {
     throw new Error("Select an invoice before creating a PDF.");
   }
 
+  // Uses A5 landscape to keep invoices compact without reducing width.
   const pdf = new jsPDF({
-    orientation: "portrait",
+    orientation: "landscape",
     unit: "pt",
-    format: "a4",
+    format: "a5",
   });
 
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -185,18 +186,41 @@ export function createInvoicePdf(invoice, business) {
     { align: "right" },
   );
 
+  // Frames customer and payment details as one compact document card.
+  pdf.setFillColor(229, 237, 232);
+  pdf.roundedRect(
+    margin + 2,
+    117,
+    pageWidth - margin * 2,
+    48,
+    7,
+    7,
+    "F",
+  );
+  pdf.setFillColor(249, 252, 250);
+  pdf.setDrawColor(213, 226, 218);
+  pdf.roundedRect(
+    margin,
+    114,
+    pageWidth - margin * 2,
+    48,
+    7,
+    7,
+    "FD",
+  );
+
   pdf.setTextColor(36, 55, 46);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  pdf.text("BILL TO", margin, 133);
-  pdf.text("PAYMENT METHOD", pageWidth - 210, 133);
+  pdf.setFontSize(8.5);
+  pdf.text("BILL TO", margin + 13, 131);
+  pdf.text("PAYMENT METHOD", pageWidth - 220, 131);
 
-  pdf.setFontSize(11);
-  pdf.text(customerName, margin, 151);
+  pdf.setFontSize(11.5);
+  pdf.text(customerName, margin + 13, 149);
   pdf.text(
     formatPaymentMethod(invoice.paymentMethod),
-    pageWidth - 210,
-    151,
+    pageWidth - 220,
+    149,
   );
 
   const itemRows = (invoice.items ?? []).map((item) => [
@@ -207,7 +231,7 @@ export function createInvoicePdf(invoice, business) {
   ]);
 
   autoTable(pdf, {
-    startY: 177,
+    startY: 174,
     head: [["Item", "Quantity", "Unit price", "Total"]],
     body: itemRows.length
       ? itemRows
@@ -215,12 +239,12 @@ export function createInvoicePdf(invoice, business) {
     theme: "grid",
     margin: { left: margin, right: margin },
     styles: {
-      cellPadding: 7,
+      cellPadding: 6,
       font: "helvetica",
-      fontSize: 8.5,
-      lineColor: [220, 230, 224],
-      lineWidth: 0.5,
-      textColor: [44, 60, 52],
+      fontSize: 9,
+      lineColor: [214, 226, 219],
+      lineWidth: 0.55,
+      textColor: [35, 53, 44],
       overflow: "linebreak",
     },
     headStyles: {
@@ -248,6 +272,32 @@ export function createInvoicePdf(invoice, business) {
 
   const totalsLabelX = pageWidth - 215;
   const totalsValueX = pageWidth - margin;
+  const totalPayable = resolveTotalDebtPayable(invoice);
+  const totalsPanelHeight = totalPayable > 0 ? 140 : 120;
+
+  // Gives the totals area restrained depth without changing its values.
+  pdf.setFillColor(228, 237, 232);
+  pdf.roundedRect(
+    totalsLabelX - 20,
+    totalsY - 15,
+    totalsValueX - totalsLabelX + 32,
+    totalsPanelHeight,
+    7,
+    7,
+    "F",
+  );
+  pdf.setFillColor(250, 252, 251);
+  pdf.setDrawColor(211, 225, 217);
+  pdf.roundedRect(
+    totalsLabelX - 22,
+    totalsY - 18,
+    totalsValueX - totalsLabelX + 32,
+    totalsPanelHeight,
+    7,
+    7,
+    "FD",
+  );
+  totalsY += 2;
 
   function drawTotal(label, value, options = {}) {
     const { prominent = false } = options;
@@ -267,7 +317,7 @@ export function createInvoicePdf(invoice, business) {
 
     pdf.setTextColor(91, 106, 98);
     pdf.setFont("helvetica", prominent ? "bold" : "normal");
-    pdf.setFontSize(prominent ? 10 : 8.5);
+    pdf.setFontSize(prominent ? 10.5 : 9);
     pdf.text(label, totalsLabelX, totalsY);
 
     pdf.setTextColor(25, 43, 34);
@@ -276,7 +326,7 @@ export function createInvoicePdf(invoice, business) {
       align: "right",
     });
 
-    totalsY += prominent ? 35 : 22;
+    totalsY += prominent ? 28 : 18;
   }
 
   // Separates principal and overdue charges on the invoice PDF.
@@ -287,15 +337,26 @@ export function createInvoicePdf(invoice, business) {
   drawTotal("Overdue charge", invoice.overdueCharge ?? 0);
   drawTotal("Sale total", invoice.total, { prominent: true });
 
-  if (resolveTotalDebtPayable(invoice) > 0) {
-    pdf.setTextColor(170, 67, 44);
+  if (totalPayable > 0) {
+    pdf.setFillColor(255, 241, 237);
+    pdf.setDrawColor(235, 190, 181);
+    pdf.roundedRect(
+      totalsLabelX - 12,
+      totalsY - 13,
+      totalsValueX - totalsLabelX + 24,
+      24,
+      5,
+      5,
+      "FD",
+    );
+    pdf.setTextColor(157, 61, 48);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.text("Total payable", totalsLabelX, totalsY);
+    pdf.setFontSize(9.5);
+    pdf.text("Total payable", totalsLabelX, totalsY + 1);
     pdf.text(
-      formatPdfCurrency(resolveTotalDebtPayable(invoice)),
+      formatPdfCurrency(totalPayable),
       totalsValueX,
-      totalsY,
+      totalsY + 1,
       { align: "right" },
     );
   }
@@ -497,8 +558,28 @@ export function createReceiptPdf(receipt, sale, business) {
   );
 
   const amountY = 183;
+  // Layers the amount block for a clean printed-card appearance.
+  pdf.setFillColor(222, 234, 227);
+  pdf.roundedRect(
+    margin + 2,
+    amountY - 19,
+    pageWidth - margin * 2,
+    55,
+    7,
+    7,
+    "F",
+  );
   pdf.setFillColor(237, 247, 241);
-  pdf.roundedRect(margin, amountY - 22, pageWidth - margin * 2, 55, 7, 7, "F");
+  pdf.setDrawColor(198, 222, 208);
+  pdf.roundedRect(
+    margin,
+    amountY - 22,
+    pageWidth - margin * 2,
+    55,
+    7,
+    7,
+    "FD",
+  );
 
   pdf.setTextColor(82, 99, 90);
   pdf.setFont("helvetica", "bold");
@@ -528,10 +609,10 @@ export function createReceiptPdf(receipt, sale, business) {
     theme: "plain",
     margin: { left: margin, right: margin },
     styles: {
-      cellPadding: 6,
+      cellPadding: 5.5,
       font: "helvetica",
-      fontSize: 8.5,
-      textColor: [45, 61, 53],
+      fontSize: 9,
+      textColor: [35, 53, 44],
     },
     columnStyles: {
       0: {
@@ -659,6 +740,29 @@ export function createWaybillPdf(sale, business) {
     { align: "right" },
   );
 
+  // Frames delivery details as one compact information card.
+  pdf.setFillColor(228, 237, 232);
+  pdf.roundedRect(
+    margin + 2,
+    120,
+    pageWidth - margin * 2,
+    164,
+    7,
+    7,
+    "F",
+  );
+  pdf.setFillColor(250, 252, 251);
+  pdf.setDrawColor(213, 226, 218);
+  pdf.roundedRect(
+    margin,
+    117,
+    pageWidth - margin * 2,
+    164,
+    7,
+    7,
+    "FD",
+  );
+
   const deliveryRows = [
     ["Recipient", safeText(waybill.recipientName)],
     ["Phone", safeText(waybill.recipientPhone)],
@@ -676,10 +780,10 @@ export function createWaybillPdf(sale, business) {
     theme: "plain",
     margin: { left: margin, right: margin },
     styles: {
-      cellPadding: 5.5,
+      cellPadding: 5,
       font: "helvetica",
-      fontSize: 8.5,
-      textColor: [44, 60, 52],
+      fontSize: 9,
+      textColor: [35, 53, 44],
     },
     columnStyles: {
       0: {
@@ -735,20 +839,43 @@ export function createWaybillPdf(sale, business) {
     notesY = 60;
   }
 
-  pdf.setTextColor(87, 103, 94);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  pdf.text("DELIVERY NOTES", margin, notesY);
+  // Keeps delivery notes visible inside a restrained raised card.
+  pdf.setFillColor(231, 239, 234);
+  pdf.roundedRect(
+    margin + 2,
+    notesY - 12,
+    pageWidth - margin * 2,
+    62,
+    7,
+    7,
+    "F",
+  );
+  pdf.setFillColor(250, 252, 251);
+  pdf.setDrawColor(214, 226, 219);
+  pdf.roundedRect(
+    margin,
+    notesY - 15,
+    pageWidth - margin * 2,
+    62,
+    7,
+    7,
+    "FD",
+  );
 
-  pdf.setTextColor(44, 60, 52);
-  pdf.setFont("helvetica", "normal");
+  pdf.setTextColor(69, 91, 79);
+  pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8.5);
+  pdf.text("DELIVERY NOTES", margin + 13, notesY + 1);
+
+  pdf.setTextColor(35, 53, 44);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
   pdf.text(
     pdf.splitTextToSize(
       safeText(waybill.deliveryNotes, "No delivery notes recorded."),
-      pageWidth - margin * 2,
+      pageWidth - margin * 2 - 26,
     ),
-    margin,
+    margin + 13,
     notesY + 18,
   );
 
@@ -911,8 +1038,19 @@ function createCustomerStatementPdf(
   const labelX = margin + 16;
   const valueX = margin + 105;
 
+  // Adds restrained depth to the customer detail block.
+  document.setFillColor(228, 237, 232);
+  document.roundedRect(
+    margin + 2,
+    detailsY + 3,
+    pageWidth - margin * 2,
+    detailsHeight,
+    6,
+    6,
+    "F",
+  );
   document.setFillColor(247, 250, 248);
-  document.setDrawColor(218, 229, 223);
+  document.setDrawColor(211, 225, 217);
   document.roundedRect(
     margin,
     detailsY,
@@ -943,12 +1081,12 @@ function createCustomerStatementPdf(
 
     document.setTextColor(91, 106, 98);
     document.setFont("helvetica", "bold");
-    document.setFontSize(6.8);
+    document.setFontSize(7.2);
     document.text(label, labelX, rowY);
 
     document.setTextColor(29, 48, 39);
     document.setFont("helvetica", "normal");
-    document.setFontSize(7.8);
+    document.setFontSize(8.2);
 
     if (label === "Address") {
       document.text(
@@ -988,15 +1126,13 @@ function createCustomerStatementPdf(
       itemIndex === 0
         ? `Principal paid: ${formatPdfCurrency(
             sale.amountPaid,
+          )}\nOutstanding balance: ${formatPdfCurrency(
+            sale.outstandingBalance,
+          )}\nOverdue charge: ${formatPdfCurrency(
+            sale.overdueCharge ?? 0,
           )}\nTotal payable: ${formatPdfCurrency(
             resolveTotalDebtPayable(sale),
-          )}${
-            Number(sale.overdueCharge || 0) > 0
-              ? `\nOverdue charge: ${formatPdfCurrency(
-                  sale.overdueCharge,
-                )}`
-              : ""
-          }`
+          )}`
         : "",
     ]),
   );
@@ -1016,7 +1152,7 @@ function createCustomerStatementPdf(
     foot: [[
       { content: "", colSpan: 2 },
       {
-        content: "Total Amount Paid",
+        content: "Total Principal Paid",
         styles: {
           fontStyle: "bold",
           halign: "left",
@@ -1039,12 +1175,12 @@ function createCustomerStatementPdf(
       bottom: 42,
     },
     styles: {
-      cellPadding: 3.2,
+      cellPadding: 3.3,
       font: "helvetica",
-      fontSize: 6.1,
-      lineColor: [220, 230, 224],
-      lineWidth: 0.4,
-      textColor: [44, 60, 52],
+      fontSize: 6.5,
+      lineColor: [214, 226, 219],
+      lineWidth: 0.45,
+      textColor: [35, 53, 44],
       overflow: "linebreak",
       valign: "middle",
     },
@@ -1139,7 +1275,7 @@ function createCustomerStatementPdf(
       ]),
       foot: [[
         {
-          content: "Total Amount Paid",
+          content: "Total Payments Received",
           colSpan: 5,
           styles: {
             fontStyle: "bold",
@@ -1162,12 +1298,12 @@ function createCustomerStatementPdf(
         bottom: 42,
       },
       styles: {
-        cellPadding: 3.2,
+        cellPadding: 3.3,
         font: "helvetica",
-        fontSize: 6.1,
-        lineColor: [220, 230, 224],
-        lineWidth: 0.4,
-        textColor: [44, 60, 52],
+        fontSize: 6.5,
+        lineColor: [214, 226, 219],
+        lineWidth: 0.45,
+        textColor: [35, 53, 44],
       },
       headStyles: {
         fillColor: [25, 74, 52],

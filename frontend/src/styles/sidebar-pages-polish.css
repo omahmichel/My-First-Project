@@ -1,0 +1,286 @@
+/* StockFlow shared sidebar page polish v1. */
+
+/*
+  Gives every authenticated sidebar page a consistent, softly tinted
+  workspace while preserving each page's existing structure and logic.
+*/
+.app-content {
+  position: relative;
+  min-height: calc(100vh - 72px);
+  isolation: isolate;
+  background:
+    radial-gradient(
+      circle at 92% 5%,
+      rgba(110, 185, 149, 0.15),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 8% 92%,
+      rgba(37, 109, 79, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(145deg, #f4faf6 0%, #eaf4ef 100%);
+}
+
+.app-content::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0)
+    );
+  content: "";
+}
+
+.app-content > * {
+  position: relative;
+}
+
+/*
+  Turns regular page headings into compact raised introductions.
+  Team is excluded because it already has its own approved treatment.
+*/
+.app-content .page-stack:not(.team-page) > .page-header {
+  padding: 18px 20px;
+  border: 1px solid #cddfd6;
+  border-radius: 17px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(237, 247, 242, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 0 #dce9e2,
+    0 16px 34px rgba(19, 58, 42, 0.08);
+}
+
+.app-content .page-stack:not(.team-page) > .page-header h1 {
+  color: #10291d;
+  font-weight: 850;
+}
+
+.app-content .page-stack:not(.team-page) > .page-header p {
+  color: #506b5e;
+  font-weight: 580;
+}
+
+/*
+  Applies the same raised surface language to shared cards used by
+  Dashboard, products, inventory, customers, reports, settings, and sales.
+*/
+.app-content .page-stack:not(.team-page) .panel-card,
+.app-content .page-stack:not(.team-page) .stat-card,
+.app-content .page-stack:not(.team-page) .form-card,
+.app-content .page-stack:not(.team-page) .settings-card,
+.app-content .page-stack:not(.team-page) .report-card,
+.app-content .page-stack:not(.team-page) .summary-card,
+.app-content .page-stack:not(.team-page) .metric-card,
+.app-content .page-stack:not(.team-page) .dashboard-card {
+  border-color: #cddfd6;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(241, 248, 244, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 0 #dce9e2,
+    0 15px 30px rgba(19, 58, 42, 0.075);
+}
+
+.app-content .page-stack:not(.team-page) .panel-card {
+  overflow: hidden;
+}
+
+.app-content .page-stack:not(.team-page) .panel-card-header {
+  border-bottom-color: #d6e4dc;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f0f7f3 100%);
+}
+
+.app-content .page-stack:not(.team-page) .panel-card-header span {
+  color: #587064;
+}
+
+.app-content .page-stack:not(.team-page) .panel-card-header h2 {
+  color: #173126;
+  font-weight: 850;
+}
+
+.app-content .page-stack:not(.team-page) .stat-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.app-content .page-stack:not(.team-page) .stat-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background:
+    linear-gradient(90deg, rgba(23, 100, 72, 0.95), rgba(105, 185, 143, 0.85));
+  content: "";
+}
+
+.app-content .page-stack:not(.team-page) .stat-card:hover {
+  transform: translateY(-2px);
+  border-color: #abcdbd;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 5px 0 #d4e4dc,
+    0 18px 34px rgba(19, 58, 42, 0.11);
+}
+
+.app-content .page-stack:not(.team-page) .stat-card-icon {
+  border: 1px solid rgba(27, 100, 72, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 3px 0 rgba(19, 58, 42, 0.08);
+}
+
+.app-content .page-stack:not(.team-page) .stat-card-content span {
+  color: #526b5f;
+  font-weight: 720;
+}
+
+.app-content .page-stack:not(.team-page) .stat-card-content strong {
+  color: #10291d;
+  font-weight: 880;
+}
+
+.app-content .page-stack:not(.team-page) .stat-card-content small {
+  color: #71857b;
+  font-weight: 620;
+}
+
+/*
+  Makes shared table sections feel integrated with the new page surface.
+*/
+.app-content .page-stack:not(.team-page) .table-toolbar {
+  border-bottom-color: #d5e3db;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 247, 243, 0.98));
+}
+
+.app-content .page-stack:not(.team-page) .table-search,
+.app-content .page-stack:not(.team-page) .table-filter-group select,
+.app-content .page-stack:not(.team-page) .table-toolbar > select {
+  border-color: #c6dacf;
+  background:
+    linear-gradient(180deg, #ffffff, #f7faf8);
+  box-shadow:
+    inset 0 1px 2px rgba(20, 56, 40, 0.05),
+    0 2px 0 #e1ebe6;
+}
+
+.app-content .page-stack:not(.team-page) .data-table th {
+  border-bottom: 1px solid #d8e5de;
+  background:
+    linear-gradient(180deg, #f7fbf9, #edf5f1);
+  color: #4e675a;
+}
+
+.app-content .page-stack:not(.team-page) .data-table td {
+  border-top-color: #e0e9e4;
+  background: rgba(255, 255, 255, 0.76);
+  color: #42594d;
+}
+
+.app-content .page-stack:not(.team-page) .data-table tbody tr:hover td {
+  background: #f1f8f4;
+}
+
+.app-content .page-stack:not(.team-page) .data-table td > strong {
+  color: #173126;
+}
+
+/*
+  Gives common forms and feedback areas the same depth without changing
+  validation, submission, filtering, or page permissions.
+*/
+.app-content .page-stack:not(.team-page) .simple-form,
+.app-content .page-stack:not(.team-page) .product-form,
+.app-content .page-stack:not(.team-page) .settings-form-grid,
+.app-content .page-stack:not(.team-page) .invoice-setup-form {
+  color: #29483a;
+}
+
+.app-content .page-stack:not(.team-page) input,
+.app-content .page-stack:not(.team-page) select,
+.app-content .page-stack:not(.team-page) textarea {
+  border-color: #c7dad0;
+  background:
+    linear-gradient(180deg, #ffffff, #f8fbf9);
+  color: #193428;
+  box-shadow:
+    inset 0 1px 2px rgba(20, 56, 40, 0.055),
+    0 2px 0 #e5ede9;
+}
+
+.app-content .page-stack:not(.team-page) input:focus,
+.app-content .page-stack:not(.team-page) select:focus,
+.app-content .page-stack:not(.team-page) textarea:focus {
+  border-color: #76b394;
+  box-shadow:
+    0 0 0 3px rgba(31, 107, 79, 0.1),
+    0 2px 0 #dbe8e1;
+}
+
+.app-content .page-stack:not(.team-page) .form-alert,
+.app-content .page-stack:not(.team-page) .permission-callout,
+.app-content .page-stack:not(.team-page) .muted-message {
+  border-radius: 13px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 3px 0 rgba(19, 58, 42, 0.07),
+    0 12px 24px rgba(19, 58, 42, 0.055);
+}
+
+/*
+  Subscription already has specialized cards, so only its page heading
+  receives the shared workspace treatment.
+*/
+.app-content > .subscription-page .subscription-page-heading {
+  padding: 18px 20px;
+  border: 1px solid #cddfd6;
+  border-radius: 17px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(237, 247, 242, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 0 #dce9e2,
+    0 16px 34px rgba(19, 58, 42, 0.08);
+}
+
+@media (max-width: 760px) {
+  .app-content {
+    min-height: calc(100vh - 62px);
+  }
+
+  .app-content .page-stack:not(.team-page) > .page-header,
+  .app-content > .subscription-page .subscription-page-heading {
+    padding: 15px;
+    border-radius: 14px;
+  }
+}
+
+@media print {
+  .app-content {
+    min-height: auto;
+    background: #ffffff !important;
+  }
+
+  .app-content::before {
+    display: none;
+  }
+
+  .app-content .page-stack:not(.team-page) > .page-header,
+  .app-content .page-stack:not(.team-page) .panel-card,
+  .app-content .page-stack:not(.team-page) .stat-card,
+  .app-content > .subscription-page .subscription-page-heading {
+    border-color: #d8d8d8;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+}

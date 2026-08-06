@@ -205,3 +205,398 @@
     flex-direction: column;
   }
 }
+
+/* StockFlow Team page visual polish v1. */
+
+/*
+  Adds depth and contrast to the existing Team workspace while
+  preserving the current card grid, toolbar, and pagination layout.
+*/
+.team-page {
+  position: relative;
+}
+
+.team-page > .permission-callout {
+  border-color: #a9d2be;
+  background:
+    linear-gradient(145deg, rgba(238, 249, 243, 0.98), rgba(220, 241, 230, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 3px 0 #d7e8df,
+    0 12px 25px rgba(18, 59, 41, 0.07);
+}
+
+.team-page > .permission-callout strong {
+  color: #123f2d;
+  font-weight: 850;
+}
+
+.team-page > .permission-callout p {
+  color: #456b58;
+  font-weight: 620;
+}
+
+.team-page > .panel-card {
+  overflow: hidden;
+  border: 1px solid #cfe0d7;
+  border-radius: 17px;
+  background:
+    linear-gradient(145deg, #f6fbf8 0%, #edf7f2 100%);
+  box-shadow:
+    0 4px 0 #dce9e2,
+    0 18px 38px rgba(18, 59, 41, 0.09);
+}
+
+.team-page > .panel-card > .table-toolbar {
+  padding: 13px 16px;
+  border-bottom-color: #d7e5dd;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 248, 244, 0.96));
+}
+
+.team-page .table-search {
+  border-color: #c7dbd1;
+  background: #ffffff;
+  box-shadow:
+    inset 0 1px 2px rgba(20, 56, 40, 0.05),
+    0 3px 0 #e2ece7;
+}
+
+.team-page .table-search input {
+  color: #173126;
+  font-weight: 650;
+}
+
+.team-page .table-search input::placeholder {
+  color: #83998e;
+}
+
+.team-page .result-count {
+  color: #405f50;
+  font-weight: 820;
+}
+
+.team-page .team-card-grid {
+  min-height: 260px;
+  grid-template-columns: repeat(3, minmax(250px, 1fr));
+  gap: 13px;
+  padding: 17px;
+  background:
+    radial-gradient(circle at top right, rgba(123, 193, 158, 0.12), transparent 32%),
+    linear-gradient(145deg, #f7fbf9, #edf6f1);
+}
+
+.team-page .team-card {
+  position: relative;
+  overflow: hidden;
+  padding: 15px;
+  border-color: #cfe0d7;
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(242, 248, 245, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 0 #dce9e2,
+    0 12px 24px rgba(19, 58, 42, 0.08);
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.team-page .team-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #176448, #69b98f);
+  content: "";
+}
+
+.team-page .team-card:hover {
+  transform: translateY(-2px);
+  border-color: #abcdbd;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 5px 0 #d4e4dc,
+    0 16px 30px rgba(19, 58, 42, 0.12);
+}
+
+.team-page .team-card-heading {
+  gap: 11px;
+}
+
+.team-page .team-card-heading > span {
+  width: 42px;
+  height: 42px;
+  border: 1px solid #c9e4d7;
+  border-radius: 11px;
+  background:
+    linear-gradient(145deg, #e7f7ef, #d2eee0);
+  color: #12523a;
+  font-size: 0.72rem;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 3px 0 #d6e7de;
+}
+
+.team-page .team-card-heading strong {
+  color: #10291d;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.team-page .team-card-heading small {
+  color: #61786c;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.team-page .team-card-heading .status-badge {
+  border-color: #b9dccb;
+  background:
+    linear-gradient(145deg, #f4fcf7, #e7f6ee);
+  color: #116345;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #d8e9e0;
+}
+
+.team-page .team-contact {
+  gap: 8px;
+  margin-top: 14px;
+  padding: 11px 0;
+  border-top-color: #dfe9e4;
+  border-bottom-color: #dfe9e4;
+}
+
+.team-page .team-contact span {
+  color: #465f52;
+  font-size: 0.7rem;
+  font-weight: 640;
+}
+
+.team-page .team-contact svg {
+  color: #527a66;
+}
+
+.team-page .team-card-footer {
+  margin-top: 11px;
+  padding: 9px 10px;
+  border: 1px solid #dfe9e4;
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, #f8fbf9, #edf5f1);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #e8efeb;
+}
+
+.team-page .team-card-footer span {
+  color: #71857b;
+  font-weight: 700;
+}
+
+.team-page .team-card-footer strong {
+  color: #173126;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.team-page .team-owner-protected-label {
+  border: 1px solid #d4dfd9;
+  background:
+    linear-gradient(145deg, #f7f9f8, #e9efec);
+  color: #62776c;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #e2e9e5;
+}
+
+.team-page .team-member-delete-action {
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #f0dede;
+}
+
+.team-page .team-pagination {
+  border-top-color: #cfdfd7;
+  background:
+    linear-gradient(180deg, #f7fbf9, #ebf4ef);
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+.team-page .team-pagination-summary > span,
+.team-page .team-pagination-controls > span,
+.team-page .team-pagination-summary label {
+  color: #536d60;
+  font-weight: 760;
+}
+
+.team-page .team-pagination-summary select,
+.team-page .team-pagination-controls button {
+  border-color: #c9dcd2;
+  background:
+    linear-gradient(180deg, #ffffff, #f2f7f4);
+  color: #174834;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 0 #e0e9e4;
+}
+
+.team-page .team-pagination-controls button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/*
+  Gives the add-member form and role preview the same compact
+  raised treatment without changing any input or submit behavior.
+*/
+.team-page .modal-card {
+  border: 1px solid #cfe0d7;
+  background:
+    linear-gradient(145deg, #ffffff, #f3f8f5);
+  box-shadow:
+    0 5px 0 #dce9e2,
+    0 22px 48px rgba(14, 49, 34, 0.18);
+}
+
+.team-page .modal-header {
+  border-bottom: 1px solid #dce8e1;
+  background:
+    linear-gradient(180deg, #fbfdfc, #eff7f3);
+}
+
+.team-page .simple-form label {
+  color: #29483a;
+  font-weight: 800;
+}
+
+.team-page .simple-form input,
+.team-page .simple-form select {
+  border-color: #c8dbd1;
+  background:
+    linear-gradient(180deg, #ffffff, #f8fbf9);
+  color: #193428;
+  font-weight: 650;
+  box-shadow:
+    inset 0 1px 2px rgba(20, 56, 40, 0.06),
+    0 2px 0 #e4ece8;
+}
+
+.team-page .simple-form input:focus,
+.team-page .simple-form select:focus {
+  border-color: #76b394;
+  box-shadow:
+    0 0 0 3px rgba(31, 107, 79, 0.1),
+    0 2px 0 #dbe8e1;
+}
+
+.team-page .role-preview {
+  border: 1px solid #cfe2d8;
+  background:
+    linear-gradient(145deg, #f3faf6, #e4f2ea);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 3px 0 #dce9e2;
+}
+
+.team-page .role-preview strong {
+  color: #173f2d;
+  font-weight: 850;
+}
+
+.team-page .role-preview span {
+  color: #537060;
+  font-weight: 620;
+}
+
+@media (max-width: 1100px) {
+  .team-page .team-card-grid {
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .team-page .team-card-grid {
+    min-height: 0;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .team-page .team-card {
+    padding: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .team-page > .panel-card {
+    border-radius: 14px;
+  }
+
+  .team-page .team-card-footer {
+    align-items: stretch;
+  }
+}
+
+/* StockFlow Team status badge alignment fix v2. */
+
+/*
+  Vertically centers the status badge in the member heading and
+  centers the dot and label inside the rounded badge.
+*/
+.team-page .team-card-heading {
+  align-items: center;
+}
+
+.team-page .team-card-heading > .status-badge {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  align-self: center;
+  justify-content: center;
+  margin-top: 0;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  line-height: 1;
+}
+
+@media (max-width: 520px) {
+  .team-page .team-card-heading > .status-badge {
+    align-self: start;
+    margin-top: 6px;
+  }
+}
+
+/* StockFlow Team status dot placement fix v3. */
+
+/*
+  Places the status dot underneath the status text and centers
+  both elements cleanly inside the badge.
+*/
+.team-page .team-card-heading > .status-badge {
+  position: relative;
+  min-width: 78px;
+  min-height: 48px;
+  padding: 8px 12px 17px;
+  text-align: center;
+}
+
+.team-page .team-card-heading > .status-badge::before {
+  top: auto;
+  bottom: 7px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 520px) {
+  .team-page .team-card-heading > .status-badge {
+    min-height: 44px;
+    padding-bottom: 15px;
+  }
+
+  .team-page .team-card-heading > .status-badge::before {
+    bottom: 6px;
+  }
+}

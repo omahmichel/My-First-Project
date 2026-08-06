@@ -12,6 +12,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
 import "../../styles/subscription.css";
+import "../../styles/sidebar-pages-polish.css";
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);

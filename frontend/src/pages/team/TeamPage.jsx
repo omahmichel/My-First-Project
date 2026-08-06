@@ -151,7 +151,7 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack team-page">
       <PageHeader
         eyebrow="Access control"
         title="Team members"
