@@ -246,6 +246,45 @@ STORAGES = {
     },
 }
 
+# Builds password-reset links for the active React application.
+FRONTEND_BASE_URL = os.getenv(
+    "FRONTEND_BASE_URL",
+    "http://127.0.0.1:5173",
+).strip().rstrip("/")
+
+if not FRONTEND_BASE_URL:
+    raise ImproperlyConfigured(
+        "FRONTEND_BASE_URL must contain the React application URL."
+    )
+
+# Keeps signed password-reset links short-lived.
+PASSWORD_RESET_TIMEOUT = get_env_positive_int(
+    "DJANGO_PASSWORD_RESET_TIMEOUT_SECONDS",
+    default=3600,
+)
+
+# Uses console delivery locally and environment-driven SMTP in production.
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+).strip()
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "localhost").strip()
+EMAIL_PORT = get_env_positive_int("DJANGO_EMAIL_PORT", default=587)
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = get_env_bool("DJANGO_EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = get_env_bool("DJANGO_EMAIL_USE_SSL", default=False)
+EMAIL_TIMEOUT = get_env_positive_int("DJANGO_EMAIL_TIMEOUT_SECONDS", default=10)
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DJANGO_DEFAULT_FROM_EMAIL",
+    "StockFlow <no-reply@stockflow.local>",
+).strip()
+
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured(
+        "DJANGO_EMAIL_USE_TLS and DJANGO_EMAIL_USE_SSL cannot both be enabled."
+    )
+
 # Uses the project-specific email-based user model.
 AUTH_USER_MODEL = "accounts.User"
 
@@ -277,6 +316,14 @@ REST_FRAMEWORK = {
         "auth_register": os.getenv("THROTTLE_RATE_REGISTER", "5/hour"),
         "auth_refresh": os.getenv("THROTTLE_RATE_REFRESH", "30/min"),
         "auth_logout": os.getenv("THROTTLE_RATE_LOGOUT", "20/min"),
+        "auth_password_reset_request": os.getenv(
+            "THROTTLE_RATE_PASSWORD_RESET_REQUEST",
+            "5/hour",
+        ),
+        "auth_password_reset_confirm": os.getenv(
+            "THROTTLE_RATE_PASSWORD_RESET_CONFIRM",
+            "10/hour",
+        ),
         "subscription_payment_initialize": os.getenv(
             "THROTTLE_RATE_SUBSCRIPTION_PAYMENT_INITIALIZE",
             "10/min",
@@ -315,6 +362,8 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
+    # Rejects existing access tokens immediately after a password change.
+    "CHECK_REVOKE_TOKEN": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
