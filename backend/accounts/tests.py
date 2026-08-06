@@ -18,13 +18,18 @@ TEST_REST_FRAMEWORK = {
         **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
         "auth_login": "2/min",
         "auth_register": "2/min",
+        "auth_register_verify": "2/min",
+        "auth_register_resend": "2/min",
         "auth_refresh": "2/min",
         "auth_logout": "2/min",
     },
 }
 
 
-@override_settings(REST_FRAMEWORK=TEST_REST_FRAMEWORK)
+@override_settings(
+    REST_FRAMEWORK=TEST_REST_FRAMEWORK,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 class AuthenticationThrottleTests(APITestCase):
     # Uses very small limits so security throttles can be tested quickly.
 
@@ -112,8 +117,8 @@ class AuthenticationThrottleTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first_response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(second_response.status_code, status.HTTP_202_ACCEPTED)
         self.assertEqual(
             throttled_response.status_code,
             status.HTTP_429_TOO_MANY_REQUESTS,

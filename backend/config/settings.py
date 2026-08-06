@@ -263,6 +263,20 @@ PASSWORD_RESET_TIMEOUT = get_env_positive_int(
     default=3600,
 )
 
+# Controls registration email verification security and resend behaviour.
+REGISTRATION_OTP_EXPIRY_SECONDS = get_env_positive_int(
+    "REGISTRATION_OTP_EXPIRY_SECONDS",
+    default=600,
+)
+REGISTRATION_OTP_RESEND_COOLDOWN_SECONDS = get_env_positive_int(
+    "REGISTRATION_OTP_RESEND_COOLDOWN_SECONDS",
+    default=60,
+)
+REGISTRATION_OTP_MAX_ATTEMPTS = get_env_positive_int(
+    "REGISTRATION_OTP_MAX_ATTEMPTS",
+    default=5,
+)
+
 # Uses console delivery locally and environment-driven SMTP in production.
 EMAIL_BACKEND = os.getenv(
     "DJANGO_EMAIL_BACKEND",
@@ -314,6 +328,14 @@ REST_FRAMEWORK = {
         "user": os.getenv("THROTTLE_RATE_USER", "1000/hour"),
         "auth_login": os.getenv("THROTTLE_RATE_LOGIN", "10/min"),
         "auth_register": os.getenv("THROTTLE_RATE_REGISTER", "5/hour"),
+        "auth_register_verify": os.getenv(
+            "THROTTLE_RATE_REGISTER_VERIFY",
+            "10/min",
+        ),
+        "auth_register_resend": os.getenv(
+            "THROTTLE_RATE_REGISTER_RESEND",
+            "5/hour",
+        ),
         "auth_refresh": os.getenv("THROTTLE_RATE_REFRESH", "30/min"),
         "auth_logout": os.getenv("THROTTLE_RATE_LOGOUT", "20/min"),
         "auth_password_reset_request": os.getenv(

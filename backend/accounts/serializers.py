@@ -74,6 +74,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
 
 
+class RegistrationOTPVerifySerializer(serializers.Serializer):
+    # Validates the submitted email and six-digit verification code.
+
+    email = serializers.EmailField()
+    otp = serializers.RegexField(
+        regex=r"^\d{6}$",
+        max_length=6,
+        min_length=6,
+    )
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class RegistrationOTPResendSerializer(serializers.Serializer):
+    # Normalizes the email used to request a replacement code.
+
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
 class LoginSerializer(TokenObtainPairSerializer):
     # Returns JWT tokens together with safe user details.
 
