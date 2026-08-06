@@ -677,3 +677,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .password-reset-login-link:hover {
   background: var(--primary-dark);
 }
+
+/* StockFlow password-reset page spacing fix v1. */
+
+.auth-password-page .auth-visual-panel {
+  padding-top: 96px;
+}
+
+@media (max-width: 760px) {
+  .auth-password-page .auth-visual-panel {
+    padding-top: 88px;
+  }
+}

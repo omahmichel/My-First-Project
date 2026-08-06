@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="auth-page">
+    <main className="auth-page auth-password-page">
       <section className="auth-visual-panel">
         <Link to="/" className="auth-back-link">
           <ArrowLeft size={18} /> Back to website
