@@ -15,6 +15,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
 import { apiRequest } from "../../services/api";
 
+import "../../styles/onboarding-polish.css";
+
 export default function OnboardingPage() {
   const { user, pendingRegistration, completeOnboarding } = useAuth();
   const { loadBusinesses } = useStore();
