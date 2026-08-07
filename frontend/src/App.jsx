@@ -8,6 +8,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import RegistrationOTPPage from "./pages/auth/RegistrationOTPPage";
 import OnboardingPage from "./pages/onboarding/OnboardingPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProductsPage from "./pages/inventory/ProductsPage";
@@ -39,6 +40,10 @@ export default function App() {
         element={<ResetPasswordPage />}
       />
       <Route path="/register" element={<RegisterPage />} />
+      <Route
+        path="/verify-registration"
+        element={<RegistrationOTPPage />}
+      />
       <Route path="/onboarding" element={<OnboardingPage />} />
 
       <Route element={<ProtectedRoute />}>

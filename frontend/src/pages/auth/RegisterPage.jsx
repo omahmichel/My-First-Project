@@ -40,7 +40,7 @@ export default function RegisterPage() {
 
     try {
       await register(form);
-      navigate("/onboarding", { replace: true });
+      navigate("/verify-registration", { replace: true });
     } catch (registrationError) {
       setError(registrationError.message);
     } finally {
@@ -164,7 +164,7 @@ export default function RegisterPage() {
               className="full-width-button"
               disabled={submitting}
             >
-              {submitting ? "Creating account..." : "Continue to business setup"}
+              {submitting ? "Sending verification code..." : "Verify email address"}
             </Button>
           </form>
 

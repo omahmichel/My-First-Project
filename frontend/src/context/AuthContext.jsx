@@ -27,13 +27,38 @@ function normalizeUser(account) {
   };
 }
 
+// Keeps only non-secret details needed by email verification and onboarding.
+function sanitizePendingRegistration(registration) {
+  if (!registration) return null;
+
+  return {
+    name: registration.name?.trim() ?? "",
+    businessName: registration.businessName?.trim() ?? "",
+    email: registration.email?.trim().toLowerCase() ?? "",
+    phone: registration.phone?.trim() ?? "",
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() =>
     loadStoredValue("auth_user", null),
   );
-  const [pendingRegistration, setPendingRegistration] = useState(() =>
-    loadStoredValue("pending_registration", null),
-  );
+  const [pendingRegistration, setPendingRegistration] = useState(() => {
+    const storedRegistration = loadStoredValue(
+      "pending_registration",
+      null,
+    );
+    const safeRegistration = sanitizePendingRegistration(
+      storedRegistration,
+    );
+
+    // Removes any password left by the older immediate-registration flow.
+    if (storedRegistration) {
+      saveStoredValue("pending_registration", safeRegistration);
+    }
+
+    return safeRegistration;
+  });
   const [isInitializing, setIsInitializing] = useState(true);
 
   // Clears all authentication state without depending on the API response.
@@ -127,7 +152,7 @@ export function AuthProvider({ children }) {
     return nextUser;
   }
 
-  // Creates the real account before the user configures the first business.
+  // Starts registration by sending an OTP without creating the account yet.
   async function register(payload) {
     if (
       !payload.name?.trim() ||
@@ -148,7 +173,7 @@ export function AuthProvider({ children }) {
       email: payload.email.trim().toLowerCase(),
     };
 
-    const response = await apiRequest("/auth/register/", {
+    await apiRequest("/auth/register/", {
       method: "POST",
       body: JSON.stringify({
         email: registration.email,
@@ -159,15 +184,45 @@ export function AuthProvider({ children }) {
       }),
     });
 
-    window.localStorage.setItem("stockflow_access_token", response.access);
-    window.localStorage.setItem("stockflow_refresh_token", response.refresh);
+    const safeRegistration = sanitizePendingRegistration(registration);
+    setPendingRegistration(safeRegistration);
+    saveStoredValue("pending_registration", safeRegistration);
+    return safeRegistration;
+  }
+
+  // Creates the account and stores JWT credentials after OTP verification.
+  async function verifyRegistrationOtp({ email, otp }) {
+    const response = await apiRequest("/auth/register/verify/", {
+      method: "POST",
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+      }),
+    });
+
+    window.localStorage.setItem(
+      "stockflow_access_token",
+      response.access,
+    );
+    window.localStorage.setItem(
+      "stockflow_refresh_token",
+      response.refresh,
+    );
 
     const nextUser = normalizeUser(response.user);
     setUser(nextUser);
     saveStoredValue("auth_user", nextUser);
-    setPendingRegistration(registration);
-    saveStoredValue("pending_registration", registration);
-    return registration;
+    return nextUser;
+  }
+
+  // Requests a replacement code for the current pending registration.
+  async function resendRegistrationOtp(email) {
+    return apiRequest("/auth/register/resend/", {
+      method: "POST",
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+      }),
+    });
   }
 
   // Finalizes the local onboarding state after Django creates the business.
@@ -208,6 +263,8 @@ export function AuthProvider({ children }) {
       isInitializing,
       login,
       register,
+      verifyRegistrationOtp,
+      resendRegistrationOtp,
       completeOnboarding,
       logout,
     }),

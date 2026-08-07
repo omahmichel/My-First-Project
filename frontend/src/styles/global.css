@@ -689,3 +689,58 @@ button:disabled { cursor: not-allowed; opacity: .55; }
     padding-top: 88px;
   }
 }
+
+/* StockFlow registration OTP page v1. */
+
+.auth-registration-otp-page .auth-visual-panel {
+  padding-top: 96px;
+}
+
+.auth-registration-otp-page .auth-heading strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.registration-otp-input input {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-align: center;
+}
+
+.registration-otp-input input::placeholder {
+  color: #b4c0b9;
+}
+
+.registration-otp-resend {
+  display: inline-flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.registration-otp-resend:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.registration-otp-resend:disabled {
+  cursor: not-allowed;
+  color: var(--subtle);
+  opacity: 0.72;
+}
+
+@media (max-width: 760px) {
+  .auth-registration-otp-page .auth-visual-panel {
+    padding-top: 88px;
+  }
+}
+
