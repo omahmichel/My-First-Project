@@ -24,6 +24,8 @@ const EMPTY_BUSINESS = Object.freeze({
   location: "",
   invoicePrefix: "INV",
   receiptPrefix: "RCT",
+  vatRegistered: false,
+  vatRegistrationNumber: "",
   status: "",
   ownerName: "",
   ownerEmail: "",
@@ -56,6 +58,8 @@ function normalizeBusiness(record) {
     location: record.location ?? "",
     invoicePrefix: record.invoicePrefix ?? "INV",
     receiptPrefix: record.receiptPrefix ?? "RCT",
+    vatRegistered: Boolean(record.vatRegistered),
+    vatRegistrationNumber: record.vatRegistrationNumber ?? "",
     status: record.status ?? "active",
     ownerName: record.owner_name ?? "",
     ownerEmail: record.owner_email ?? "",
@@ -834,6 +838,14 @@ export function StoreProvider({ children }) {
           )
             .trim()
             .toUpperCase(),
+      vatRegistered: Boolean(
+        changes.vatRegistered ?? business.vatRegistered,
+      ),
+      vatRegistrationNumber: String(
+        changes.vatRegistrationNumber ??
+          business.vatRegistrationNumber ??
+          "",
+      ).trim(),
         }),
       },
     );

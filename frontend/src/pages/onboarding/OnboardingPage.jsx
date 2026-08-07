@@ -33,6 +33,8 @@ export default function OnboardingPage() {
     digitalAddress: "",
     invoicePrefix: "INV",
     receiptPrefix: "RCT",
+    vatRegistered: false,
+    vatRegistrationNumber: "",
   });
   const navigate = useNavigate();
 
@@ -43,7 +45,9 @@ export default function OnboardingPage() {
   function handleChange(event) {
     setForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [event.target.name]: event.target.type === "checkbox"
+        ? event.target.checked
+        : event.target.value,
     }));
   }
 
@@ -51,6 +55,17 @@ export default function OnboardingPage() {
     if (!form.name.trim()) {
       setError("Enter the business name before finishing setup.");
       setStep(2);
+      return;
+    }
+
+    if (
+      form.vatRegistered &&
+      !form.vatRegistrationNumber.trim()
+    ) {
+      setError(
+        "Enter the VAT registration number before enabling VAT.",
+      );
+      setStep(3);
       return;
     }
 
@@ -72,6 +87,9 @@ export default function OnboardingPage() {
           location,
           invoicePrefix: form.invoicePrefix.trim().toUpperCase() || "INV",
           receiptPrefix: form.receiptPrefix.trim().toUpperCase() || "RCT",
+          vatRegistered: Boolean(form.vatRegistered),
+          vatRegistrationNumber:
+            form.vatRegistrationNumber.trim(),
         }),
       });
 
@@ -282,9 +300,28 @@ export default function OnboardingPage() {
                   <input type="checkbox" defaultChecked /> Show outstanding
                   balance on credit invoices
                 </label>
-                <label className="checkbox-label">
-                  <input type="checkbox" /> Mark business as VAT registered
-                </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="vatRegistered"
+                checked={form.vatRegistered}
+                onChange={handleChange}
+              />
+              Mark business as VAT registered
+            </label>
+            {form.vatRegistered ? (
+              <label>
+                VAT registration number
+                <input
+                  name="vatRegistrationNumber"
+                  value={form.vatRegistrationNumber}
+                  onChange={handleChange}
+                  maxLength={80}
+                  placeholder="Enter VAT registration number"
+                  required
+                />
+              </label>
+            ) : null}
               </div>
               <div className="invoice-paper-preview">
                 <header>

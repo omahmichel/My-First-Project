@@ -68,6 +68,13 @@ class Business(models.Model):
     email = models.EmailField(blank=True)
     location = models.CharField(max_length=255, blank=True)
 
+    # Stores optional VAT registration details per business workspace.
+    vat_registered = models.BooleanField(default=False)
+    vat_registration_number = models.CharField(
+        max_length=80,
+        blank=True,
+    )
+
     # Starts every new business on a 60-day free trial.
     trial_started_at = models.DateTimeField(default=timezone.now)
     trial_ends_at = models.DateTimeField(default=default_trial_ends_at)

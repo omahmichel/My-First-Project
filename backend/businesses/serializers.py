@@ -66,6 +66,17 @@ class BusinessSerializer(serializers.ModelSerializer):
         },
     )
 
+    vatRegistered = serializers.BooleanField(
+        source="vat_registered",
+        required=False,
+    )
+    vatRegistrationNumber = serializers.CharField(
+        source="vat_registration_number",
+        max_length=80,
+        required=False,
+        allow_blank=True,
+    )
+
     class Meta:
         model = Business
         fields = (
@@ -76,6 +87,8 @@ class BusinessSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "location",
+            "vatRegistered",
+            "vatRegistrationNumber",
             "invoicePrefix",
             "receiptPrefix",
             "status",
@@ -116,6 +129,44 @@ class BusinessSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    def validate(self, attrs):
+        # Requires a VAT number only when this business enables VAT.
+        attrs = super().validate(attrs)
+
+        current_registered = bool(
+            getattr(self.instance, "vat_registered", False)
+        )
+        current_number = str(
+            getattr(self.instance, "vat_registration_number", "")
+        ).strip()
+
+        vat_registered = attrs.get(
+            "vat_registered",
+            current_registered,
+        )
+        vat_number = str(
+            attrs.get(
+                "vat_registration_number",
+                current_number,
+            )
+        ).strip()
+
+        if vat_registered and not vat_number:
+            raise serializers.ValidationError(
+                {
+                    "vatRegistrationNumber": (
+                        "Enter the VAT registration number "
+                        "when VAT is enabled."
+                    ),
+                }
+            )
+
+        return attrs
+
+    def validate_vatRegistrationNumber(self, value):
+        # Stores the VAT registration number without extra spaces.
+        return value.strip()
 
     def validate_invoicePrefix(self, value):
         # Stores invoice prefixes consistently for document numbering.

@@ -1,0 +1,110 @@
+/* StockFlow per-business VAT settings v3. */
+
+.settings-vat-section {
+  scroll-margin-top: 24px;
+}
+
+.settings-vat-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid #d9e4dd;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fbfdfc 0%, #f3f8f5 100%);
+}
+
+.settings-vat-card > div {
+  max-width: 610px;
+}
+
+.settings-vat-card > div > strong {
+  color: var(--ink);
+  font-size: 0.83rem;
+}
+
+.settings-vat-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+.settings-vat-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+
+.settings-vat-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-vat-toggle > span {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border: 1px solid #cbd8d0;
+  border-radius: 999px;
+  background: #dfe7e2;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.settings-vat-toggle > span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(27, 53, 41, 0.16);
+  content: "";
+  transition: transform 0.18s ease;
+}
+
+.settings-vat-toggle input:checked + span {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.settings-vat-toggle input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.settings-vat-toggle input:focus-visible + span {
+  outline: 3px solid rgba(31, 107, 79, 0.15);
+  outline-offset: 2px;
+}
+
+.settings-vat-toggle > strong {
+  color: var(--ink);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.settings-vat-fields {
+  margin-top: 18px;
+}
+
+.settings-vat-fields input:disabled {
+  cursor: not-allowed;
+  background: #f2f5f3;
+  color: var(--subtle);
+}
+
+@media (max-width: 700px) {
+  .settings-vat-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

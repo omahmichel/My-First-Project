@@ -1,4 +1,5 @@
 import {
+  BadgePercent,
   Building2,
   FileText,
   Save,
@@ -10,6 +11,8 @@ import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
 
+import "../../styles/vat-settings.css";
+
 function formFromBusiness(business) {
   return {
     id: business?.id || "",
@@ -20,6 +23,9 @@ function formFromBusiness(business) {
     location: business?.location || "",
     invoicePrefix: business?.invoicePrefix || "INV",
     receiptPrefix: business?.receiptPrefix || "RCT",
+    vatRegistered: Boolean(business?.vatRegistered),
+    vatRegistrationNumber:
+      business?.vatRegistrationNumber || "",
   };
 }
 
@@ -50,7 +56,9 @@ export default function SettingsPage() {
 
     setForm((current) => ({
       ...current,
-      [name]: value,
+      [name]: event.target.type === "checkbox"
+        ? event.target.checked
+        : value,
     }));
     setSaved(false);
     setSaveError("");
@@ -60,6 +68,17 @@ export default function SettingsPage() {
     event.preventDefault();
 
     if (saving) return;
+
+    if (
+      form.vatRegistered &&
+      !form.vatRegistrationNumber.trim()
+    ) {
+      setSaved(false);
+      setSaveError(
+        "Enter the VAT registration number before enabling VAT.",
+      );
+      return;
+    }
 
     setSaving(true);
     setSaved(false);
@@ -111,6 +130,10 @@ export default function SettingsPage() {
           <a href="#documents">
             <FileText size={18} />
             Documents
+          </a>
+          <a href="#vat">
+            <BadgePercent size={18} />
+            VAT
           </a>
           <a href="#security">
             <ShieldCheck size={18} />
@@ -249,6 +272,62 @@ export default function SettingsPage() {
               Prefixes allow letters, numbers and hyphens. New documents use
               the updated prefixes; existing invoices and receipts keep their
               original numbers.
+            </p>
+          </section>
+
+          <section
+            className="panel-card settings-section settings-vat-section"
+            id="vat"
+          >
+            <header>
+              <div>
+                <span>Tax registration</span>
+                <h2>VAT settings</h2>
+              </div>
+            </header>
+
+            <div className="settings-vat-card">
+              <div>
+                <strong>VAT registered business</strong>
+                <p>
+                  Enable this when the active business is registered
+                  for VAT. This setting is stored separately for each
+                  business workspace.
+                </p>
+              </div>
+
+              <label className="settings-vat-toggle">
+                <input
+                  type="checkbox"
+                  name="vatRegistered"
+                  checked={form.vatRegistered}
+                  onChange={handleChange}
+                />
+                <span aria-hidden="true" />
+                <strong>
+                  {form.vatRegistered ? "Enabled" : "Not enabled"}
+                </strong>
+              </label>
+            </div>
+
+            <div className="settings-form-grid settings-vat-fields">
+              <label>
+                VAT registration number
+                <input
+                  name="vatRegistrationNumber"
+                  value={form.vatRegistrationNumber}
+                  onChange={handleChange}
+                  maxLength="80"
+                  placeholder="Enter VAT registration number"
+                  disabled={!form.vatRegistered}
+                  required={form.vatRegistered}
+                />
+              </label>
+            </div>
+
+            <p className="settings-note">
+              VAT registration is saved separately for the active
+              business. This setting does not change invoice totals.
             </p>
           </section>
 
