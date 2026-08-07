@@ -1,6 +1,6 @@
 import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
@@ -14,7 +14,6 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { loadBusinesses } = useStore();
   const navigate = useNavigate();
-  const location = useLocation();
 
   function handleChange(event) {
     setForm((current) => ({
@@ -32,9 +31,10 @@ export default function LoginPage() {
       await login(form);
       const availableBusinesses = await loadBusinesses();
 
+      // Existing accounts choose a workspace before entering a dashboard.
       navigate(
         availableBusinesses.length > 0
-          ? location.state?.from ?? "/app/dashboard"
+          ? "/businesses"
           : "/onboarding",
         { replace: true },
       );

@@ -75,7 +75,9 @@ export default function OnboardingPage() {
 
       await loadBusinesses(createdBusiness.id);
       completeOnboarding();
-      navigate("/app/dashboard", { replace: true });
+
+      // Returns to the account-level business home after every workspace setup.
+      navigate("/businesses", { replace: true });
     } catch (setupError) {
       setError(setupError.message);
     } finally {

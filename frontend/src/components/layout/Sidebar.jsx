@@ -148,6 +148,18 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         <nav className="sidebar-nav">
+          {/* Always lets the account return to its authorized business list. */}
+          <NavLink
+            to="/businesses"
+            onClick={onClose}
+            className={({ isActive }) =>
+              `sidebar-link ${isActive ? "sidebar-link-active" : ""}`
+            }
+          >
+            <Building2 size={19} />
+            <span>My businesses</span>
+          </NavLink>
+
           {navigation.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

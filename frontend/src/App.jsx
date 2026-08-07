@@ -10,6 +10,7 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import RegistrationOTPPage from "./pages/auth/RegistrationOTPPage";
 import OnboardingPage from "./pages/onboarding/OnboardingPage";
+import MyBusinessesPage from "./pages/businesses/MyBusinessesPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProductsPage from "./pages/inventory/ProductsPage";
 import TilesPage from "./pages/inventory/TilesPage";
@@ -47,6 +48,9 @@ export default function App() {
       <Route path="/onboarding" element={<OnboardingPage />} />
 
       <Route element={<ProtectedRoute />}>
+        {/* Account-level home for only the businesses this user can access. */}
+        <Route path="/businesses" element={<MyBusinessesPage />} />
+
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />

@@ -1,0 +1,423 @@
+/* StockFlow account-level business workspace home v3. */
+
+.business-workspaces-page {
+  min-height: 100vh;
+  background: var(--canvas, #f5f7f6);
+  color: var(--ink, #17231d);
+}
+
+.business-workspaces-topbar {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px clamp(20px, 5vw, 72px);
+  border-bottom: 1px solid var(--line, #dfe6e2);
+  background: #ffffff;
+}
+
+.business-workspaces-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink, #17231d);
+  cursor: pointer;
+  font: inherit;
+}
+
+.business-workspaces-brand > span {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--primary, #176b4d);
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.business-workspaces-brand > strong {
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.business-workspaces-brand b {
+  color: var(--primary, #176b4d);
+}
+
+.business-workspaces-account {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.business-workspaces-account > div {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.business-workspaces-account span {
+  color: var(--muted, #6e7973);
+  font-size: 0.68rem;
+}
+
+.business-workspaces-account strong {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--ink, #17231d);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-workspaces-logout {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: 1px solid var(--line, #dfe6e2);
+  border-radius: 9px;
+  background: #ffffff;
+  color: var(--ink, #17231d);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.business-workspaces-shell {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: clamp(38px, 6vw, 76px) 0 72px;
+}
+
+.business-workspaces-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 30px;
+}
+
+.business-workspaces-heading > div {
+  max-width: 690px;
+}
+
+.business-workspaces-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: var(--primary, #176b4d);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.business-workspaces-heading h1 {
+  margin: 0;
+  color: var(--ink, #17231d);
+  font-size: clamp(1.75rem, 3vw, 2.55rem);
+  line-height: 1.12;
+}
+
+.business-workspaces-heading p {
+  margin: 12px 0 0;
+  color: var(--muted, #6e7973);
+  font-size: 0.86rem;
+  line-height: 1.7;
+}
+
+.business-workspaces-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+  padding: 15px 16px;
+  border: 1px solid #efd0c6;
+  border-radius: 12px;
+  background: #fff8f5;
+}
+
+.business-workspaces-error > div {
+  display: grid;
+  gap: 4px;
+}
+
+.business-workspaces-error strong {
+  color: #8e3e2c;
+  font-size: 0.76rem;
+}
+
+.business-workspaces-error span {
+  color: #8c675f;
+  font-size: 0.7rem;
+}
+
+.business-workspaces-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid #e7c1b7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #8e3e2c;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.business-workspaces-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.business-workspace-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 20px;
+  border: 1px solid var(--line, #dfe6e2);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(26, 49, 39, 0.055);
+}
+
+.business-workspace-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.business-workspace-icon {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--primary-light, #edf7f2);
+  color: var(--primary, #176b4d);
+}
+
+.business-workspace-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.business-workspace-badges > span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #f3f6f4;
+  color: var(--muted, #6e7973);
+  font-size: 0.62rem;
+  font-weight: 750;
+}
+
+.business-workspace-badges .business-workspace-access-active {
+  background: var(--primary-light, #edf7f2);
+  color: var(--primary, #176b4d);
+}
+
+.business-workspace-badges .business-workspace-access-blocked {
+  background: #fff3ef;
+  color: #a14b35;
+}
+
+.business-workspace-details {
+  padding: 22px 0 17px;
+}
+
+.business-workspace-details h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink, #17231d);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.business-workspace-details p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--muted, #6e7973);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.business-workspace-details p svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.business-workspace-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: auto;
+  padding: 13px;
+  border-radius: 11px;
+  background: var(--canvas, #f5f7f6);
+}
+
+.business-workspace-meta span,
+.business-workspace-meta strong {
+  display: block;
+}
+
+.business-workspace-meta span {
+  color: var(--muted, #6e7973);
+  font-size: 0.61rem;
+}
+
+.business-workspace-meta strong {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--ink, #17231d);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.business-workspace-open {
+  display: flex;
+  width: 100%;
+  min-height: 43px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 15px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary, #176b4d);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.business-workspace-open:hover {
+  background: var(--primary-dark, #105a40);
+}
+
+.business-workspaces-empty {
+  display: grid;
+  max-width: 560px;
+  justify-items: center;
+  margin: 52px auto 0;
+  padding: 42px 28px;
+  border: 1px dashed var(--line, #dfe6e2);
+  border-radius: 16px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.business-workspaces-empty-icon {
+  display: inline-grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--primary-light, #edf7f2);
+  color: var(--primary, #176b4d);
+}
+
+.business-workspaces-empty h2 {
+  margin: 16px 0 0;
+  color: var(--ink, #17231d);
+  font-size: 1.05rem;
+}
+
+.business-workspaces-empty p {
+  max-width: 440px;
+  margin: 9px 0 18px;
+  color: var(--muted, #6e7973);
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+@media (max-width: 940px) {
+  .business-workspaces-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .business-workspaces-topbar {
+    align-items: flex-start;
+    padding-inline: 18px;
+  }
+
+  .business-workspaces-account > div {
+    display: none;
+  }
+
+  .business-workspaces-shell {
+    width: min(100% - 28px, 1180px);
+    padding-top: 34px;
+  }
+
+  .business-workspaces-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-workspaces-heading > button {
+    width: 100%;
+  }
+
+  .business-workspaces-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .business-workspaces-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-workspaces-error button {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .business-workspaces-topbar {
+    gap: 12px;
+  }
+
+  .business-workspaces-logout {
+    padding-inline: 9px;
+  }
+
+  .business-workspaces-brand > strong {
+    font-size: 0.9rem;
+  }
+
+  .business-workspace-card {
+    padding: 17px;
+  }
+
+  .business-workspace-card-head {
+    flex-direction: column;
+  }
+
+  .business-workspace-badges {
+    justify-content: flex-start;
+  }
+}
