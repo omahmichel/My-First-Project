@@ -542,7 +542,8 @@
 }
 
 .business-workspaces-grid {
-  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  /* Keeps business cards the same desktop width regardless of business count. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 22px;
 }
 
@@ -724,6 +725,11 @@
 }
 
 @media (max-width: 720px) {
+  /* Returns the workspace cards to one column on mobile screens. */
+  .business-workspaces-grid {
+    grid-template-columns: 1fr;
+  }
+
   .business-workspaces-topbar {
     min-height: 70px;
   }
