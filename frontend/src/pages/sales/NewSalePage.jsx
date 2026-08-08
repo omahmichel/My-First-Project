@@ -17,6 +17,8 @@ import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
 import { formatCurrency } from "../../utils/formatters";
 
+import "../../styles/sales-product-navigator.css";
+
 const MOBILE_MONEY_NETWORK_LABELS = {
   mtn: "MTN Mobile Money",
   atl: "AirtelTigo Money",
@@ -43,6 +45,110 @@ function resolvePendingMobileMoneySale(sale) {
       MOBILE_MONEY_NETWORK_LABELS[payment.mobileMoneyNetwork] ??
       payment.mobileMoneyNetwork,
   };
+}
+
+// StockFlow sales product navigator v3.
+// Builds dynamic cashier sections from the inventory fields already stored.
+function buildProductSections(products) {
+  const categoryMap = new Map();
+
+  products.forEach((product) => {
+    const categoryName =
+      String(product.category ?? "").trim() || "Other products";
+
+    if (!categoryMap.has(categoryName)) {
+      categoryMap.set(categoryName, []);
+    }
+
+    categoryMap.get(categoryName).push(product);
+  });
+
+  return [...categoryMap.entries()]
+    .sort(([first], [second]) =>
+      first.localeCompare(second, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    )
+    .map(([categoryName, categoryProducts]) => {
+      const containsTiles = categoryProducts.some(
+        (product) => product.productType === "tile",
+      );
+
+      if (!containsTiles) {
+        return {
+          categoryName,
+          productCount: categoryProducts.length,
+          groups: [
+            {
+              key: `${categoryName}-products`,
+              label: "",
+              showHeading: false,
+              products: categoryProducts,
+            },
+          ],
+        };
+      }
+
+      const sizeMap = new Map();
+
+      categoryProducts.forEach((product) => {
+        const sizeLabel =
+          product.productType === "tile"
+            ? String(product.size ?? "").trim() || "Unspecified size"
+            : "Other products";
+
+        if (!sizeMap.has(sizeLabel)) {
+          sizeMap.set(sizeLabel, []);
+        }
+
+        sizeMap.get(sizeLabel).push(product);
+      });
+
+      return {
+        categoryName,
+        productCount: categoryProducts.length,
+        groups: [...sizeMap.entries()]
+          .sort(([first], [second]) =>
+            first.localeCompare(second, undefined, {
+              numeric: true,
+              sensitivity: "base",
+            }),
+          )
+          .map(([label, groupProducts]) => ({
+            key: `${categoryName}-${label}`,
+            label,
+            showHeading: true,
+            products: groupProducts,
+          })),
+      };
+    });
+}
+
+
+// Shows the exact variant details a cashier needs before adding an item.
+function productVariantSummary(product) {
+  const parts = [];
+
+  if (product.productType === "tile") {
+    if (product.designCode) {
+      parts.push(`Design ${product.designCode}`);
+    }
+    if (product.color) parts.push(product.color);
+    if (product.finish) parts.push(product.finish);
+  } else if (product.productType === "fashion") {
+    if (product.size) parts.push(`Size ${product.size}`);
+    if (product.color) parts.push(product.color);
+    if (product.styleCode) {
+      parts.push(`Style ${product.styleCode}`);
+    }
+  } else {
+    if (product.brand) parts.push(product.brand);
+    if (product.size) parts.push(product.size);
+    if (product.color) parts.push(product.color);
+  }
+
+  return parts.join(" · ");
 }
 
 
@@ -114,8 +220,17 @@ export default function NewSalePage() {
       Number(product.availableStock ?? product.stock ?? 0) > 0,
   );
   const categories = [
-    ...new Set(activeProducts.map((product) => product.category)),
-  ].sort();
+    ...new Set(
+      activeProducts
+        .map((product) => String(product.category ?? "").trim())
+        .filter(Boolean),
+    ),
+  ].sort((first, second) =>
+    first.localeCompare(second, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }),
+  );
   const filteredProducts = activeProducts.filter((product) => {
     const query = search.trim().toLowerCase();
     const matchesQuery =
@@ -123,16 +238,25 @@ export default function NewSalePage() {
       [
         product.name,
         product.sku,
+        product.category,
         product.designCode,
         product.styleCode,
         product.brand,
+        product.size,
+        product.color,
+        product.finish,
       ]
         .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query));
+        .some((value) =>
+          String(value).toLowerCase().includes(query),
+        );
 
     return matchesQuery &&
       (category === "all" || product.category === category);
   });
+
+  // Separates tiles by size and boutique products by category/variant.
+  const productSections = buildProductSections(filteredProducts);
 
   const subtotal = useMemo(
     () =>
@@ -476,39 +600,102 @@ export default function NewSalePage() {
             </select>
           </div>
 
-          <div className="pos-product-grid">
-            {filteredProducts.map((product) => (
-              <button
-                type="button"
-                className="pos-product-card"
-                key={product.id}
-                onClick={() => addToCart(product)}
-                disabled={saleSaving}
-              >
-                <span
-                  className={`pos-product-image ${
-                    product.imageStyle || "product-generic"
-                  }`}
-                >
-                  {product.designCode ? (
-                    <b>{product.designCode}</b>
-                  ) : null}
+          <div className="sale-product-catalog">
+            {!productSections.length ? (
+              <div className="sale-product-catalog-empty">
+                <Search size={24} />
+                <strong>No matching products</strong>
+                <span>
+                  Try another product name, SKU, category, size,
+                  colour or design code.
                 </span>
-                <div>
-                  <strong>{product.name}</strong>
-                  <span>
-                    {product.designCode
-                      ? `Design ${product.designCode} · `
-                      : ""}
-                    {product.availableStock ?? product.stock} {product.unit}(s)
-                  </span>
-                </div>
-                <b>{formatCurrency(product.sellingPrice)}</b>
-                <i>
-                  <Plus size={17} />
-                </i>
-              </button>
-            ))}
+              </div>
+            ) : (
+              productSections.map((section) => (
+                <section
+                  className="sale-product-category-section"
+                  key={section.categoryName}
+                >
+                  <header className="sale-product-category-heading">
+                    <div>
+                      <span>Category</span>
+                      <h2>{section.categoryName}</h2>
+                    </div>
+                    <strong>
+                      {section.productCount} product
+                      {section.productCount === 1 ? "" : "s"}
+                    </strong>
+                  </header>
+
+                  {section.groups.map((group) => (
+                    <div
+                      className="sale-product-variant-group"
+                      key={group.key}
+                    >
+                      {group.showHeading ? (
+                        <div className="sale-product-variant-heading">
+                          <div>
+                            <span>Size</span>
+                            <strong>{group.label}</strong>
+                          </div>
+                          <small>
+                            {group.products.length} option
+                            {group.products.length === 1 ? "" : "s"}
+                          </small>
+                        </div>
+                      ) : null}
+
+                      <div className="pos-product-grid">
+                        {group.products.map((product) => {
+                          const variantSummary =
+                            productVariantSummary(product);
+
+                          return (
+                            <button
+                              type="button"
+                              className="pos-product-card"
+                              key={product.id}
+                              onClick={() => addToCart(product)}
+                              disabled={saleSaving}
+                            >
+                              <span
+                                className={`pos-product-image ${
+                                  product.imageStyle ||
+                                  "product-generic"
+                                }`}
+                              >
+                                {product.designCode ? (
+                                  <b>{product.designCode}</b>
+                                ) : null}
+                              </span>
+
+                              <div>
+                                <strong>{product.name}</strong>
+                                {variantSummary ? (
+                                  <span>{variantSummary}</span>
+                                ) : null}
+                                <span>
+                                  {product.availableStock ??
+                                    product.stock}{" "}
+                                  {product.unit}(s)
+                                </span>
+                              </div>
+
+                              <b>
+                                {formatCurrency(product.sellingPrice)}
+                              </b>
+                              <i>
+                                <Plus size={17} />
+                              </i>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              ))
+            )}
           </div>
         </div>
 
