@@ -1,9 +1,12 @@
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 export default function Modal({ open, title, description, children, onClose, size = "medium" }) {
   if (!open) return null;
 
-  return (
+  // Renders dialogs at the document root so app stacking contexts
+  // cannot place the sidebar or topbar above the modal.
+  return createPortal(
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         className={`modal-card modal-card-${size}`}
@@ -23,6 +26,7 @@ export default function Modal({ open, title, description, children, onClose, siz
         </header>
         <div className="modal-body">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
