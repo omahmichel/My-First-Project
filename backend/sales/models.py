@@ -789,6 +789,38 @@ class Payment(models.Model):
     receipt_number = models.CharField(max_length=40, blank=True)
     reference = models.CharField(max_length=180, blank=True)
     note = models.TextField(blank=True)
+
+    # Immutable safe snapshot of the business account that received a bank transfer.
+    # Never store the decrypted/full receiving account number on Payment.
+    receiving_account_id_snapshot = models.UUIDField(
+        blank=True,
+        null=True,
+    )
+    receiving_account_type = models.CharField(
+        max_length=30,
+        blank=True,
+    )
+    receiving_account_display_name = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+    receiving_account_bank_name = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+    receiving_account_account_name = models.CharField(
+        max_length=150,
+        blank=True,
+    )
+    receiving_account_network = models.CharField(
+        max_length=40,
+        blank=True,
+    )
+    receiving_account_masked_number = models.CharField(
+        max_length=32,
+        blank=True,
+    )
+
     failure_reason = models.TextField(blank=True)
 
     initiated_by = models.ForeignKey(

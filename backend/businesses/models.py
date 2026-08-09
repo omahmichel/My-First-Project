@@ -149,6 +149,99 @@ class Business(models.Model):
         return self.name
 
 
+
+class BusinessPaymentAccount(models.Model):
+    # Stores one encrypted receiving account for a business workspace.
+
+    class AccountType(models.TextChoices):
+        BANK = "bank", "Bank account"
+        MOBILE_MONEY = "mobile_money", "Mobile Money wallet"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="payment_accounts",
+    )
+    account_type = models.CharField(
+        max_length=30,
+        choices=AccountType.choices,
+    )
+    display_name = models.CharField(max_length=120)
+    bank_name = models.CharField(max_length=120, blank=True)
+    account_name = models.CharField(max_length=150)
+    network = models.CharField(max_length=40, blank=True)
+
+    # The full receiving number is encrypted. Only its final four digits
+    # remain separately available for safe lists and checkout displays.
+    encrypted_account_number = models.TextField()
+    account_last_four = models.CharField(max_length=4)
+
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_business_payment_accounts",
+        blank=True,
+        null=True,
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="updated_business_payment_accounts",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-is_default", "display_name", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business",),
+                condition=models.Q(
+                    is_active=True,
+                    is_default=True,
+                ),
+                name="uniq_active_default_pay_account",
+            ),
+        ]
+
+    @property
+    def masked_number(self):
+        # Exposes only the final four digits in ordinary API responses.
+        return f"••••{self.account_last_four}"
+
+    def set_account_number(self, raw_value):
+        # Encrypts the full account or wallet number before persistence.
+        from .payment_account_crypto import (
+            encrypt_sensitive_value,
+            normalize_sensitive_number,
+        )
+
+        normalized = normalize_sensitive_number(raw_value)
+        self.encrypted_account_number = encrypt_sensitive_value(normalized)
+        self.account_last_four = normalized[-4:]
+
+    def get_account_number(self):
+        # Decrypts only for narrowly controlled internal operations.
+        from .payment_account_crypto import decrypt_sensitive_value
+
+        return decrypt_sensitive_value(self.encrypted_account_number)
+
+    def __str__(self):
+        return (
+            f"{self.business.name} - "
+            f"{self.display_name} ({self.masked_number})"
+        )
+
+
 class BusinessMembership(models.Model):
     """Connects a user to a business with a business-specific role."""
 

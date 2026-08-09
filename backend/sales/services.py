@@ -5,6 +5,8 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers
 
+from businesses.models import BusinessPaymentAccount
+
 from customers.models import Customer
 from inventory.models import Product, StockMovement
 from .models import (
@@ -161,6 +163,41 @@ def _payment_method_for_completed_sale(data):
     return data["paymentMethod"]
 
 
+def _resolve_bank_receiving_account(*, business, data):
+    # Authoritatively validates the selected account inside the transaction boundary.
+    account_id = data.get("receivingAccountId")
+    if not account_id:
+        raise serializers.ValidationError(
+            {
+                "receivingAccountId": (
+                    "Select the business bank account that received "
+                    "this transfer."
+                )
+            }
+        )
+
+    account = (
+        BusinessPaymentAccount.objects.filter(
+            id=account_id,
+            business=business,
+            account_type=BusinessPaymentAccount.AccountType.BANK,
+            is_active=True,
+        )
+        .first()
+    )
+    if account is None:
+        raise serializers.ValidationError(
+            {
+                "receivingAccountId": (
+                    "The selected receiving account is not an active "
+                    "bank account for this business."
+                )
+            }
+        )
+
+    return account
+
+
 def _uses_mobile_money_prompt(data):
     # Detects both full and part payments that require an external prompt.
     if data["paymentMethod"] == Sale.PaymentMethod.MOBILE_MONEY:
@@ -244,6 +281,17 @@ def create_completed_sale(
         )
 
     outstanding_balance = total - amount_paid
+
+    payment_method_for_receipt = _payment_method_for_completed_sale(data)
+    receiving_account = None
+    if (
+        amount_paid > Decimal("0.00")
+        and payment_method_for_receipt == Payment.Method.BANK_TRANSFER
+    ):
+        receiving_account = _resolve_bank_receiving_account(
+            business=business,
+            data=data,
+        )
 
     if outstanding_balance > Decimal("0.00") and not customer:
         raise serializers.ValidationError(
@@ -358,11 +406,36 @@ def create_completed_sale(
             sale=sale,
             customer=customer,
             payment_type=Payment.PaymentType.SALE_PAYMENT,
-            method=_payment_method_for_completed_sale(data),
+            method=payment_method_for_receipt,
             status=Payment.Status.SUCCESSFUL,
             amount=amount_paid,
             receipt_number=receipt_number,
-            note="Payment received when the sale was completed.",
+            reference=data.get("reference", ""),
+            note=(
+                data.get("note", "")
+                or "Payment received when the sale was completed."
+            ),
+            receiving_account_id_snapshot=(
+                receiving_account.id if receiving_account else None
+            ),
+            receiving_account_type=(
+                receiving_account.account_type if receiving_account else ""
+            ),
+            receiving_account_display_name=(
+                receiving_account.display_name if receiving_account else ""
+            ),
+            receiving_account_bank_name=(
+                receiving_account.bank_name if receiving_account else ""
+            ),
+            receiving_account_account_name=(
+                receiving_account.account_name if receiving_account else ""
+            ),
+            receiving_account_network=(
+                receiving_account.network if receiving_account else ""
+            ),
+            receiving_account_masked_number=(
+                receiving_account.masked_number if receiving_account else ""
+            ),
             initiated_by=user,
             verified_at=timezone.now(),
         )

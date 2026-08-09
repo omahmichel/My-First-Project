@@ -10,6 +10,11 @@ from .team_views import (
     BusinessTeamDeleteAPIView,
     BusinessTeamListCreateAPIView,
 )
+from .payment_account_views import (
+    BusinessPaymentAccountDetailAPIView,
+    BusinessPaymentAccountListCreateAPIView,
+)
+
 from .views import BusinessViewSet
 
 # Registers standard list, create, retrieve and update API routes.
@@ -47,5 +52,18 @@ urlpatterns = [
         "businesses/<uuid:business_id>/team/<uuid:membership_id>/",
         BusinessTeamDeleteAPIView.as_view(),
         name="business-team-delete",
+    ),
+    path(
+        "businesses/<uuid:business_id>/payment-accounts/",
+        BusinessPaymentAccountListCreateAPIView.as_view(),
+        name="business-payment-account-list-create",
+    ),
+    path(
+        (
+            "businesses/<uuid:business_id>/payment-accounts/"
+            "<uuid:account_id>/"
+        ),
+        BusinessPaymentAccountDetailAPIView.as_view(),
+        name="business-payment-account-detail",
     ),
 ] + router.urls

@@ -1,0 +1,156 @@
+/* StockFlow per-business receiving-account settings v1. */
+
+.payment-account-settings {
+  scroll-margin-top: 95px;
+}
+
+.payment-account-alert {
+  margin: 16px 21px 0;
+}
+
+.payment-account-list {
+  display: grid;
+  gap: 12px;
+  padding: 18px 21px 0;
+}
+
+.payment-account-empty {
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.payment-account-card {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #ffffff;
+}
+
+.payment-account-card.is-inactive {
+  background: var(--canvas);
+  opacity: 0.72;
+}
+
+.payment-account-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.payment-account-card-main > div,
+.payment-account-number {
+  display: grid;
+  gap: 4px;
+}
+
+.payment-account-card-main strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.payment-account-card-main span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.payment-account-number {
+  text-align: right;
+}
+
+.payment-account-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.payment-account-badges > span,
+.payment-account-badges > strong {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 0.62rem;
+}
+
+.payment-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.payment-account-editor {
+  margin: 20px 21px 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.payment-account-editor-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.payment-account-editor-heading > div > span {
+  color: var(--subtle);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.payment-account-editor-heading h3 {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.payment-account-form-grid {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.payment-account-default-field {
+  display: flex !important;
+  min-height: 44px;
+  align-items: center;
+  align-self: end;
+  grid-template-columns: auto 1fr;
+}
+
+.payment-account-default-field input {
+  width: auto;
+}
+
+.payment-account-default-field span {
+  color: #425249;
+  font-size: 0.72rem;
+}
+
+.payment-account-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+}
+
+@media (max-width: 700px) {
+  .payment-account-card-main {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .payment-account-number {
+    text-align: left;
+  }
+
+  .payment-account-editor-heading {
+    flex-direction: column;
+  }
+}

@@ -1,6 +1,7 @@
 import {
   BadgePercent,
   Building2,
+  CreditCard,
   FileText,
   Save,
   ShieldCheck,
@@ -12,6 +13,33 @@ import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
 
 import "../../styles/vat-settings.css";
+import "../../styles/payment-account-settings.css";
+
+function emptyPaymentAccountForm() {
+  return {
+    accountType: "bank",
+    displayName: "",
+    bankName: "",
+    accountName: "",
+    network: "",
+    accountNumber: "",
+    isDefault: false,
+    isActive: true,
+  };
+}
+
+function paymentAccountFormFromRecord(account) {
+  return {
+    accountType: account?.accountType || "bank",
+    displayName: account?.displayName || "",
+    bankName: account?.bankName || "",
+    accountName: account?.accountName || "",
+    network: account?.network || "",
+    accountNumber: "",
+    isDefault: Boolean(account?.isDefault),
+    isActive: account?.isActive !== false,
+  };
+}
 
 function formFromBusiness(business) {
   return {
@@ -35,6 +63,14 @@ export default function SettingsPage() {
     businessesLoading,
     businessesError,
     updateBusiness,
+    paymentAccounts,
+    paymentAccountsLoading,
+    paymentAccountsError,
+    createPaymentAccount,
+    updatePaymentAccount,
+    setDefaultPaymentAccount,
+    deactivatePaymentAccount,
+    reactivatePaymentAccount,
   } = useStore();
 
   const [form, setForm] = useState(() =>
@@ -44,11 +80,34 @@ export default function SettingsPage() {
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Keeps the form synchronized after switching businesses.
+  // Keeps receiving-account editing separate from general business settings.
+  const [paymentAccountForm, setPaymentAccountForm] = useState(
+    emptyPaymentAccountForm,
+  );
+  const [editingPaymentAccountId, setEditingPaymentAccountId] =
+    useState("");
+  const [paymentAccountSaving, setPaymentAccountSaving] =
+    useState(false);
+  const [paymentAccountMessage, setPaymentAccountMessage] =
+    useState("");
+  const [
+    paymentAccountActionError,
+    setPaymentAccountActionError,
+  ] = useState("");
+
+  const canManagePaymentAccounts = ["owner", "manager"].includes(
+    business?.currentUserRole,
+  );
+
+  // Keeps both settings areas synchronized after switching businesses.
   useEffect(() => {
     setForm(formFromBusiness(business));
     setSaved(false);
     setSaveError("");
+    setPaymentAccountForm(emptyPaymentAccountForm());
+    setEditingPaymentAccountId("");
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
   }, [business]);
 
   function handleChange(event) {
@@ -62,6 +121,149 @@ export default function SettingsPage() {
     }));
     setSaved(false);
     setSaveError("");
+  }
+
+  function handlePaymentAccountChange(event) {
+    const { name, value, type, checked } = event.target;
+
+    setPaymentAccountForm((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
+  }
+
+  function resetPaymentAccountEditor() {
+    setEditingPaymentAccountId("");
+    setPaymentAccountForm(emptyPaymentAccountForm());
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
+  }
+
+  function startEditingPaymentAccount(account) {
+    setEditingPaymentAccountId(String(account.id));
+    setPaymentAccountForm(paymentAccountFormFromRecord(account));
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
+  }
+
+  async function savePaymentAccount() {
+    if (paymentAccountSaving || !canManagePaymentAccounts) return;
+
+    if (!paymentAccountForm.displayName.trim()) {
+      setPaymentAccountActionError(
+        "Enter a display name for the receiving account.",
+      );
+      return;
+    }
+
+    if (!paymentAccountForm.accountName.trim()) {
+      setPaymentAccountActionError(
+        "Enter the receiving account name.",
+      );
+      return;
+    }
+
+    if (
+      paymentAccountForm.accountType === "bank" &&
+      !paymentAccountForm.bankName.trim()
+    ) {
+      setPaymentAccountActionError(
+        "Enter the receiving bank name.",
+      );
+      return;
+    }
+
+    if (
+      paymentAccountForm.accountType === "mobile_money" &&
+      !paymentAccountForm.network.trim()
+    ) {
+      setPaymentAccountActionError(
+        "Select the receiving Mobile Money network.",
+      );
+      return;
+    }
+
+    if (
+      !editingPaymentAccountId &&
+      !paymentAccountForm.accountNumber.trim()
+    ) {
+      setPaymentAccountActionError(
+        "Enter the receiving account or wallet number.",
+      );
+      return;
+    }
+
+    setPaymentAccountSaving(true);
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
+
+    try {
+      if (editingPaymentAccountId) {
+        await updatePaymentAccount(
+          editingPaymentAccountId,
+          paymentAccountForm,
+        );
+        setPaymentAccountMessage("Receiving account updated.");
+      } else {
+        await createPaymentAccount(paymentAccountForm);
+        setPaymentAccountMessage("Receiving account added.");
+      }
+
+      setEditingPaymentAccountId("");
+      setPaymentAccountForm(emptyPaymentAccountForm());
+    } catch (error) {
+      setPaymentAccountActionError(error.message);
+    } finally {
+      setPaymentAccountSaving(false);
+    }
+  }
+
+  async function makePaymentAccountDefault(account) {
+    if (paymentAccountSaving || !canManagePaymentAccounts) return;
+
+    setPaymentAccountSaving(true);
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
+
+    try {
+      await setDefaultPaymentAccount(account.id);
+      setPaymentAccountMessage(
+        `${account.displayName} is now the default receiving account.`,
+      );
+    } catch (error) {
+      setPaymentAccountActionError(error.message);
+    } finally {
+      setPaymentAccountSaving(false);
+    }
+  }
+
+  async function togglePaymentAccountStatus(account) {
+    if (paymentAccountSaving || !canManagePaymentAccounts) return;
+
+    setPaymentAccountSaving(true);
+    setPaymentAccountMessage("");
+    setPaymentAccountActionError("");
+
+    try {
+      if (account.isActive === false) {
+        await reactivatePaymentAccount(account.id);
+        setPaymentAccountMessage("Receiving account reactivated.");
+      } else {
+        await deactivatePaymentAccount(account.id);
+        setPaymentAccountMessage("Receiving account deactivated.");
+      }
+
+      if (String(account.id) === editingPaymentAccountId) {
+        setEditingPaymentAccountId("");
+        setPaymentAccountForm(emptyPaymentAccountForm());
+      }
+    } catch (error) {
+      setPaymentAccountActionError(error.message);
+    } finally {
+      setPaymentAccountSaving(false);
+    }
   }
 
   async function submit(event) {
@@ -134,6 +336,10 @@ export default function SettingsPage() {
           <a href="#vat">
             <BadgePercent size={18} />
             VAT
+          </a>
+          <a href="#payment-accounts">
+            <CreditCard size={18} />
+            Receiving accounts
           </a>
           <a href="#security">
             <ShieldCheck size={18} />
@@ -329,6 +535,312 @@ export default function SettingsPage() {
               VAT registration is saved separately for the active
               business. This setting does not change invoice totals.
             </p>
+          </section>
+
+          <section
+            className="panel-card settings-section payment-account-settings"
+            id="payment-accounts"
+          >
+            <header>
+              <div>
+                <span>Payment destinations</span>
+                <h2>Receiving accounts</h2>
+              </div>
+            </header>
+
+            <p className="settings-note">
+              Receiving accounts are isolated to the active business.
+              StockFlow encrypts the full number and shows only the
+              masked final four digits after saving.
+            </p>
+
+            {paymentAccountsError || paymentAccountActionError ? (
+              <div
+                className="form-alert form-alert-error payment-account-alert"
+                role="alert"
+              >
+                {paymentAccountActionError || paymentAccountsError}
+              </div>
+            ) : null}
+
+            {paymentAccountMessage ? (
+              <div
+                className="form-alert form-alert-success payment-account-alert"
+                role="status"
+              >
+                {paymentAccountMessage}
+              </div>
+            ) : null}
+
+            {paymentAccountsLoading ? (
+              <div
+                className="form-alert payment-account-alert"
+                role="status"
+              >
+                Loading receiving accounts...
+              </div>
+            ) : null}
+
+            <div className="payment-account-list">
+              {!paymentAccountsLoading && !paymentAccounts.length ? (
+                <div className="payment-account-empty">
+                  No receiving accounts have been added for this
+                  business yet.
+                </div>
+              ) : null}
+
+              {paymentAccounts.map((account) => (
+                <article
+                  className={`payment-account-card ${
+                    account.isActive === false ? "is-inactive" : ""
+                  }`}
+                  key={account.id}
+                >
+                  <div className="payment-account-card-main">
+                    <div>
+                      <strong>{account.displayName}</strong>
+                      <span>
+                        {account.accountType === "bank"
+                          ? account.bankName
+                          : account.network || "Mobile Money"}
+                      </span>
+                    </div>
+
+                    <div className="payment-account-number">
+                      <strong>{account.maskedNumber}</strong>
+                      <span>{account.accountName}</span>
+                    </div>
+                  </div>
+
+                  <div className="payment-account-badges">
+                    <span>
+                      {account.accountType === "bank"
+                        ? "Bank account"
+                        : "Mobile Money"}
+                    </span>
+                    {account.isDefault ? <strong>Default</strong> : null}
+                    <span>
+                      {account.isActive === false
+                        ? "Inactive"
+                        : "Active"}
+                    </span>
+                  </div>
+
+                  {canManagePaymentAccounts ? (
+                    <div className="payment-account-actions">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="small"
+                        onClick={() =>
+                          startEditingPaymentAccount(account)
+                        }
+                        disabled={paymentAccountSaving}
+                      >
+                        Edit
+                      </Button>
+
+                      {!account.isDefault &&
+                      account.isActive !== false ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="small"
+                          onClick={() =>
+                            makePaymentAccountDefault(account)
+                          }
+                          disabled={paymentAccountSaving}
+                        >
+                          Make default
+                        </Button>
+                      ) : null}
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="small"
+                        onClick={() =>
+                          togglePaymentAccountStatus(account)
+                        }
+                        disabled={paymentAccountSaving}
+                      >
+                        {account.isActive === false
+                          ? "Reactivate"
+                          : "Deactivate"}
+                      </Button>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            {canManagePaymentAccounts ? (
+              <div
+                className="payment-account-editor"
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter" &&
+                    event.target.tagName !== "BUTTON"
+                  ) {
+                    event.preventDefault();
+                    savePaymentAccount();
+                  }
+                }}
+              >
+                <div className="payment-account-editor-heading">
+                  <div>
+                    <span>
+                      {editingPaymentAccountId
+                        ? "Update receiving account"
+                        : "New receiving account"}
+                    </span>
+                    <h3>
+                      {editingPaymentAccountId
+                        ? "Edit account"
+                        : "Add account"}
+                    </h3>
+                  </div>
+
+                  {editingPaymentAccountId ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="small"
+                      onClick={resetPaymentAccountEditor}
+                      disabled={paymentAccountSaving}
+                    >
+                      Cancel edit
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className="settings-form-grid payment-account-form-grid">
+                  <label>
+                    Account type
+                    <select
+                      name="accountType"
+                      value={paymentAccountForm.accountType}
+                      onChange={handlePaymentAccountChange}
+                      disabled={paymentAccountSaving}
+                    >
+                      <option value="bank">Bank account</option>
+                      <option value="mobile_money">
+                        Mobile Money wallet
+                      </option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Display name
+                    <input
+                      name="displayName"
+                      value={paymentAccountForm.displayName}
+                      onChange={handlePaymentAccountChange}
+                      placeholder="e.g. Main GCB Account"
+                      maxLength="120"
+                      disabled={paymentAccountSaving}
+                    />
+                  </label>
+
+                  {paymentAccountForm.accountType === "bank" ? (
+                    <label>
+                      Bank name
+                      <input
+                        name="bankName"
+                        value={paymentAccountForm.bankName}
+                        onChange={handlePaymentAccountChange}
+                        placeholder="e.g. GCB Bank"
+                        maxLength="120"
+                        disabled={paymentAccountSaving}
+                      />
+                    </label>
+                  ) : (
+                    <label>
+                      Mobile Money network
+                      <select
+                        name="network"
+                        value={paymentAccountForm.network}
+                        onChange={handlePaymentAccountChange}
+                        disabled={paymentAccountSaving}
+                      >
+                        <option value="">Select network</option>
+                        <option value="mtn">
+                          MTN Mobile Money
+                        </option>
+                        <option value="telecel">
+                          Telecel Cash
+                        </option>
+                        <option value="airteltigo">
+                          AirtelTigo Money
+                        </option>
+                      </select>
+                    </label>
+                  )}
+
+                  <label>
+                    Account name
+                    <input
+                      name="accountName"
+                      value={paymentAccountForm.accountName}
+                      onChange={handlePaymentAccountChange}
+                      placeholder="Name registered on the account"
+                      maxLength="150"
+                      disabled={paymentAccountSaving}
+                    />
+                  </label>
+
+                  <label>
+                    {editingPaymentAccountId
+                      ? "Replace account number (optional)"
+                      : "Account or wallet number"}
+                    <input
+                      name="accountNumber"
+                      value={paymentAccountForm.accountNumber}
+                      onChange={handlePaymentAccountChange}
+                      placeholder={
+                        editingPaymentAccountId
+                          ? "Leave blank to keep the current number"
+                          : "Enter account or wallet number"
+                      }
+                      maxLength="40"
+                      autoComplete="off"
+                      disabled={paymentAccountSaving}
+                    />
+                  </label>
+
+                  <label className="payment-account-default-field">
+                    <input
+                      type="checkbox"
+                      name="isDefault"
+                      checked={paymentAccountForm.isDefault}
+                      onChange={handlePaymentAccountChange}
+                      disabled={paymentAccountSaving}
+                    />
+                    <span>Use as the default receiving account</span>
+                  </label>
+                </div>
+
+                <div className="payment-account-editor-actions">
+                  <Button
+                    type="button"
+                    onClick={savePaymentAccount}
+                    disabled={paymentAccountSaving}
+                  >
+                    {paymentAccountSaving
+                      ? "Saving account..."
+                      : editingPaymentAccountId
+                        ? "Update account"
+                        : "Add receiving account"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="settings-note">
+                Only the business owner or a manager can change
+                receiving accounts. Active accounts remain available
+                to authorized checkout staff.
+              </p>
+            )}
           </section>
 
           <section

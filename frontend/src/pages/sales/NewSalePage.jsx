@@ -164,6 +164,9 @@ export default function NewSalePage() {
     sales,
     salesLoading,
     salesError,
+    paymentAccounts,
+    paymentAccountsLoading,
+    paymentAccountsError,
     completeSale,
     verifyMobileMoneySale,
   } = useStore();
@@ -182,6 +185,10 @@ export default function NewSalePage() {
   const [completedSale, setCompletedSale] = useState(null);
   const [mobileMoneyNetwork, setMobileMoneyNetwork] = useState("");
   const [mobileMoneyNumber, setMobileMoneyNumber] = useState("");
+  const [bankTransferReference, setBankTransferReference] = useState("");
+  // Tracks the business receiving account chosen for this checkout.
+  const [receivingAccountId, setReceivingAccountId] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
   const [pendingMobileMoneySale, setPendingMobileMoneySale] =
     useState(null);
   const [mobileMoneyModalOpen, setMobileMoneyModalOpen] =
@@ -190,6 +197,41 @@ export default function NewSalePage() {
   const [paymentStatusMessage, setPaymentStatusMessage] =
     useState("");
   const checkoutKeyRef = useRef(null);
+
+  const bankReceivingAccounts = useMemo(
+    () =>
+      paymentAccounts.filter(
+        (account) =>
+          account.accountType === "bank" && account.isActive !== false,
+      ),
+    [paymentAccounts],
+  );
+
+  const usesBankTransfer =
+    paymentMethod === "bank_transfer" ||
+    (paymentMethod === "credit" &&
+      Number(amountPaid) > 0 &&
+      amountPaidMethod === "bank_transfer");
+
+  // Prefers the business default bank account while preserving a valid choice.
+  useEffect(() => {
+    if (!usesBankTransfer) {
+      setReceivingAccountId("");
+      return;
+    }
+
+    setReceivingAccountId((currentId) => {
+      if (bankReceivingAccounts.some((account) => account.id === currentId)) {
+        return currentId;
+      }
+
+      return (
+        bankReceivingAccounts.find((account) => account.isDefault)?.id ??
+        bankReceivingAccounts[0]?.id ??
+        ""
+      );
+    });
+  }, [bankReceivingAccounts, usesBankTransfer]);
 
   const customerDebtById = useMemo(() => {
     // Combines customer principal with current invoice overdue charges.
@@ -402,6 +444,8 @@ export default function NewSalePage() {
     resetCheckoutKey();
     setError("");
     setPaymentMethod(method);
+    setBankTransferReference("");
+    setPaymentNote("");
 
     if (method === "credit") {
       setAmountPaid(0);
@@ -424,6 +468,27 @@ export default function NewSalePage() {
     if (pendingMobileMoneySale) {
       setMobileMoneyModalOpen(true);
       return;
+    }
+
+    if (usesBankTransfer) {
+      if (paymentAccountsLoading) {
+        setError("Wait for the business receiving accounts to finish loading.");
+        return;
+      }
+      if (paymentAccountsError) {
+        setError(paymentAccountsError);
+        return;
+      }
+      if (!bankReceivingAccounts.length) {
+        setError(
+          "No active bank receiving account is configured for this business.",
+        );
+        return;
+      }
+      if (!receivingAccountId) {
+        setError("Select the bank account that received this transfer.");
+        return;
+      }
     }
 
     setError("");
@@ -457,6 +522,33 @@ export default function NewSalePage() {
           paymentMethod === "mobile_money"
             ? mobileMoneyNumber
             : "",
+        receivingAccountId:
+          paymentMethod === "bank_transfer" ||
+          (
+            paymentMethod === "credit" &&
+            Number(amountPaid) > 0 &&
+            amountPaidMethod === "bank_transfer"
+          )
+            ? receivingAccountId
+            : "",
+        reference:
+          paymentMethod === "bank_transfer" ||
+          (
+            paymentMethod === "credit" &&
+            Number(amountPaid) > 0 &&
+            amountPaidMethod === "bank_transfer"
+          )
+            ? bankTransferReference
+            : "",
+        note:
+          paymentMethod === "bank_transfer" ||
+          (
+            paymentMethod === "credit" &&
+            Number(amountPaid) > 0 &&
+            amountPaidMethod === "bank_transfer"
+          )
+            ? paymentNote
+            : "",
         idempotencyKey: getCheckoutKey(),
       });
 
@@ -487,6 +579,8 @@ export default function NewSalePage() {
       setDebtDueDate("");
       setMobileMoneyNetwork("");
       setMobileMoneyNumber("");
+      setBankTransferReference("");
+      setPaymentNote("");
       resetCheckoutKey();
     } catch (saleError) {
       setError(saleError.message);
@@ -930,6 +1024,69 @@ export default function NewSalePage() {
               </div>
             ) : null}
 
+          {paymentMethod === "bank_transfer" ? (
+            <div className="credit-payment-fields">
+              <label>
+                Receiving account
+                <select
+                  value={receivingAccountId}
+                  onChange={(event) => {
+                    resetCheckoutKey();
+                    setReceivingAccountId(event.target.value);
+                  }}
+                  disabled={saleSaving || paymentAccountsLoading}
+                >
+                  <option value="">
+                    {paymentAccountsLoading
+                      ? "Loading receiving accounts..."
+                      : "Select receiving account"}
+                  </option>
+                  {bankReceivingAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.displayName} — {account.bankName} — {account.maskedNumber}
+                      {account.isDefault ? " (Default)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Transfer reference
+                <input
+                  type="text"
+                  maxLength={180}
+                  value={bankTransferReference}
+                  onChange={(event) => {
+                    resetCheckoutKey();
+                    setBankTransferReference(event.target.value);
+                  }}
+                  placeholder="e.g. GCB-TRF-001234"
+                  disabled={saleSaving}
+                />
+              </label>
+
+              <label>
+                Payment note (optional)
+                <input
+                  type="text"
+                  value={paymentNote}
+                  onChange={(event) => {
+                    resetCheckoutKey();
+                    setPaymentNote(event.target.value);
+                  }}
+                  placeholder="Optional transfer note"
+                  disabled={saleSaving}
+                />
+              </label>
+
+              <div className="field-help-text">
+                Confirm the transfer has been received before completing
+                the sale. StockFlow records the reference for the payment
+                audit trail.
+              </div>
+            </div>
+          ) : null}
+
             {paymentMethod === "credit" ? (
               <div className="credit-payment-fields">
                 <label>
@@ -958,7 +1115,13 @@ export default function NewSalePage() {
                       value={amountPaidMethod}
                       onChange={(event) => {
                         resetCheckoutKey();
-                        setAmountPaidMethod(event.target.value);
+                        const nextMethod = event.target.value;
+                        setAmountPaidMethod(nextMethod);
+
+                        if (nextMethod !== "bank_transfer") {
+                          setBankTransferReference("");
+                          setPaymentNote("");
+                        }
                       }}
                       disabled={saleSaving}
                     >
@@ -969,6 +1132,64 @@ export default function NewSalePage() {
                     </select>
                   </label>
                 ) : null}
+
+              {Number(amountPaid) > 0 &&
+              amountPaidMethod === "bank_transfer" ? (
+                <div className="credit-payment-fields">
+                  <label>
+                    Receiving account
+                    <select
+                      value={receivingAccountId}
+                      onChange={(event) => {
+                        resetCheckoutKey();
+                        setReceivingAccountId(event.target.value);
+                      }}
+                      disabled={saleSaving || paymentAccountsLoading}
+                    >
+                          <option value="">
+                        {paymentAccountsLoading
+                          ? "Loading receiving accounts..."
+                          : "Select receiving account"}
+                          </option>
+                      {bankReceivingAccounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                          {account.displayName} — {account.bankName} — {account.maskedNumber}
+                          {account.isDefault ? " (Default)" : ""}
+                            </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Transfer reference
+                    <input
+                      type="text"
+                      maxLength={180}
+                      value={bankTransferReference}
+                      onChange={(event) => {
+                        resetCheckoutKey();
+                        setBankTransferReference(event.target.value);
+                      }}
+                      placeholder="e.g. GCB-TRF-001234"
+                      disabled={saleSaving}
+                    />
+                  </label>
+
+                  <label>
+                    Payment note (optional)
+                    <input
+                      type="text"
+                      value={paymentNote}
+                      onChange={(event) => {
+                        resetCheckoutKey();
+                        setPaymentNote(event.target.value);
+                      }}
+                      placeholder="Optional transfer note"
+                      disabled={saleSaving}
+                    />
+                  </label>
+                </div>
+              ) : null}
 
                 {outstanding > 0 ? (
                   <label>

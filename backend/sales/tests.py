@@ -8,7 +8,11 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from businesses.models import Business, BusinessMembership
+from businesses.models import (
+    Business,
+    BusinessMembership,
+    BusinessPaymentAccount,
+)
 from customers.models import Customer
 from inventory.models import Product, StockMovement
 
@@ -57,6 +61,21 @@ class SalesRegressionTests(APITestCase):
             user=self.cashier,
             role="cashier",
             is_active=True,
+        )
+
+        # Provides one active business-owned bank account for transfer tests.
+        self.bank_receiving_account = BusinessPaymentAccount.objects.create(
+            business=self.business,
+            account_type=BusinessPaymentAccount.AccountType.BANK,
+            display_name="Main GCB Account",
+            bank_name="GCB Bank",
+            account_name="Phildial Test",
+            encrypted_account_number="test-encrypted-value",
+            account_last_four="4321",
+            is_active=True,
+            is_default=True,
+            created_by=self.owner,
+            updated_by=self.owner,
         )
 
         self.product = Product.objects.create(
@@ -324,6 +343,127 @@ class SalesRegressionTests(APITestCase):
         self.assertEqual(movement.quantity, -1)
         self.assertEqual(movement.previous_stock, 10)
         self.assertEqual(movement.new_stock, 9)
+
+    def test_bank_transfer_sale_requires_reference(self):
+        # Bank transfers must be traceable before financial records change.
+        self.authenticate(self.owner)
+        payload = self.cash_sale_payload()
+        payload["paymentMethod"] = "bank_transfer"
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers("bank-transfer-missing-reference"),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            response.data,
+        )
+        self.assertIn("reference", response.data)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(Sale.objects.count(), 0)
+        self.assertEqual(Payment.objects.count(), 0)
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+    def test_bank_transfer_sale_records_reference_and_note(self):
+        # A confirmed transfer follows the normal sale and stock workflow.
+        self.authenticate(self.owner)
+        payload = self.cash_sale_payload()
+        payload.update(
+            {
+                "paymentMethod": "bank_transfer",
+                "receivingAccountId": str(self.bank_receiving_account.id),
+                "reference": "GCB-TRF-2026-001",
+                "note": "Confirmed on the business bank statement.",
+            }
+        )
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers("bank-transfer-sale-001"),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            response.data,
+        )
+        payment = Payment.objects.get(sale_id=response.data["id"])
+        self.assertEqual(payment.method, Payment.Method.BANK_TRANSFER)
+        self.assertEqual(payment.status, Payment.Status.SUCCESSFUL)
+        self.assertEqual(payment.reference, "GCB-TRF-2026-001")
+        self.assertEqual(
+            payment.note,
+            "Confirmed on the business bank statement.",
+        )
+        self.assertEqual(
+            payment.receiving_account_id_snapshot,
+            self.bank_receiving_account.id,
+        )
+        self.assertEqual(payment.receiving_account_type, "bank")
+        self.assertEqual(
+            payment.receiving_account_display_name,
+            "Main GCB Account",
+        )
+        self.assertEqual(payment.receiving_account_bank_name, "GCB Bank")
+        self.assertEqual(
+            payment.receiving_account_account_name,
+            "Phildial Test",
+        )
+        self.assertEqual(
+            payment.receiving_account_masked_number,
+            self.bank_receiving_account.masked_number,
+        )
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 9)
+
+    def test_credit_initial_bank_transfer_records_reference(self):
+        # Initial credit-sale transfers keep the same payment audit trail.
+        self.authenticate(self.owner)
+        payload = self.credit_sale_payload()
+        payload.update(
+            {
+                "amountPaidMethod": "bank_transfer",
+                "receivingAccountId": str(self.bank_receiving_account.id),
+                "reference": "ECOBANK-INITIAL-001",
+                "note": "Initial part payment by transfer.",
+            }
+        )
+
+        response = self.client.post(
+            self.sales_url,
+            payload,
+            format="json",
+            **self.idempotency_headers("credit-bank-transfer-initial-001"),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            response.data,
+        )
+        payment = Payment.objects.get(
+            sale_id=response.data["id"],
+            payment_type=Payment.PaymentType.SALE_PAYMENT,
+        )
+        self.assertEqual(payment.method, Payment.Method.BANK_TRANSFER)
+        self.assertEqual(payment.amount, Decimal("40.00"))
+        self.assertEqual(payment.reference, "ECOBANK-INITIAL-001")
+        self.assertEqual(payment.note, "Initial part payment by transfer.")
+        self.assertEqual(
+            payment.receiving_account_id_snapshot,
+            self.bank_receiving_account.id,
+        )
+        self.assertEqual(
+            payment.receiving_account_masked_number,
+            self.bank_receiving_account.masked_number,
+        )
 
     def test_sale_idempotency_replays_without_duplicate_changes(self):
         # Reusing a key must return the original sale without charging twice.

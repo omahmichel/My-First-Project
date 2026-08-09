@@ -333,6 +333,10 @@ export function StoreProvider({ children }) {
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState("");
   const [payments, setPayments] = useState([]);
+  // Keeps the selected workspace receiving accounts centralized in StoreContext.
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
+  const [paymentAccountsLoading, setPaymentAccountsLoading] = useState(false);
+  const [paymentAccountsError, setPaymentAccountsError] = useState("");
 
   const business = useMemo(
     () =>
@@ -509,6 +513,168 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+  // Loads masked receiving accounts for exactly one authorized business workspace.
+  const loadPaymentAccounts = useCallback(async (businessId) => {
+    if (!businessId) {
+      setPaymentAccounts([]);
+      setPaymentAccountsLoading(false);
+      setPaymentAccountsError("");
+      return [];
+    }
+
+    setPaymentAccountsLoading(true);
+    setPaymentAccountsError("");
+
+    try {
+      const response = await apiRequest(
+        `/businesses/${businessId}/payment-accounts/`,
+      );
+      const records = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+      // Owners/managers need inactive accounts in Settings.
+      // Checkout still filters this list to active bank accounts itself.
+      setPaymentAccounts(records);
+      return records;
+    } catch (error) {
+      setPaymentAccounts([]);
+      setPaymentAccountsError(error.message);
+      throw error;
+    } finally {
+      setPaymentAccountsLoading(false);
+    }
+  }, []);
+
+  // Creates one encrypted receiving account inside the active workspace.
+  async function createPaymentAccount(details) {
+    if (!business.id) {
+      throw new Error(
+        "Create or select a business before adding a receiving account.",
+      );
+    }
+
+    const payload = {
+      accountType: details.accountType,
+      displayName: String(details.displayName || "").trim(),
+      bankName: String(details.bankName || "").trim(),
+      accountName: String(details.accountName || "").trim(),
+      network: String(details.network || "").trim(),
+      accountNumber: String(details.accountNumber || "").trim(),
+      isDefault: Boolean(details.isDefault),
+    };
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/payment-accounts/`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+
+    await loadPaymentAccounts(business.id);
+    return response;
+  }
+
+  // Updates safe metadata and only replaces the encrypted number when supplied.
+  async function updatePaymentAccount(accountId, details) {
+    if (!business.id) {
+      throw new Error(
+        "Create or select a business before updating a receiving account.",
+      );
+    }
+
+    const payload = {
+      accountType: details.accountType,
+      displayName: String(details.displayName || "").trim(),
+      bankName: String(details.bankName || "").trim(),
+      accountName: String(details.accountName || "").trim(),
+      network: String(details.network || "").trim(),
+      isDefault: Boolean(details.isDefault),
+      isActive: details.isActive !== false,
+    };
+
+    const accountNumber = String(details.accountNumber || "").trim();
+    if (accountNumber) {
+      payload.accountNumber = accountNumber;
+    }
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/payment-accounts/${accountId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    );
+
+    await loadPaymentAccounts(business.id);
+    return response;
+  }
+
+  // Makes one active account the business default.
+  async function setDefaultPaymentAccount(accountId) {
+    if (!business.id) {
+      throw new Error(
+        "Create or select a business before changing the default account.",
+      );
+    }
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/payment-accounts/${accountId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: true,
+          isDefault: true,
+        }),
+      },
+    );
+
+    await loadPaymentAccounts(business.id);
+    return response;
+  }
+
+  // Soft-deactivates an account so historical payment context is preserved.
+  async function deactivatePaymentAccount(accountId) {
+    if (!business.id) {
+      throw new Error(
+        "Create or select a business before deactivating a receiving account.",
+      );
+    }
+
+    await apiRequest(
+      `/businesses/${business.id}/payment-accounts/${accountId}/`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    await loadPaymentAccounts(business.id);
+  }
+
+  // Reactivates a previously deactivated account without changing its number.
+  async function reactivatePaymentAccount(accountId) {
+    if (!business.id) {
+      throw new Error(
+        "Create or select a business before reactivating a receiving account.",
+      );
+    }
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/payment-accounts/${accountId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: true,
+        }),
+      },
+    );
+
+    await loadPaymentAccounts(business.id);
+    return response;
+  }
+
   // Restores real businesses after a saved JWT session is verified.
   useEffect(() => {
     if (authInitializing) return;
@@ -522,6 +688,7 @@ export function StoreProvider({ children }) {
       setStockMovements([]);
       setTeam([]);
       setPayments([]);
+      setPaymentAccounts([]);
       setBusinessesLoading(false);
       setBusinessesError("");
       return;
@@ -679,6 +846,29 @@ export function StoreProvider({ children }) {
     businesses,
     businessesLoading,
     loadSales,
+    user,
+  ]);
+
+  // Refreshes safe masked receiving accounts whenever the workspace changes.
+  useEffect(() => {
+    if (authInitializing || businessesLoading) return;
+
+    if (!user || !business?.id || !business.hasSystemAccess) {
+      setPaymentAccounts([]);
+      setPaymentAccountsLoading(false);
+      setPaymentAccountsError("");
+      return;
+    }
+
+    loadPaymentAccounts(business.id).catch(() => {
+      // Checkout can report the exposed receiving-account error state.
+    });
+  }, [
+    authInitializing,
+    business.id,
+    business.hasSystemAccess,
+    businessesLoading,
+    loadPaymentAccounts,
     user,
   ]);
 
@@ -1252,6 +1442,9 @@ export function StoreProvider({ children }) {
     debtDueDate = "",
     mobileMoneyNetwork = "",
     mobileMoneyNumber = "",
+    receivingAccountId = "",
+    reference = "",
+    note = "",
     idempotencyKey,
   }) {
     if (!cartItems.length) {
@@ -1325,6 +1518,29 @@ export function StoreProvider({ children }) {
       );
     }
 
+  const usesBankTransfer =
+    paymentMethod === "bank_transfer" ||
+    (
+      paymentMethod === "credit" &&
+      safeAmountPaid > 0 &&
+      amountPaidMethod === "bank_transfer"
+    );
+  const safeReference = String(reference || "").trim();
+  const safeNote = String(note || "").trim();
+
+  if (usesBankTransfer && !safeReference) {
+    throw new Error(
+      "Enter the bank transfer reference before completing the payment.",
+    );
+  }
+
+  const safeReceivingAccountId = String(receivingAccountId || "").trim();
+  if (usesBankTransfer && !safeReceivingAccountId) {
+    throw new Error(
+      "Select the business bank account that received this transfer.",
+    );
+  }
+
     const outstandingBalance = Math.max(
       0,
       total - safeAmountPaid,
@@ -1381,6 +1597,10 @@ export function StoreProvider({ children }) {
             paymentMethod === "mobile_money"
               ? String(mobileMoneyNumber).trim()
               : "",
+          receivingAccountId:
+            usesBankTransfer ? safeReceivingAccountId : null,
+          reference: usesBankTransfer ? safeReference : "",
+          note: usesBankTransfer ? safeNote : "",
         }),
       },
     );
@@ -1640,6 +1860,15 @@ export function StoreProvider({ children }) {
       salesLoading,
       salesError,
       loadSales,
+      paymentAccounts,
+      paymentAccountsLoading,
+      paymentAccountsError,
+      loadPaymentAccounts,
+      createPaymentAccount,
+      updatePaymentAccount,
+      setDefaultPaymentAccount,
+      deactivatePaymentAccount,
+      reactivatePaymentAccount,
       products: currentProducts,
       customers: currentCustomers,
       sales: currentSales,
@@ -1675,6 +1904,9 @@ export function StoreProvider({ children }) {
       customersLoading,
       inventoryError,
       inventoryLoading,
+      paymentAccounts,
+      paymentAccountsError,
+      paymentAccountsLoading,
       salesError,
       salesLoading,
       currentCustomers,

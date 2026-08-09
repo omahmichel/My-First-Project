@@ -71,6 +71,23 @@ class CreateSaleSerializer(serializers.Serializer):
         },
     )
 
+    reference = serializers.CharField(
+        max_length=180,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    receivingAccountId = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        default=None,
+    )
+
     def validate_items(self, value):
         # Rejects duplicate product lines before stock is locked.
         product_ids = [item["productId"] for item in value]
@@ -119,6 +136,43 @@ class CreateSaleSerializer(serializers.Serializer):
             or amount_paid_method == Payment.Method.MOBILE_MONEY
         )
 
+        uses_bank_transfer = (
+            payment_method == Sale.PaymentMethod.BANK_TRANSFER
+            or (
+                payment_method == Sale.PaymentMethod.CREDIT
+                and amount_paid > Decimal("0.00")
+                and amount_paid_method == Payment.Method.BANK_TRANSFER
+            )
+        )
+        reference = attrs.get("reference", "").strip()
+        note = attrs.get("note", "").strip()
+        receiving_account_id = attrs.get("receivingAccountId")
+
+        if uses_bank_transfer and not reference:
+            raise serializers.ValidationError(
+                {
+                    "reference": (
+                        "Enter the bank transfer reference before completing "
+                        "the payment."
+                    )
+                }
+            )
+
+        if uses_bank_transfer and not receiving_account_id:
+            raise serializers.ValidationError(
+                {
+                    "receivingAccountId": (
+                        "Select the business bank account that received "
+                        "this transfer."
+                    )
+                }
+            )
+
+        if not uses_bank_transfer:
+            reference = ""
+            note = ""
+            receiving_account_id = None
+
         if uses_mobile_money:
             if not network:
                 raise serializers.ValidationError(
@@ -146,6 +200,9 @@ class CreateSaleSerializer(serializers.Serializer):
 
         attrs["mobileMoneyNetwork"] = network.lower()
         attrs["mobileMoneyNumber"] = normalized_phone
+        attrs["reference"] = reference
+        attrs["note"] = note
+        attrs["receivingAccountId"] = receiving_account_id
 
         # Validates the submitted date itself without trusting item prices.
         debt_due_date = attrs.get("debtDueDate")
@@ -374,6 +431,35 @@ class PaymentSerializer(serializers.ModelSerializer):
         source="initiated_by_name",
         read_only=True,
     )
+    receivingAccountId = serializers.UUIDField(
+        source="receiving_account_id_snapshot",
+        read_only=True,
+        allow_null=True,
+    )
+    receivingAccountType = serializers.CharField(
+        source="receiving_account_type",
+        read_only=True,
+    )
+    receivingAccountDisplayName = serializers.CharField(
+        source="receiving_account_display_name",
+        read_only=True,
+    )
+    receivingAccountBankName = serializers.CharField(
+        source="receiving_account_bank_name",
+        read_only=True,
+    )
+    receivingAccountName = serializers.CharField(
+        source="receiving_account_account_name",
+        read_only=True,
+    )
+    receivingAccountNetwork = serializers.CharField(
+        source="receiving_account_network",
+        read_only=True,
+    )
+    receivingAccountMaskedNumber = serializers.CharField(
+        source="receiving_account_masked_number",
+        read_only=True,
+    )
     failureReason = serializers.CharField(
         source="failure_reason",
         read_only=True,
@@ -495,6 +581,13 @@ class PaymentSerializer(serializers.ModelSerializer):
             "receiptNumber",
             "reference",
             "note",
+            "receivingAccountId",
+            "receivingAccountType",
+            "receivingAccountDisplayName",
+            "receivingAccountBankName",
+            "receivingAccountName",
+            "receivingAccountNetwork",
+            "receivingAccountMaskedNumber",
             "failureReason",
             "initiatedBy",
             "verifiedAt",
