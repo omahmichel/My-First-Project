@@ -778,9 +778,6 @@ export default function NewSalePage() {
                               <b>
                                 {formatCurrency(product.sellingPrice)}
                               </b>
-                              <i>
-                                <Plus size={17} />
-                              </i>
                             </button>
                           );
                         })}

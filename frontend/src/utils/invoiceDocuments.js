@@ -137,11 +137,11 @@ export function createInvoicePdf(invoice, business) {
     throw new Error("Select an invoice before creating a PDF.");
   }
 
-  // Uses A5 landscape to keep invoices compact without reducing width.
+  // Uses A4 landscape so normal multi-item invoices keep items and totals on one sheet.
   const pdf = new jsPDF({
     orientation: "landscape",
     unit: "pt",
-    format: "a5",
+    format: "a4",
   });
 
   const pageWidth = pdf.internal.pageSize.getWidth();
