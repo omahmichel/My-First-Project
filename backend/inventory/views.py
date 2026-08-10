@@ -1,4 +1,6 @@
 from django.db import transaction
+from django.db.models import IntegerField, Q, Sum, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -14,6 +16,24 @@ from .serializers import (
     StockAdjustmentSerializer,
     StockMovementSerializer,
 )
+
+
+def product_inventory_summary_queryset(queryset):
+    # Adds completed-sale totals once in SQL so every inventory screen shares them.
+    return queryset.annotate(
+        quantity_sold=-1 * Coalesce(
+            Sum(
+                "stock_movements__quantity",
+                filter=Q(
+                    stock_movements__movement_type=(
+                        StockMovement.MovementType.SALE
+                    )
+                ),
+            ),
+            Value(0),
+            output_field=IntegerField(),
+        )
+    )
 
 
 class BusinessProductAccessMixin:
@@ -63,7 +83,9 @@ class BusinessProductAccessMixin:
         business, _ = self.get_business_and_role()
 
         return get_object_or_404(
-            Product.objects.select_related("business"),
+            product_inventory_summary_queryset(
+                Product.objects.select_related("business")
+            ),
             pk=self.kwargs["product_id"],
             business=business,
         )
@@ -80,13 +102,11 @@ class BusinessProductListCreateAPIView(
     def get(self, request, business_id):
         business, _ = self.get_business_and_role()
 
-        products = (
+        products = product_inventory_summary_queryset(
             Product.objects.filter(
                 business=business,
-            )
-            .select_related("business")
-            .order_by("-is_active", "name", "sku")
-        )
+            ).select_related("business")
+        ).order_by("-is_active", "name", "sku")
 
         serializer = ProductSerializer(
             products,

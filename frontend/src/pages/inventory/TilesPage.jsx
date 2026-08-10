@@ -20,9 +20,11 @@ import "../../styles/tile-inventory-records.css";
 
 // Returns the operational stock state used by filters and badges.
 function getTileStockState(tile) {
+  const availableStock = Number(tile.availableStock ?? tile.stock ?? 0);
+
   if (tile.status !== "active") return "inactive";
-  if (Number(tile.stock) <= 0) return "out_of_stock";
-  if (Number(tile.stock) <= Number(tile.lowStockLevel || 0)) return "low_stock";
+  if (availableStock <= 0) return "out_of_stock";
+  if (availableStock <= Number(tile.lowStockLevel || 0)) return "low_stock";
   return "available";
 }
 
@@ -180,19 +182,19 @@ const finishes = useMemo(() => {
     }
   }, [currentPage, totalPages]);
 
-  const totalBoxes = tiles.reduce(
-    (sum, tile) => sum + Number(tile.stock || 0),
+  // Uses the shared backend stock-summary fields for consistent reporting.
+  const totalStockBoxes = tiles.reduce(
+    (sum, tile) => sum + Number(tile.totalStock ?? tile.stock ?? 0),
     0,
   );
-  const totalLoosePieces = tiles.reduce(
-    (sum, tile) => sum + Number(tile.loosePieces || 0),
+  const totalSoldBoxes = tiles.reduce(
+    (sum, tile) => sum + Number(tile.quantitySold ?? 0),
     0,
   );
-  const lowStockRecords = tiles.filter(
-    (tile) =>
-      tile.status === "active" &&
-      Number(tile.stock) <= Number(tile.lowStockLevel || 0),
-  ).length;
+  const totalAvailableBoxes = tiles.reduce(
+    (sum, tile) => sum + Number(tile.availableStock ?? tile.stock ?? 0),
+    0,
+  );
   const hasActiveFilters =
     search.trim() ||
     brand !== "all" ||
@@ -299,16 +301,16 @@ const finishes = useMemo(() => {
           <div><strong>{tiles.length}</strong><small>Tile records</small></div>
         </article>
         <article>
-          <span><PackageOpen size={20} /></span>
-          <div><strong>{formatNumber(totalBoxes, 0)}</strong><small>Boxes in stock</small></div>
+          <span><Boxes size={20} /></span>
+          <div><strong>{formatNumber(totalStockBoxes, 0)}</strong><small>Total stock</small></div>
         </article>
         <article>
           <span><PackageOpen size={20} /></span>
-          <div><strong>{formatNumber(totalLoosePieces, 0)}</strong><small>Loose pieces</small></div>
+          <div><strong>{formatNumber(totalSoldBoxes, 0)}</strong><small>Quantity sold</small></div>
         </article>
         <article>
-          <span><AlertTriangle size={20} /></span>
-          <div><strong>{lowStockRecords}</strong><small>Low-stock records</small></div>
+          <span><PackageOpen size={20} /></span>
+          <div><strong>{formatNumber(totalAvailableBoxes, 0)}</strong><small>Available stock</small></div>
         </article>
       </section>
 
@@ -419,8 +421,10 @@ const finishes = useMemo(() => {
 
                       <td data-label="Stock">
                         <div className="tile-record-stock">
+                          <small>Total stock: {formatNumber(Number(tile.totalStock ?? tile.stock ?? 0), 0)} boxes</small>
+                          <small>Quantity sold: {formatNumber(Number(tile.quantitySold ?? 0), 0)} boxes</small>
                           <strong className={lowStock ? "danger-text" : ""}>
-                            {formatNumber(Number(tile.stock || 0), 0)} boxes
+                            Available stock: {formatNumber(Number(tile.availableStock ?? tile.stock ?? 0), 0)} boxes
                           </strong>
                           <small>{formatNumber(Number(tile.loosePieces || 0), 0)} loose piece(s)</small>
                           <small>{formatNumber(Number(tile.piecesPerBox || 0), 0)} piece(s) per box</small>

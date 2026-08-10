@@ -213,14 +213,20 @@ export function createInvoicePdf(invoice, business) {
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8.5);
   pdf.text("BILL TO", margin + 13, 131);
-  pdf.text("PAYMENT METHOD", pageWidth - 220, 131);
+  pdf.text(
+    "PAYMENT METHOD",
+    pageWidth - margin - 13,
+    131,
+    { align: "right" },
+  );
 
   pdf.setFontSize(11.5);
   pdf.text(customerName, margin + 13, 149);
   pdf.text(
     formatPaymentMethod(invoice.paymentMethod),
-    pageWidth - 220,
+    pageWidth - margin - 13,
     149,
+    { align: "right" },
   );
 
   const itemRows = (invoice.items ?? []).map((item) => [
@@ -229,6 +235,22 @@ export function createInvoicePdf(invoice, business) {
     formatPdfCurrency(item.unitPrice),
     formatPdfCurrency(item.total),
   ]);
+
+  // Mirrors the server-side sale equations so the invoice reads consistently.
+  const displaySubtotal = Number(invoice.subtotal ?? 0);
+  const displayDiscount = Number(invoice.discount ?? 0);
+  const displaySaleTotal = Math.max(
+    0,
+    displaySubtotal - displayDiscount,
+  );
+  const displayAmountPaid = Number(invoice.amountPaid ?? 0);
+  const displayOutstandingBalance = Math.max(
+    0,
+    displaySaleTotal - displayAmountPaid,
+  );
+  const displayOverdueCharge = Number(invoice.overdueCharge ?? 0);
+  const displayTotalPayable =
+    displayOutstandingBalance + displayOverdueCharge;
 
   autoTable(pdf, {
     startY: 174,
@@ -257,7 +279,7 @@ export function createInvoicePdf(invoice, business) {
     },
     columnStyles: {
       0: { cellWidth: 225 },
-      1: { cellWidth: 90 },
+      1: { cellWidth: 90, halign: "center" },
       2: { cellWidth: 100, halign: "right" },
       3: { cellWidth: 100, halign: "right" },
     },
@@ -270,10 +292,10 @@ export function createInvoicePdf(invoice, business) {
     totalsY = 60;
   }
 
-  const totalsLabelX = pageWidth - 215;
+  const totalsLabelX = pageWidth - 245;
   const totalsValueX = pageWidth - margin;
-  const totalPayable = resolveTotalDebtPayable(invoice);
-  const totalsPanelHeight = totalPayable > 0 ? 140 : 120;
+  const totalPayable = displayTotalPayable;
+  const totalsPanelHeight = totalPayable > 0 ? 166 : 146;
 
   // Gives the totals area restrained depth without changing its values.
   pdf.setFillColor(228, 237, 232);
@@ -329,13 +351,13 @@ export function createInvoicePdf(invoice, business) {
     totalsY += prominent ? 28 : 18;
   }
 
-  // Separates principal and overdue charges on the invoice PDF.
-  drawTotal("Subtotal", invoice.subtotal);
-  drawTotal("Discount", invoice.discount);
-  drawTotal("Principal paid", invoice.amountPaid);
-  drawTotal("Principal balance", invoice.outstandingBalance);
-  drawTotal("Overdue charge", invoice.overdueCharge ?? 0);
-  drawTotal("Sale total", invoice.total, { prominent: true });
+  // Presents the same calculation flow used by the backend sale service.
+  drawTotal("Subtotal", displaySubtotal);
+  drawTotal("Discount", displayDiscount);
+  drawTotal("Sale total", displaySaleTotal, { prominent: true });
+  drawTotal("Amount paid", displayAmountPaid);
+  drawTotal("Outstanding balance", displayOutstandingBalance);
+  drawTotal("Overdue charge", displayOverdueCharge);
 
   if (totalPayable > 0) {
     pdf.setFillColor(255, 241, 237);

@@ -30,6 +30,8 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     availableStock = serializers.SerializerMethodField()
+    quantitySold = serializers.SerializerMethodField()
+    totalStock = serializers.SerializerMethodField()
     costPrice = serializers.DecimalField(
         source="cost_price",
         max_digits=14,
@@ -96,6 +98,14 @@ class ProductSerializer(serializers.ModelSerializer):
         # Reports stock that is not held by pending external payments.
         return max(0, obj.stock - obj.reserved_stock)
 
+    def get_quantitySold(self, obj):
+        # Uses the business-scoped SALE aggregate supplied by inventory views.
+        return max(0, int(getattr(obj, "quantity_sold", 0) or 0))
+
+    def get_totalStock(self, obj):
+        # Shows stock before completed-sale deductions while preserving current stock.
+        return obj.stock + self.get_quantitySold(obj)
+
     class Meta:
         model = Product
         fields = (
@@ -111,6 +121,8 @@ class ProductSerializer(serializers.ModelSerializer):
             "stock",
             "reservedStock",
             "availableStock",
+            "quantitySold",
+            "totalStock",
             "lowStockLevel",
             "costPrice",
             "sellingPrice",
@@ -133,6 +145,8 @@ class ProductSerializer(serializers.ModelSerializer):
             "businessType",
             "reservedStock",
             "availableStock",
+            "quantitySold",
+            "totalStock",
             "isActive",
             "createdAt",
             "updatedAt",

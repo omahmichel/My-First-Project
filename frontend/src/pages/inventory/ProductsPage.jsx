@@ -177,8 +177,9 @@ export default function ProductsPage() {
 
       <section className="inventory-summary-row">
         <article><span><Boxes size={20} /></span><div><strong>{products.length}</strong><small>Total products</small></div></article>
-        <article><span><Filter size={20} /></span><div><strong>{categories.length}</strong><small>Categories</small></div></article>
-        <article><span><SlidersHorizontal size={20} /></span><div><strong>{products.filter((product) => product.stock <= product.lowStockLevel).length}</strong><small>Low-stock products</small></div></article>
+        <article><span><Filter size={20} /></span><div><strong>{products.reduce((sum, product) => sum + Number(product.totalStock ?? product.stock ?? 0), 0)}</strong><small>Total stock</small></div></article>
+        <article><span><SlidersHorizontal size={20} /></span><div><strong>{products.reduce((sum, product) => sum + Number(product.quantitySold ?? 0), 0)}</strong><small>Quantity sold</small></div></article>
+        <article><span><Boxes size={20} /></span><div><strong>{products.reduce((sum, product) => sum + Number(product.availableStock ?? product.stock ?? 0), 0)}</strong><small>Available stock</small></div></article>
       </section>
 
       <section className="panel-card">
@@ -195,7 +196,11 @@ export default function ProductsPage() {
             <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th>Stock</th><th>Cost price</th><th>Selling price</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {paginatedProducts.map((product) => {
-                const lowStock = product.stock <= product.lowStockLevel;
+                const availableStock = Number(
+                  product.availableStock ?? product.stock ?? 0,
+                );
+                const lowStock =
+                  availableStock <= Number(product.lowStockLevel || 0);
                 return (
                   <tr key={product.id}>
                     <td>
@@ -206,7 +211,7 @@ export default function ProductsPage() {
                     </td>
                     <td>{product.category}</td>
                     <td className="capitalize-text">{product.unit}</td>
-                    <td><strong className={lowStock ? "danger-text" : ""}>{product.stock}</strong>{product.productType === "tile" ? <small>{product.loosePieces || 0} loose piece(s)</small> : null}</td>
+                    <td><div><small>Total stock: {product.totalStock ?? product.stock ?? 0}</small><small>Quantity sold: {product.quantitySold ?? 0}</small><strong className={lowStock ? "danger-text" : ""}>Available stock: {availableStock}</strong>{product.productType === "tile" ? <small>{product.loosePieces || 0} loose piece(s)</small> : null}</div></td>
                     <td>{formatCurrency(product.costPrice)}</td>
                     <td><strong>{formatCurrency(product.sellingPrice)}</strong></td>
                     <td><Badge tone={product.status === "active" ? (lowStock ? "warning" : "success") : "neutral"}>{product.status === "active" ? (lowStock ? "Low stock" : "Active") : "Inactive"}</Badge></td>

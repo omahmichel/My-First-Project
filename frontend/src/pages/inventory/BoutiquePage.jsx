@@ -182,20 +182,17 @@ export default function BoutiquePage() {
     }
   }, [currentPage, totalPages]);
 
-  const totalUnits = fashionProducts.reduce(
-    (sum, product) => sum + Number(product.stock || 0),
+  // Uses the shared stock-summary fields exposed to every inventory screen.
+  const totalStockUnits = fashionProducts.reduce(
+    (sum, product) => sum + Number(product.totalStock ?? product.stock ?? 0),
     0,
   );
-
-  const lowStockCount = fashionProducts.filter(
-    (product) =>
-      product.status === "active" &&
-      Number(product.stock || 0) <= Number(product.lowStockLevel || 0),
-  ).length;
-
-  const inventoryValue = fashionProducts.reduce(
-    (sum, product) =>
-      sum + Number(product.stock || 0) * Number(product.costPrice || 0),
+  const totalSoldUnits = fashionProducts.reduce(
+    (sum, product) => sum + Number(product.quantitySold ?? 0),
+    0,
+  );
+  const totalAvailableUnits = fashionProducts.reduce(
+    (sum, product) => sum + Number(product.availableStock ?? product.stock ?? 0),
     0,
   );
 
@@ -330,24 +327,24 @@ export default function BoutiquePage() {
         <article>
           <span><Boxes size={20} /></span>
           <div>
-            <strong>{formatNumber(totalUnits, 0)}</strong>
-            <small>Total units in stock</small>
+            <strong>{formatNumber(totalStockUnits, 0)}</strong>
+            <small>Total stock</small>
           </div>
         </article>
 
         <article>
           <span><SlidersHorizontal size={20} /></span>
           <div>
-            <strong>{lowStockCount}</strong>
-            <small>Low-stock records</small>
+            <strong>{formatNumber(totalSoldUnits, 0)}</strong>
+            <small>Quantity sold</small>
           </div>
         </article>
 
         <article>
           <span><Tags size={20} /></span>
           <div>
-            <strong>{formatCurrency(inventoryValue)}</strong>
-            <small>Estimated stock value</small>
+            <strong>{formatNumber(totalAvailableUnits, 0)}</strong>
+            <small>Available stock</small>
           </div>
         </article>
       </section>
@@ -441,9 +438,11 @@ export default function BoutiquePage() {
 
             <tbody>
               {paginatedProducts.map((product) => {
+                const availableStock = Number(
+                  product.availableStock ?? product.stock ?? 0,
+                );
                 const lowStock =
-                  Number(product.stock || 0) <=
-                  Number(product.lowStockLevel || 0);
+                  availableStock <= Number(product.lowStockLevel || 0);
 
                 const variantSummary = product.variants?.length
                   ? `${product.variants.length} variant(s)`
@@ -491,12 +490,12 @@ export default function BoutiquePage() {
 
                     <td data-label="Stock">
                       <div className="boutique-record-stock">
+                        <small>Total stock: {formatNumber(product.totalStock ?? product.stock ?? 0, 0)}</small>
+                        <small>Quantity sold: {formatNumber(product.quantitySold ?? 0, 0)}</small>
                         <strong className={lowStock ? "danger-text" : ""}>
-                          {formatNumber(product.stock || 0, 0)} unit(s)
+                          Available stock: {formatNumber(availableStock, 0)}
                         </strong>
-                        <small>
-                          Alert at {formatNumber(product.lowStockLevel || 0, 0)}
-                        </small>
+                        <small>Alert at {formatNumber(product.lowStockLevel || 0, 0)}</small>
                       </div>
                     </td>
 
