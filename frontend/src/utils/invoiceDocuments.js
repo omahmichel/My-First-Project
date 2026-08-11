@@ -229,8 +229,9 @@ export function createInvoicePdf(invoice, business) {
     { align: "right" },
   );
 
+  // Uses tile design codes on invoices so staff can match physical tile stock.
   const itemRows = (invoice.items ?? []).map((item) => [
-    safeText(item.name, "Unnamed item"),
+    safeText(item.designCode || item.name, "Unnamed item"),
     `${Number(item.quantity || 0)} ${safeText(item.unit, "unit")}(s)`,
     formatPdfCurrency(item.unitPrice),
     formatPdfCurrency(item.total),
