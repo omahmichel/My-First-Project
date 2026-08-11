@@ -639,6 +639,489 @@
   }
 }
 
+
+/* TILE INVENTORY ORGANIZATION V2 START */
+
+/* Rebalances the table so related columns sit naturally beside each other. */
+.tile-records-table th:nth-child(1) { width: 18%; }
+.tile-records-table th:nth-child(2) { width: 14%; }
+.tile-records-table th:nth-child(3) { width: 14%; }
+.tile-records-table th:nth-child(4) { width: 24%; }
+.tile-records-table th:nth-child(5) { width: 12%; }
+.tile-records-table th:nth-child(6) { width: 8%; }
+.tile-records-table th:nth-child(7) { width: 10%; }
+
+.tile-records-table th,
+.tile-records-table td {
+  vertical-align: middle;
+}
+
+/* Keeps finish and colour compact beneath the product identity. */
+.tile-record-product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+
+.tile-record-product-meta small {
+  color: var(--muted);
+  font-size: 0.59rem;
+  line-height: 1.2;
+}
+
+/* Specifications intentionally contains only size. */
+.tile-specification-list {
+  grid-template-columns: 1fr;
+}
+
+.tile-specification-list > span {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+}
+
+/* Makes the stock block compact, balanced and easy to scan. */
+.tile-record-stock {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+
+.tile-stock-metric {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border: 1px solid #e1e9e5;
+  border-radius: 8px;
+  background: #fbfdfc;
+}
+
+.tile-stock-metric > span {
+  color: var(--muted);
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tile-stock-metric > strong {
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.tile-stock-metric-available {
+  grid-column: 1 / -1;
+  border-color: #cfe3d8;
+  background: #f3faf6;
+}
+
+.tile-stock-metric-available > span {
+  color: var(--primary-dark);
+}
+
+.tile-stock-supporting {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.tile-stock-supporting small {
+  color: var(--subtle);
+  font-size: 0.57rem;
+}
+
+@media (max-width: 1280px) {
+  .tile-records-table {
+    min-width: 900px;
+  }
+}
+
+@media (max-width: 700px) {
+  .tile-record-stock {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-stock-metric-available,
+  .tile-stock-supporting {
+    grid-column: auto;
+  }
+}
+
+/* TILE INVENTORY ORGANIZATION V2 END */
+
+
+/* TILE INVENTORY REFERENCE LAYOUT V3 START */
+
+.tile-records-panel {
+  overflow: hidden;
+}
+
+.tile-records-table {
+  width: 100%;
+  min-width: 1040px;
+  table-layout: fixed;
+}
+
+.tile-records-table th:nth-child(1) { width: 18%; }
+.tile-records-table th:nth-child(2) { width: 14%; }
+.tile-records-table th:nth-child(3) { width: 13%; }
+.tile-records-table th:nth-child(4) { width: 25%; }
+.tile-records-table th:nth-child(5) { width: 12%; }
+.tile-records-table th:nth-child(6) { width: 8%; }
+.tile-records-table th:nth-child(7) { width: 10%; }
+
+.tile-records-table th {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tile-records-table td {
+  padding: 16px 14px;
+  vertical-align: middle;
+}
+
+.tile-records-table tbody tr {
+  min-height: 132px;
+}
+
+.tile-record-product,
+.tile-record-stack,
+.tile-record-pricing {
+  align-content: center;
+  min-height: 88px;
+}
+
+.tile-record-product {
+  gap: 4px;
+}
+
+.tile-record-product > strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.tile-record-product > span {
+  font-size: 0.65rem;
+}
+
+.tile-record-product > small,
+.tile-record-product-meta small {
+  font-size: 0.61rem;
+  line-height: 1.25;
+}
+
+.tile-record-product-meta {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.tile-record-stack {
+  gap: 3px;
+}
+
+.tile-record-stack strong {
+  font-size: 0.8rem;
+}
+
+.tile-record-stack small {
+  font-size: 0.61rem;
+}
+
+.tile-specification-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  min-height: 88px;
+}
+
+.tile-specification-list > span {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #dfe8e3;
+  border-radius: 10px;
+  background: #f9fbfa;
+}
+
+.tile-specification-list small {
+  font-size: 0.55rem;
+}
+
+.tile-specification-list strong {
+  font-size: 0.68rem;
+}
+
+.tile-record-stock {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  gap: 7px 9px;
+  min-height: 88px;
+}
+
+.tile-stock-metric {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #dfe8e3;
+  border-radius: 10px;
+  background: #fbfdfc;
+}
+
+.tile-stock-metric > span {
+  color: #65776e;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.tile-stock-metric > strong {
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.tile-stock-metric-available {
+  grid-column: 1 / -1;
+  border-color: #cfe3d8;
+  background: #f4faf6;
+}
+
+.tile-stock-metric-available > span {
+  color: var(--primary-dark);
+}
+
+.tile-stock-supporting {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-left: 2px;
+}
+
+.tile-stock-supporting small {
+  font-size: 0.57rem;
+}
+
+.tile-record-pricing {
+  gap: 3px;
+}
+
+.tile-record-pricing strong {
+  font-size: 0.8rem;
+}
+
+.tile-record-pricing > span,
+.tile-record-pricing small {
+  font-size: 0.6rem;
+}
+
+.tile-records-table td[data-label="Status"] {
+  text-align: center;
+}
+
+.tile-record-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  gap: 6px;
+  min-height: 88px;
+}
+
+.tile-record-actions button {
+  width: 100%;
+  min-height: 31px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.6rem;
+}
+
+@media (max-width: 1280px) {
+  .tile-records-table {
+    min-width: 980px;
+  }
+
+  .tile-records-table th,
+  .tile-records-table td {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  .tile-records-table {
+    min-width: 0;
+  }
+
+  .tile-records-table tbody tr {
+    min-height: 0;
+  }
+
+  .tile-record-product,
+  .tile-record-stack,
+  .tile-record-pricing,
+  .tile-specification-list,
+  .tile-record-stock,
+  .tile-record-actions {
+    min-height: 0;
+  }
+
+  .tile-record-stock {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-stock-metric-available,
+  .tile-stock-supporting {
+    grid-column: auto;
+  }
+
+  .tile-record-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* TILE INVENTORY REFERENCE LAYOUT V3 END */
+
+/* TILE INVENTORY STATUS ACTIONS V4 START */
+
+/* Compresses the final two columns into a balanced status/action group. */
+.tile-records-table th:nth-child(6) { width: 7%; }
+.tile-records-table th:nth-child(7) { width: 11%; }
+
+.tile-records-table th:nth-child(6),
+.tile-records-table th:nth-child(7) {
+  text-align: center;
+}
+
+.tile-records-table td[data-label="Status"] {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.tile-records-table td[data-label="Status"] .badge {
+  display: inline-flex;
+  min-width: 86px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  font-size: 0.6rem;
+  white-space: nowrap;
+}
+
+.tile-record-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  justify-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tile-record-actions button {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 0.6rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .tile-records-table th:nth-child(6) { width: 8%; }
+  .tile-records-table th:nth-child(7) { width: 12%; }
+
+  .tile-records-table td[data-label="Status"] .badge {
+    min-width: 80px;
+  }
+}
+
+@media (max-width: 700px) {
+  .tile-records-table th:nth-child(6),
+  .tile-records-table th:nth-child(7) {
+    text-align: left;
+  }
+
+  .tile-records-table td[data-label="Status"] {
+    text-align: left;
+  }
+
+  .tile-records-table td[data-label="Status"] .badge {
+    min-width: 0;
+  }
+
+  .tile-record-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* TILE INVENTORY STATUS ACTIONS V4 END */
+
+/* TILE INVENTORY COLUMN BALANCE V5 START */
+
+.tile-records-table th:nth-child(1) { width: 18%; }
+.tile-records-table th:nth-child(2) { width: 15%; }
+.tile-records-table th:nth-child(3) { width: 14%; }
+.tile-records-table th:nth-child(4) { width: 21%; }
+.tile-records-table th:nth-child(5) { width: 14%; }
+.tile-records-table th:nth-child(6) { width: 7%; }
+.tile-records-table th:nth-child(7) { width: 11%; }
+
+.tile-records-table th,
+.tile-records-table td {
+  text-align: left;
+}
+
+.tile-records-table td[data-label="Status"],
+.tile-records-table th:nth-child(6),
+.tile-records-table th:nth-child(7) {
+  text-align: center;
+}
+
+.tile-record-stock {
+  width: 100%;
+  max-width: 100%;
+}
+
+.tile-stock-metric {
+  min-width: 0;
+}
+
+.tile-record-pricing {
+  width: 100%;
+  max-width: 150px;
+  justify-self: start;
+}
+
+.tile-specification-list {
+  width: 100%;
+  max-width: 150px;
+}
+
+@media (max-width: 1280px) {
+  .tile-records-table th:nth-child(1) { width: 18%; }
+  .tile-records-table th:nth-child(2) { width: 15%; }
+  .tile-records-table th:nth-child(3) { width: 14%; }
+  .tile-records-table th:nth-child(4) { width: 21%; }
+  .tile-records-table th:nth-child(5) { width: 14%; }
+  .tile-records-table th:nth-child(6) { width: 8%; }
+  .tile-records-table th:nth-child(7) { width: 10%; }
+}
+
+/* TILE INVENTORY COLUMN BALANCE V5 END */
+
+
+
 /* PREMIUM COMPACT TILE TABLE END */
 
 /* Tile Inventory pagination. */

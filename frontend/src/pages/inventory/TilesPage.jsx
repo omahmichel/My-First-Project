@@ -401,6 +401,10 @@ const finishes = useMemo(() => {
                           <strong>{tile.name}</strong>
                           <span>{tile.brand || "Brand not recorded"}</span>
                           <small>SKU: {tile.sku || "Not assigned"}</small>
+                          <div className="tile-record-product-meta">
+                            <small>Finish: {tile.finish || "Not recorded"}</small>
+                            <small>Colour: {tile.color || "Not recorded"}</small>
+                          </div>
                         </div>
                       </td>
 
@@ -413,21 +417,33 @@ const finishes = useMemo(() => {
 
                       <td data-label="Specifications">
                         <div className="tile-specification-list">
-                          <span><small>Size</small><strong>{tile.size || "Not recorded"}</strong></span>
-                          <span><small>Finish</small><strong>{tile.finish || "Not recorded"}</strong></span>
-                          <span><small>Colour</small><strong>{tile.color || "Not recorded"}</strong></span>
+                          <span>
+                            <small>Size</small>
+                            <strong>{tile.size || "Not recorded"}</strong>
+                          </span>
                         </div>
                       </td>
 
                       <td data-label="Stock">
                         <div className="tile-record-stock">
-                          <small>Total stock: {formatNumber(Number(tile.totalStock ?? tile.stock ?? 0), 0)} boxes</small>
-                          <small>Quantity sold: {formatNumber(Number(tile.quantitySold ?? 0), 0)} boxes</small>
-                          <strong className={lowStock ? "danger-text" : ""}>
-                            Available stock: {formatNumber(Number(tile.availableStock ?? tile.stock ?? 0), 0)} boxes
-                          </strong>
-                          <small>{formatNumber(Number(tile.loosePieces || 0), 0)} loose piece(s)</small>
-                          <small>{formatNumber(Number(tile.piecesPerBox || 0), 0)} piece(s) per box</small>
+                          <div className="tile-stock-metric">
+                            <span>Total stock</span>
+                            <strong>{formatNumber(Number(tile.totalStock ?? tile.stock ?? 0), 0)} boxes</strong>
+                          </div>
+                          <div className="tile-stock-metric">
+                            <span>Quantity sold</span>
+                            <strong>{formatNumber(Number(tile.quantitySold ?? 0), 0)} boxes</strong>
+                          </div>
+                          <div className="tile-stock-metric tile-stock-metric-available">
+                            <span>Available stock</span>
+                            <strong className={lowStock ? "danger-text" : ""}>
+                              {formatNumber(Number(tile.availableStock ?? tile.stock ?? 0), 0)} boxes
+                            </strong>
+                          </div>
+                          <div className="tile-stock-supporting">
+                            <small>{formatNumber(Number(tile.loosePieces || 0), 0)} loose piece(s)</small>
+                            <small>{formatNumber(Number(tile.piecesPerBox || 0), 0)} piece(s) per box</small>
+                          </div>
                         </div>
                       </td>
 
