@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import IndustryRoute from "./routes/IndustryRoute";
+import RoleRoute from "./routes/RoleRoute";
 import LandingPage from "./pages/public/LandingPage";
 import LoginPage from "./pages/auth/LoginPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
@@ -54,32 +55,63 @@ export default function App() {
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="products" element={<ProductsPage />} />
 
           <Route
             element={
-              <IndustryRoute allowedBusinessTypes={["building_materials"]} />
+              <RoleRoute
+                allowedRoles={["owner", "manager", "inventory_clerk"]}
+                areaLabel="inventory"
+              />
             }
           >
-            <Route path="tiles" element={<TilesPage />} />
+            <Route path="products" element={<ProductsPage />} />
+
+            <Route
+              element={
+                <IndustryRoute allowedBusinessTypes={["building_materials"]} />
+              }
+            >
+              <Route path="tiles" element={<TilesPage />} />
+            </Route>
+
+            <Route
+              element={<IndustryRoute allowedBusinessTypes={["boutique"]} />}
+            >
+              <Route path="boutique" element={<BoutiquePage />} />
+            </Route>
+
+            <Route path="stock-movements" element={<StockMovementsPage />} />
           </Route>
 
           <Route
-            element={<IndustryRoute allowedBusinessTypes={["boutique"]} />}
+            element={
+              <RoleRoute
+                allowedRoles={["owner", "manager", "cashier"]}
+                areaLabel="sales and customer records"
+              />
+            }
           >
-            <Route path="boutique" element={<BoutiquePage />} />
+            <Route path="new-sale" element={<NewSalePage />} />
+            <Route path="sales" element={<SalesHistoryPage />} />
+            <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="customers" element={<CustomersPage />} />
+            <Route path="purchases" element={<CustomerPurchaseRecordsPage />} />
           </Route>
 
-          <Route path="stock-movements" element={<StockMovementsPage />} />
-          <Route path="new-sale" element={<NewSalePage />} />
-          <Route path="sales" element={<SalesHistoryPage />} />
-          <Route path="invoices" element={<InvoicesPage />} />
-          <Route path="customers" element={<CustomersPage />} />
-          <Route path="purchases" element={<CustomerPurchaseRecordsPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="team" element={<TeamPage />} />
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={["owner", "manager"]}
+                areaLabel="management"
+              />
+            }
+          >
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="team" element={<TeamPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+
           <Route path="subscription" element={<SubscriptionPage />} />
-          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Route>
 
