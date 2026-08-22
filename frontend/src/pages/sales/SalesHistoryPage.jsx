@@ -37,6 +37,12 @@ export default function SalesHistoryPage() {
             sale.invoiceNumber,
             sale.customerName,
             sale.cashier,
+
+            ...(sale.items ?? []).flatMap((item) => [
+              item.designCode,
+              item.sku,
+              item.name,
+            ]),
           ]
             .filter(Boolean)
             .some((value) =>
@@ -182,10 +188,10 @@ export default function SalesHistoryPage() {
         </div>
 
         <StickyTableScroll className="sales-history-table-wrapper">
-<table className="data-table stockflow-premium-table sales-history-table">
+<table className="data-table stockflow-premium-table stockflow-wide-record-table sales-history-table">
             <thead>
               <tr>
-                <th>Sale</th>
+                <th>Product reference</th>
                 <th>Customer</th>
                 <th>Items</th>
                 <th>Payment</th>
@@ -199,9 +205,18 @@ export default function SalesHistoryPage() {
             <tbody>
               {paginatedSales.map((sale) => (
                 <tr key={sale.id}>
-                  <td data-label="Sale">
-                    <strong>{sale.saleNumber}</strong>
+                  <td data-label="Product reference">
+                    <strong className="sales-history-product-reference">
+                      {[...new Set(
+                        (sale.items ?? [])
+                          .map((item) => item.designCode || item.sku || item.name)
+                          .filter(Boolean),
+                      )].slice(0, 3).join(" · ") || "Product not recorded"}
+                    </strong>
                     <small>
+                      {(sale.items ?? []).length > 3
+                        ? `+${sale.items.length - 3} more · `
+                        : ""}
                       {sale.invoiceNumber} · {formatDateTime(sale.createdAt)}
                     </small>
                   </td>

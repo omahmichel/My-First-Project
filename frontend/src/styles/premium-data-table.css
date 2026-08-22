@@ -58,3 +58,78 @@
   font-weight: 780;
   letter-spacing: 0.01em;
 }
+
+/* STOCKFLOW DENSE RECORD TABLE STANDARD V1 */
+@media (min-width: 701px) {
+  .data-table.stockflow-premium-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .data-table.stockflow-premium-table th {
+    padding: 8px 9px !important;
+    color: #425d4e;
+    font-size: 0.58rem !important;
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: 0.055em;
+    white-space: nowrap;
+  }
+
+  .data-table.stockflow-premium-table td {
+    padding: 9px !important;
+    color: #30483b;
+    font-size: 0.68rem !important;
+    font-weight: 680;
+    line-height: 1.22;
+    vertical-align: middle;
+  }
+
+  .data-table.stockflow-premium-table td > strong {
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 850;
+    line-height: 1.18;
+  }
+
+  .data-table.stockflow-premium-table td > small {
+    margin-top: 2px;
+    color: #5f7167;
+    font-size: 0.60rem;
+    font-weight: 680;
+    line-height: 1.2;
+  }
+
+  .data-table.stockflow-premium-table tbody tr {
+    min-height: 0 !important;
+  }
+
+  .data-table.stockflow-premium-table tbody tr:nth-child(even) {
+    background: #fbfdfc;
+  }
+
+  .data-table.stockflow-premium-table tbody tr:hover {
+    background: #f5faf7;
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  .data-table.stockflow-premium-table .status-badge,
+  .data-table.stockflow-premium-table .badge {
+    font-size: 0.57rem;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .sticky-table-scroll-content > .data-table.stockflow-premium-table,
+  .responsive-table-wrapper > .data-table.stockflow-premium-table {
+    max-width: none;
+  }
+}
+
+@media (min-width: 901px) {
+  .data-table.stockflow-premium-table.stockflow-wide-record-table {
+    min-width: 1080px;
+    table-layout: fixed;
+  }
+}
