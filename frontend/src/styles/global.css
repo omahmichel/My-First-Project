@@ -755,3 +755,53 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   }
 }
 
+
+/* STOCKFLOW SHARED POS PRODUCT CARD CONTAINMENT V1 */
+@media (min-width: 641px) {
+  .pos-product-grid {
+    align-items: stretch;
+  }
+
+  .pos-product-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: start;
+    min-height: 132px;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .pos-product-card > .pos-product-image {
+    align-self: start;
+  }
+
+  .pos-product-card > div:not(.pos-product-image) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .pos-product-card > div:not(.pos-product-image) strong {
+    display: -webkit-box;
+    overflow: hidden;
+    max-width: 100%;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+  }
+
+  .pos-product-card > div:not(.pos-product-image) span {
+    overflow: hidden;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .pos-product-card > b {
+    grid-column: 2;
+    align-self: end;
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+}

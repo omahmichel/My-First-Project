@@ -153,3 +153,39 @@
     align-items: flex-start;
   }
 }
+
+/* STOCKFLOW NEW SALE PRODUCT NAVIGATOR CONTAINMENT V1 */
+@media (min-width: 641px) {
+  .sale-product-catalog .pos-product-grid {
+    grid-auto-rows: 1fr;
+    align-items: stretch;
+  }
+
+  .sale-product-catalog .pos-product-card {
+    min-height: 138px;
+  }
+
+  .sale-product-catalog .pos-product-card > div:not(.pos-product-image) {
+    display: grid;
+    align-content: start;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .sale-product-catalog .pos-product-card > div:not(.pos-product-image) span {
+    display: -webkit-box;
+    overflow: hidden;
+    max-width: 100%;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-height: 1.28;
+  }
+
+  .sale-product-catalog .pos-product-card > div:not(.pos-product-image) span + span {
+    margin-top: 2px;
+  }
+
+  .sale-product-catalog .pos-product-card > b {
+    margin-top: 6px;
+  }
+}
