@@ -292,7 +292,7 @@ export default function BoutiquePage() {
     status !== "all";
 
   return (
-    <div className="page-stack boutique-records-page">
+    <div className="page-stack stockflow-inventory-page boutique-records-page">
       <PageHeader
         eyebrow="Fashion inventory"
         title="Boutique Inventory"
@@ -349,8 +349,8 @@ export default function BoutiquePage() {
         </article>
       </section>
 
-      <section className="panel-card boutique-records-panel">
-        <div className="boutique-records-toolbar">
+      <section className="panel-card stockflow-inventory-panel boutique-records-panel">
+        <div className="stockflow-inventory-toolbar boutique-records-toolbar">
           <div className="boutique-records-search-row">
             <label className="table-search boutique-records-search">
               <Search size={18} />
@@ -422,8 +422,8 @@ export default function BoutiquePage() {
           </div>
         </div>
 
-        <StickyTableScroll className="boutique-records-table-wrapper">
-<table className="data-table boutique-records-table">
+        <StickyTableScroll className="stockflow-inventory-table-wrapper boutique-records-table-wrapper">
+<table className="data-table stockflow-premium-table stockflow-inventory-table boutique-records-table">
             <thead>
               <tr>
                 <th>Product</th>
@@ -526,7 +526,7 @@ export default function BoutiquePage() {
                     </td>
 
                     <td data-label="Actions">
-                      <div className="boutique-record-actions">
+                      <div className="stockflow-inventory-actions boutique-record-actions">
                         <button
                           type="button"
                           onClick={() => openEditProductModal(product)}

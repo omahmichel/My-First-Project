@@ -1,0 +1,60 @@
+/* STOCKFLOW PREMIUM DATA TABLE V1
+   Shared dense desktop presentation for business record tables.
+   Page-specific styles keep ownership of column widths and mobile card layouts. */
+
+@media (min-width: 701px) {
+  .data-table.stockflow-premium-table th {
+    padding: 9px 10px !important;
+    font-size: 0.6rem !important;
+    font-weight: 850;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+  }
+
+  .data-table.stockflow-premium-table td {
+    padding: 10px !important;
+    color: #344b3f;
+    font-size: 0.7rem !important;
+    font-weight: 610;
+    line-height: 1.28;
+    vertical-align: middle;
+  }
+
+  .data-table.stockflow-premium-table td > strong {
+    color: var(--ink);
+    font-size: 0.73rem;
+    font-weight: 820;
+    line-height: 1.2;
+  }
+
+  .data-table.stockflow-premium-table td > small {
+    margin-top: 2px;
+    font-size: 0.58rem;
+    line-height: 1.25;
+  }
+
+  .data-table.stockflow-premium-table tbody tr {
+    min-height: 0 !important;
+  }
+
+  .data-table.stockflow-premium-table tbody tr:nth-child(even) {
+    background: #fcfefd;
+  }
+
+  .data-table.stockflow-premium-table tbody tr:hover {
+    background: #f7fbf9;
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  .data-table.stockflow-premium-table .status-badge,
+  .data-table.stockflow-premium-table .badge {
+    font-weight: 800;
+  }
+}
+
+.restricted-data-value {
+  color: var(--subtle);
+  font-size: 0.62rem;
+  font-weight: 780;
+  letter-spacing: 0.01em;
+}

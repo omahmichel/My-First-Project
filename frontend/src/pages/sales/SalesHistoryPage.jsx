@@ -182,7 +182,7 @@ export default function SalesHistoryPage() {
         </div>
 
         <StickyTableScroll className="sales-history-table-wrapper">
-<table className="data-table sales-history-table">
+<table className="data-table stockflow-premium-table sales-history-table">
             <thead>
               <tr>
                 <th>Sale</th>

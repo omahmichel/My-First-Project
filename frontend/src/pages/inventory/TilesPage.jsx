@@ -268,7 +268,7 @@ const finishes = useMemo(() => {
   }
 
   return (
-    <div className="page-stack tile-records-page">
+    <div className="page-stack stockflow-inventory-page tile-records-page">
       <PageHeader
         eyebrow="Building materials inventory"
         title="Tile inventory"
@@ -314,8 +314,8 @@ const finishes = useMemo(() => {
         </article>
       </section>
 
-      <section className="panel-card tile-records-panel">
-        <div className="tile-records-toolbar">
+      <section className="panel-card stockflow-inventory-panel tile-records-panel">
+        <div className="stockflow-inventory-toolbar tile-records-toolbar">
           <div className="tile-records-search-row">
             <label className="table-search tile-records-search">
               <Search size={18} />
@@ -371,15 +371,15 @@ const finishes = useMemo(() => {
           </div>
         </div>
 
-        <StickyTableScroll className="tile-records-table-wrapper">
-<table className="data-table tile-records-table">
+        <StickyTableScroll className="stockflow-inventory-table-wrapper tile-records-table-wrapper">
+<table className="data-table stockflow-premium-table stockflow-inventory-table tile-records-table">
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Design / batch</th>
-                <th>Specifications</th>
+                <th>Design / Batch</th>
+                <th>Size</th>
                 <th>Stock</th>
-                <th>Pricing</th>
+                <th>Price</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -397,61 +397,53 @@ const finishes = useMemo(() => {
                   return (
                     <tr key={tile.id}>
                       <td data-label="Product">
-                        <div className="tile-record-product">
+                        <div className="tile-premium-product">
                           <strong>{tile.name}</strong>
                           <span>{tile.brand || "Brand not recorded"}</span>
                           <small>SKU: {tile.sku || "Not assigned"}</small>
-                          <div className="tile-record-product-meta">
-                            <small>Finish: {tile.finish || "Not recorded"}</small>
-                            <small>Colour: {tile.color || "Not recorded"}</small>
-                          </div>
+                          <small>
+                            {tile.finish || "Finish not recorded"} · {tile.color || "Colour not recorded"}
+                          </small>
                         </div>
                       </td>
 
-                      <td data-label="Design / batch">
-                        <div className="tile-record-stack">
+                      <td data-label="Design / Batch">
+                        <div className="tile-premium-stack">
                           <strong>{tile.designCode || "Not recorded"}</strong>
                           <small>Batch: {tile.batchNumber || "Not recorded"}</small>
                         </div>
                       </td>
 
-                      <td data-label="Specifications">
-                        <div className="tile-specification-list">
-                          <span>
-                            <small>Size</small>
-                            <strong>{tile.size || "Not recorded"}</strong>
-                          </span>
+                      <td data-label="Size">
+                        <div className="tile-premium-size">
+                          <strong>{tile.size || "Not recorded"}</strong>
                         </div>
                       </td>
 
                       <td data-label="Stock">
-                        <div className="tile-record-stock">
-                          <div className="tile-stock-metric">
-                            <span>Total stock</span>
-                            <strong>{formatNumber(Number(tile.totalStock ?? tile.stock ?? 0), 0)} boxes</strong>
-                          </div>
-                          <div className="tile-stock-metric">
-                            <span>Quantity sold</span>
-                            <strong>{formatNumber(Number(tile.quantitySold ?? 0), 0)} boxes</strong>
-                          </div>
-                          <div className="tile-stock-metric tile-stock-metric-available">
-                            <span>Available stock</span>
+                        <div className="tile-premium-stock">
+                          <div className="tile-premium-stock-main">
                             <strong className={lowStock ? "danger-text" : ""}>
                               {formatNumber(Number(tile.availableStock ?? tile.stock ?? 0), 0)} boxes
                             </strong>
+                            <span>available</span>
                           </div>
-                          <div className="tile-stock-supporting">
-                            <small>{formatNumber(Number(tile.loosePieces || 0), 0)} loose piece(s)</small>
-                            <small>{formatNumber(Number(tile.piecesPerBox || 0), 0)} piece(s) per box</small>
-                          </div>
+                          <small>
+                            {formatNumber(Number(tile.quantitySold ?? 0), 0)} sold · {formatNumber(Number(tile.totalStock ?? tile.stock ?? 0), 0)} total
+                          </small>
+                          <small>
+                            {formatNumber(Number(tile.loosePieces || 0), 0)} loose · {formatNumber(Number(tile.piecesPerBox || 0), 0)} pcs/box
+                          </small>
                         </div>
                       </td>
 
-                      <td data-label="Pricing">
-                        <div className="tile-record-pricing">
+                      <td data-label="Price">
+                        <div className="tile-premium-price">
                           <strong>{formatCurrency(tile.sellingPrice)}</strong>
-                          <span>per box</span>
-                          <small>Cost: {formatCurrency(tile.costPrice)}</small>
+                          <small>per box</small>
+                          {tile.costPrice != null ? (
+                            <small>Cost: {formatCurrency(tile.costPrice)}</small>
+                          ) : null}
                         </div>
                       </td>
 
@@ -462,7 +454,7 @@ const finishes = useMemo(() => {
                       </td>
 
                       <td data-label="Actions">
-                        <div className="tile-record-actions">
+                        <div className="stockflow-inventory-actions tile-record-actions">
                           <button
                             type="button"
                             onClick={() => {

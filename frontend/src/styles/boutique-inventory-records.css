@@ -572,3 +572,46 @@
     flex-direction: column;
   }
 }
+
+/* BOUTIQUE INVENTORY READABILITY ALIGNMENT V1 */
+@media (min-width: 901px) {
+  .boutique-record-product strong,
+  .boutique-record-stack strong,
+  .boutique-record-stock strong,
+  .boutique-record-pricing strong {
+    font-size: 0.77rem;
+    font-weight: 875;
+  }
+
+  .boutique-record-product small,
+  .boutique-record-stack small,
+  .boutique-record-stock small,
+  .boutique-record-pricing small {
+    color: #586b61;
+    font-size: 0.62rem;
+    font-weight: 700;
+  }
+
+  .boutique-record-pricing > span {
+    color: #566a5f;
+    font-size: 0.61rem;
+    font-weight: 700;
+  }
+
+  .boutique-specification-list small {
+    color: #617369;
+    font-size: 0.58rem;
+    font-weight: 800;
+  }
+
+  .boutique-specification-list strong {
+    color: #344b3f;
+    font-size: 0.66rem;
+    font-weight: 800;
+  }
+
+  .boutique-record-actions button {
+    font-size: 0.58rem;
+    font-weight: 800;
+  }
+}

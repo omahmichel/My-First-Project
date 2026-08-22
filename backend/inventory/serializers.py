@@ -329,10 +329,10 @@ class ProductSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
-        # Cashiers can sell products but cannot view confidential cost prices.
+        # Cashiers and inventory clerks can work with stock without viewing confidential cost prices.
         data = super().to_representation(instance)
 
-        if self.context.get("current_role") == "cashier":
+        if self.context.get("current_role") in {"cashier", "inventory_clerk"}:
             data.pop("costPrice", None)
 
         return data

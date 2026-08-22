@@ -14,6 +14,7 @@ import "../../styles/products-control-board.css";
 
 export default function ProductsPage() {
   const {
+    business,
     products,
     inventoryLoading,
     inventoryError,
@@ -39,6 +40,9 @@ export default function ProductsPage() {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const currentRole = business?.currentUserRole;
+  const canViewCostPrice = currentRole === "owner" || currentRole === "manager";
 
   const categories = [...new Set(products.map((product) => product.category))].sort();
   const filteredProducts = useMemo(() => {
@@ -157,7 +161,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="page-stack products-control-page">
+    <div className="page-stack stockflow-inventory-page products-control-page">
       <PageHeader
         eyebrow="Inventory"
         title="Products"
@@ -181,8 +185,8 @@ export default function ProductsPage() {
         <article><span><SlidersHorizontal size={20} /></span><div><strong>{products.filter((product) => Number(product.availableStock ?? product.stock ?? 0) <= Number(product.lowStockLevel || 0)).length}</strong><small>Low-stock products</small></div></article>
       </section>
 
-      <section className="panel-card">
-        <div className="table-toolbar">
+      <section className="panel-card stockflow-inventory-panel">
+        <div className="table-toolbar stockflow-inventory-toolbar">
           <label className="table-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, SKU, design or brand..." /></label>
           <div className="table-filter-group">
             <select value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select>
@@ -191,7 +195,7 @@ export default function ProductsPage() {
         </div>
 
         <StickyTableScroll>
-<table className="data-table products-table">
+<table className="data-table stockflow-premium-table stockflow-inventory-table products-table">
             <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th>Stock</th><th>Cost price</th><th>Selling price</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {paginatedProducts.map((product) => {
@@ -218,11 +222,11 @@ export default function ProductsPage() {
                         <small>{product.loosePieces || 0} loose piece(s)</small>
                       ) : null}
                     </td>
-                    <td>{formatCurrency(product.costPrice)}</td>
+                    <td>{canViewCostPrice ? formatCurrency(product.costPrice) : <span className="restricted-data-value">Restricted</span>}</td>
                     <td><strong>{formatCurrency(product.sellingPrice)}</strong></td>
                     <td><Badge tone={product.status === "active" ? (lowStock ? "warning" : "success") : "neutral"}>{product.status === "active" ? (lowStock ? "Low stock" : "Active") : "Inactive"}</Badge></td>
                     <td>
-                      <div className="table-action-group">
+                      <div className="table-action-group stockflow-inventory-actions">
                         <button type="button" onClick={() => { setEditingProduct(product); setProductModalOpen(true); }}>Edit</button>
                         <button
                           type="button"

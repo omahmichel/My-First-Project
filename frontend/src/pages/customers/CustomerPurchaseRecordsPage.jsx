@@ -389,7 +389,7 @@ export default function CustomerPurchaseRecordsPage() {
         </div>
 
         <StickyTableScroll>
-<table className="data-table purchase-records-table">
+<table className="data-table stockflow-premium-table purchase-records-table">
             <thead>
               <tr>
                 <th>Purchase</th>

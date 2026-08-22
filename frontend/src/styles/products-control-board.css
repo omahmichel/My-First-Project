@@ -370,9 +370,33 @@
   white-space: nowrap;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1180px) and (min-width: 761px) {
   .products-control-page .products-table {
-    min-width: 820px;
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .products-control-page .products-table th,
+  .products-control-page .products-table td {
+    min-width: 0;
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+
+  .products-control-page .table-product-cell,
+  .products-control-page .table-product-cell > div {
+    min-width: 0;
+  }
+
+  .products-control-page .table-product-cell strong,
+  .products-control-page .table-product-cell small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .products-control-page .table-product-cell strong {
+    white-space: nowrap;
   }
 }
 
@@ -464,5 +488,60 @@
   .products-pagination-summary {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+/* PRODUCTS CARD POSITION + DENSITY V1
+   Small visual refinement only: lift the Products records card and
+   slightly tighten its toolbar/desktop rows without changing columns. */
+
+.products-control-page .panel-card {
+  margin-top: -12px;
+}
+
+.products-control-page .table-toolbar {
+  padding: 11px 14px;
+}
+
+.products-control-page .table-search,
+.products-control-page .table-filter-group select {
+  min-height: 36px;
+}
+
+@media (min-width: 761px) {
+  .products-control-page .products-table.stockflow-premium-table th {
+    padding: 8px 9px !important;
+  }
+
+  .products-control-page .products-table.stockflow-premium-table td {
+    padding: 8px 9px !important;
+  }
+}
+
+/* PRODUCTS CARD POSITION + DENSITY V1 END */
+
+/* ALL PRODUCTS READABILITY ALIGNMENT V1 */
+@media (min-width: 901px) {
+  .products-control-page .table-product-cell strong {
+    font-size: 0.75rem;
+    font-weight: 875;
+  }
+
+  .products-control-page .table-product-cell small,
+  .products-control-page .products-table td > small {
+    color: #586b61;
+    font-size: 0.61rem;
+    font-weight: 700;
+    line-height: 1.24;
+  }
+
+  .products-control-page .table-action-group button {
+    font-size: 0.58rem;
+    font-weight: 810;
+  }
+
+  .products-control-page .status-badge {
+    font-size: 0.58rem;
+    font-weight: 850;
   }
 }

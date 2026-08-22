@@ -1,0 +1,229 @@
+/* STOCKFLOW INVENTORY PRESENTATION SYSTEM V5
+   Reusable premium inventory contract for current and future StockFlow
+   business types. Shared rules own the premium frame, desktop density,
+   hierarchy and common interaction treatment. Industry pages continue to
+   own their column semantics, minimum widths and mobile record-card layouts. */
+
+.stockflow-inventory-page {
+  min-width: 0;
+}
+
+.stockflow-inventory-panel {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #c9d9d0 !important;
+  border-radius: 18px !important;
+  background: #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.98) inset,
+    0 12px 30px rgba(20, 61, 41, 0.075),
+    0 2px 8px rgba(20, 61, 41, 0.04) !important;
+}
+
+.stockflow-inventory-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    rgba(36, 125, 83, 0.52) 48%,
+    rgba(36, 125, 83, 0.12) 100%
+  );
+  pointer-events: none;
+}
+
+.stockflow-inventory-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b7c9bf transparent;
+}
+
+@media (min-width: 901px) {
+  .stockflow-inventory-page .stockflow-inventory-toolbar {
+    gap: 10px !important;
+    padding: 13px 15px !important;
+    border-bottom: 1px solid #dce7e1;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdfc 100%);
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-toolbar input,
+  .stockflow-inventory-page .stockflow-inventory-toolbar select {
+    min-height: 36px;
+    border-color: #d5e2db;
+    border-radius: 9px;
+    background: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-toolbar input:focus,
+  .stockflow-inventory-page .stockflow-inventory-toolbar select:focus {
+    border-color: #9fc4b0;
+    box-shadow: 0 0 0 3px rgba(36, 125, 83, 0.08);
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table th {
+    min-width: 0;
+    padding: 10px 11px !important;
+    border-bottom: 1px solid #cfded6;
+    background: #f3f8f5;
+    color: #425d4e;
+    font-size: 0.60rem !important;
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td {
+    min-width: 0;
+    padding: 11px !important;
+    border-bottom: 1px solid #e1eae5;
+    color: #2f473a;
+    font-size: 0.70rem !important;
+    font-weight: 700;
+    line-height: 1.24;
+    vertical-align: middle;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table tbody tr {
+    min-height: 0 !important;
+    background: #ffffff;
+    transition: background 150ms ease, box-shadow 150ms ease;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table tbody tr:nth-child(even) {
+    background: #fafdfb;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table tbody tr:hover {
+    background: #f4faf7;
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td strong,
+  .stockflow-inventory-page .stockflow-inventory-table td b {
+    color: var(--ink);
+    font-weight: 850;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td small {
+    color: var(--subtle);
+    font-weight: 650;
+    line-height: 1.2;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td > *,
+  .stockflow-inventory-page .stockflow-inventory-table td > * > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table .badge,
+  .stockflow-inventory-page .stockflow-inventory-table .status-badge {
+    min-height: 27px;
+    padding: 5px 9px;
+    font-size: 0.54rem;
+    font-weight: 850;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions,
+  .stockflow-inventory-page .table-action-group,
+  .stockflow-inventory-page .tile-record-actions,
+  .stockflow-inventory-page .boutique-record-actions {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions button,
+  .stockflow-inventory-page .table-action-group button,
+  .stockflow-inventory-page .tile-record-actions button,
+  .stockflow-inventory-page .boutique-record-actions button {
+    min-height: 29px;
+    border-radius: 8px;
+    font-weight: 800;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1280px) {
+  .stockflow-inventory-page .stockflow-inventory-toolbar {
+    padding: 11px 13px !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table th {
+    padding: 9px !important;
+    font-size: 0.58rem !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td {
+    padding: 9px !important;
+    font-size: 0.68rem !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table .badge,
+  .stockflow-inventory-page .stockflow-inventory-table .status-badge {
+    min-height: 26px;
+    padding: 4px 8px;
+  }
+}
+
+/* <=900px remains owned by specialized responsive/mobile inventory layouts. */
+
+/* STOCKFLOW INVENTORY READABILITY STANDARD V1 */
+@media (min-width: 901px) {
+  .stockflow-inventory-page .stockflow-inventory-table td {
+    color: #2d4337;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td strong,
+  .stockflow-inventory-page .stockflow-inventory-table td b {
+    color: #16291f;
+    font-weight: 875;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table td small {
+    color: #586b61;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1.24;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table .badge,
+  .stockflow-inventory-page .stockflow-inventory-table .status-badge {
+    font-size: 0.58rem;
+    font-weight: 875;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions button,
+  .stockflow-inventory-page .table-action-group button,
+  .stockflow-inventory-page .tile-record-actions button,
+  .stockflow-inventory-page .boutique-record-actions button {
+    font-size: 0.58rem;
+    font-weight: 825;
+  }
+}
