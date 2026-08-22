@@ -1,4 +1,5 @@
 import { Boxes, Filter, PackagePlus, Search, SlidersHorizontal } from "lucide-react";
+import { PackagePlus as StockActionIcon, Pencil, Power, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
@@ -196,7 +197,7 @@ export default function ProductsPage() {
 
         <StickyTableScroll>
 <table className="data-table stockflow-premium-table stockflow-inventory-table products-table">
-            <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th>Stock</th><th>Cost price</th><th>Selling price</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th>Stock</th><th><span className="stockflow-table-heading-stack"><span>Cost</span><span>price</span></span></th><th><span className="stockflow-table-heading-stack"><span>Selling</span><span>price</span></span></th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {paginatedProducts.map((product) => {
                 const availableStock = Number(
@@ -226,35 +227,59 @@ export default function ProductsPage() {
                     <td><strong>{formatCurrency(product.sellingPrice)}</strong></td>
                     <td><Badge tone={product.status === "active" ? (lowStock ? "warning" : "success") : "neutral"}>{product.status === "active" ? (lowStock ? "Low stock" : "Active") : "Inactive"}</Badge></td>
                     <td>
-                      <div className="table-action-group stockflow-inventory-actions">
-                        <button type="button" onClick={() => { setEditingProduct(product); setProductModalOpen(true); }}>Edit</button>
+                      <div className="table-action-group stockflow-inventory-actions stockflow-icon-actions">
                         <button
                           type="button"
+                          className="stockflow-icon-action"
+                          aria-label={`Edit ${product.name}`}
+                          title="Edit product"
+                          onClick={() => { setEditingProduct(product); setProductModalOpen(true); }}
+                        >
+                          <Pencil size={16} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="stockflow-icon-action"
+                          aria-label={`Adjust stock for ${product.name}`}
+                          title="Adjust stock"
                           onClick={() => setStockProduct(product)}
                           disabled={product.status !== "active"}
                         >
-                          Stock
+                          <StockActionIcon size={16} aria-hidden="true" />
                         </button>
                         <button
                           type="button"
+                          className="stockflow-icon-action stockflow-icon-action-secondary"
+                          aria-label={
+                            statusProductId === product.id
+                              ? `Updating ${product.name}`
+                              : product.status === "active"
+                                ? `Deactivate ${product.name}`
+                                : `Activate ${product.name}`
+                          }
+                          title={
+                            statusProductId === product.id
+                              ? "Updating status"
+                              : product.status === "active"
+                                ? "Deactivate product"
+                                : "Activate product"
+                          }
                           onClick={() => changeProductStatus(product)}
                           disabled={Boolean(statusProductId)}
                         >
-                          {statusProductId === product.id
-                            ? "Updating..."
-                            : product.status === "active"
-                              ? "Deactivate"
-                              : "Activate"}
+                          <Power size={16} aria-hidden="true" />
                         </button>
                         <button
                           type="button"
-                          className="product-delete-action"
+                          className="stockflow-icon-action stockflow-icon-action-danger product-delete-action"
+                          aria-label={`Delete ${product.name}`}
+                          title="Delete product"
                           onClick={() => {
                             setDeleteError("");
                             setDeleteProductTarget(product);
                           }}
                         >
-                          Delete
+                          <Trash2 size={16} aria-hidden="true" />
                         </button>
                       </div>
                     </td>

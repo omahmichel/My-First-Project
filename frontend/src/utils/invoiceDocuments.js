@@ -16,11 +16,12 @@ function safeFilename(value) {
 
 function formatPdfCurrency(value) {
   const amount = Number(value || 0);
-
-  return `GHS ${amount.toLocaleString("en-GH", {
-    minimumFractionDigits: 2,
+  const formattedAmount = amount.toLocaleString("en-GH", {
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  })}`;
+  });
+
+  return `₵${formattedAmount}`;
 }
 
 export function formatPaymentMethod(value) {

@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   Tags,
 } from "lucide-react";
+import { PackagePlus as StockActionIcon, Pencil, Power, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
@@ -526,44 +527,62 @@ export default function BoutiquePage() {
                     </td>
 
                     <td data-label="Actions">
-                      <div className="stockflow-inventory-actions boutique-record-actions">
+                      <div className="stockflow-inventory-actions stockflow-icon-actions boutique-record-actions">
                         <button
                           type="button"
+                          className="stockflow-icon-action"
+                          aria-label={`Edit ${product.name}`}
+                          title="Edit product"
                           onClick={() => openEditProductModal(product)}
                         >
-                          Edit
+                          <Pencil size={16} aria-hidden="true" />
                         </button>
 
                         <button
                           type="button"
+                          className="stockflow-icon-action"
+                          aria-label={`Adjust stock for ${product.name}`}
+                          title="Adjust stock"
                           onClick={() => setStockProduct(product)}
                           disabled={product.status !== "active"}
                         >
-                          Adjust stock
+                          <StockActionIcon size={16} aria-hidden="true" />
                         </button>
 
                         <button
                           type="button"
-                          className="boutique-record-secondary-action"
+                          className="stockflow-icon-action stockflow-icon-action-secondary boutique-record-secondary-action"
+                          aria-label={
+                            statusProductId === product.id
+                              ? `Updating ${product.name}`
+                              : product.status === "active"
+                                ? `Deactivate ${product.name}`
+                                : `Activate ${product.name}`
+                          }
+                          title={
+                            statusProductId === product.id
+                              ? "Updating status"
+                              : product.status === "active"
+                                ? "Deactivate product"
+                                : "Activate product"
+                          }
                           onClick={() => changeProductStatus(product)}
                           disabled={Boolean(statusProductId)}
                         >
-                          {statusProductId === product.id
-                            ? "Updating..."
-                            : product.status === "active"
-                              ? "Deactivate"
-                              : "Activate"}
+                          <Power size={16} aria-hidden="true" />
                         </button>
 
                         <button
                           type="button"
-                          className="boutique-record-delete-action"
+                          className="stockflow-icon-action stockflow-icon-action-danger boutique-record-delete-action"
+                          aria-label={`Delete ${product.name}`}
+                          title="Delete product"
                           onClick={() => {
                             setDeleteError("");
                             setDeleteProductTarget(product);
                           }}
                         >
-                          Delete
+                          <Trash2 size={16} aria-hidden="true" />
                         </button>
                       </div>
                     </td>

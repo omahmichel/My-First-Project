@@ -1,10 +1,12 @@
 // Shared formatting functions keep money and dates consistent across the frontend.
 export function formatCurrency(value = 0) {
-  return new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency: "GHS",
-    minimumFractionDigits: 2,
-  }).format(Number(value) || 0);
+  const amount = Number(value) || 0;
+  const formattedAmount = new Intl.NumberFormat("en-GH", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+  return `₵${formattedAmount}`;
 }
 
 export function formatNumber(value = 0, maximumFractionDigits = 2) {

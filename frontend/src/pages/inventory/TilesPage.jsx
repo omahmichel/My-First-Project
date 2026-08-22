@@ -6,6 +6,7 @@ import {
   PackagePlus,
   Search,
 } from "lucide-react";
+import { PackagePlus as StockActionIcon, Pencil, Power } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
@@ -454,34 +455,50 @@ const finishes = useMemo(() => {
                       </td>
 
                       <td data-label="Actions">
-                        <div className="stockflow-inventory-actions tile-record-actions">
+                        <div className="stockflow-inventory-actions stockflow-icon-actions tile-record-actions">
                           <button
                             type="button"
+                            className="stockflow-icon-action"
+                            aria-label={`Edit ${tile.name}`}
+                            title="Edit product"
                             onClick={() => {
                               setEditingTile(tile);
                               setProductModalOpen(true);
                             }}
                           >
-                            Edit
+                            <Pencil size={16} aria-hidden="true" />
                           </button>
                           <button
                             type="button"
+                            className="stockflow-icon-action"
+                            aria-label={`Adjust stock for ${tile.name}`}
+                            title="Adjust stock"
                             onClick={() => setStockTile(tile)}
                             disabled={tile.status !== "active"}
                           >
-                            Adjust stock
+                            <StockActionIcon size={16} aria-hidden="true" />
                           </button>
                           <button
-                            className="tile-record-secondary-action"
+                            className="stockflow-icon-action stockflow-icon-action-secondary tile-record-secondary-action"
                             type="button"
+                            aria-label={
+                              statusProductId === tile.id
+                                ? `Updating ${tile.name}`
+                                : tile.status === "active"
+                                  ? `Deactivate ${tile.name}`
+                                  : `Activate ${tile.name}`
+                            }
+                            title={
+                              statusProductId === tile.id
+                                ? "Updating status"
+                                : tile.status === "active"
+                                  ? "Deactivate product"
+                                  : "Activate product"
+                            }
                             onClick={() => changeTileStatus(tile)}
                             disabled={Boolean(statusProductId)}
                           >
-                            {statusProductId === tile.id
-                              ? "Updating..."
-                              : tile.status === "active"
-                                ? "Deactivate"
-                                : "Activate"}
+                            <Power size={16} aria-hidden="true" />
                           </button>
                         </div>
                       </td>

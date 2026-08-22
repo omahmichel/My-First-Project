@@ -227,3 +227,104 @@
     font-weight: 825;
   }
 }
+
+/* STOCKFLOW INVENTORY PROFESSIONAL HEADERS + ICON ACTIONS V1
+   Shared contract for existing and future inventory pages. */
+@media (min-width: 701px) {
+  .stockflow-inventory-page .stockflow-inventory-table th {
+    white-space: normal !important;
+    text-wrap: balance;
+    vertical-align: middle;
+  }
+
+  .stockflow-table-heading-stack {
+    display: inline-grid;
+    gap: 1px;
+    justify-items: start;
+    line-height: 1.02;
+    white-space: normal;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-table th:last-child {
+    text-align: center;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action {
+    display: inline-grid !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    place-items: center !important;
+    border: 1px solid #d2e0d8 !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    color: var(--primary-dark) !important;
+    line-height: 1 !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action:hover:not(:disabled) {
+    border-color: #9fc4b1 !important;
+    background: #f1f8f4 !important;
+    transform: translateY(-1px);
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action-secondary {
+    color: #62756b !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action-danger {
+    border-color: #efd2d2 !important;
+    color: #bf3f3f !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action-danger:hover:not(:disabled) {
+    border-color: #dfa5a5 !important;
+    background: #fff5f5 !important;
+    color: #a63232 !important;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+  }
+
+  .stockflow-inventory-page .stockflow-inventory-actions.stockflow-icon-actions .stockflow-icon-action svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+  }
+}
+
+/* STOCKFLOW INVENTORY STATUS BADGE STANDARD V1
+   Keeps operational statuses balanced and readable across inventory tables. */
+@media (min-width: 701px) {
+  .stockflow-inventory-page .stockflow-inventory-table .status-badge,
+  .stockflow-inventory-page .stockflow-inventory-table .badge {
+    display: inline-flex !important;
+    width: auto !important;
+    min-width: 80px !important;
+    min-height: 30px !important;
+    box-sizing: border-box;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 6px 11px !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+}
