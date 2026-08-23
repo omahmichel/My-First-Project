@@ -187,16 +187,16 @@ export default function SalesHistoryPage() {
           </select>
         </div>
 
-        <StickyTableScroll className="sales-history-table-wrapper">
-<table className="data-table stockflow-premium-table stockflow-wide-record-table sales-history-table">
+        <StickyTableScroll className="sales-history-table-wrapper stockflow-record-table-wrapper">
+<table className="data-table stockflow-premium-table stockflow-record-table sales-history-table">
             <thead>
               <tr>
-                <th>Product reference</th>
+                <th><span className="stockflow-record-heading"><span>Product</span><span>reference</span></span></th>
                 <th>Customer</th>
                 <th>Items</th>
                 <th>Payment</th>
-                <th>Principal paid</th>
-                <th>Total payable</th>
+                <th><span className="stockflow-record-heading"><span>Principal</span><span>paid</span></span></th>
+                <th><span className="stockflow-record-heading"><span>Total</span><span>payable</span></span></th>
                 <th>Total</th>
                 <th>Status</th>
               </tr>

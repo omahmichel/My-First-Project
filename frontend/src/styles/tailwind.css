@@ -1,0 +1,7 @@
+/*
+ * StockFlow Tailwind utility layer.
+ * Preflight is intentionally excluded so existing StockFlow styles remain authoritative.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);

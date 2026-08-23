@@ -140,9 +140,10 @@
   white-space: nowrap;
 }
 
-@media (max-width: 1180px) {
-  .sales-history-table {
-    min-width: 790px;
+@media (max-width: 1180px) and (min-width: 761px) {
+  .sales-history-table.stockflow-record-table {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -329,20 +330,36 @@
 
 /* STOCKFLOW SALES HISTORY WIDE PRODUCT-REFERENCE VIEW V1 */
 @media (min-width: 901px) {
-  .sales-history-table.stockflow-wide-record-table {
-    width: 100%;
-    min-width: 1120px;
-    table-layout: fixed;
-  }
-
-  .sales-history-table th:nth-child(1) { width: 18%; }
-  .sales-history-table th:nth-child(2) { width: 16%; }
-  .sales-history-table th:nth-child(3) { width: 8%; }
+  .sales-history-table th:nth-child(1) { width: 20%; }
+  .sales-history-table th:nth-child(2) { width: 17%; }
+  .sales-history-table th:nth-child(3) { width: 7%; }
   .sales-history-table th:nth-child(4) { width: 10%; }
   .sales-history-table th:nth-child(5) { width: 12%; }
   .sales-history-table th:nth-child(6) { width: 12%; }
-  .sales-history-table th:nth-child(7) { width: 12%; }
-  .sales-history-table th:nth-child(8) { width: 12%; }
+  .sales-history-table th:nth-child(7) { width: 11%; }
+  .sales-history-table th:nth-child(8) { width: 11%; }
+
+  .sales-history-table th:nth-child(3),
+  .sales-history-table td:nth-child(3),
+  .sales-history-table th:nth-child(8),
+  .sales-history-table td:nth-child(8) {
+    text-align: center;
+  }
+
+  .sales-history-table th:nth-child(5),
+  .sales-history-table td:nth-child(5),
+  .sales-history-table th:nth-child(6),
+  .sales-history-table td:nth-child(6),
+  .sales-history-table th:nth-child(7),
+  .sales-history-table td:nth-child(7) {
+    text-align: right;
+  }
+
+  .sales-history-table th:nth-child(5) .stockflow-record-heading,
+  .sales-history-table th:nth-child(6) .stockflow-record-heading {
+    width: 100%;
+    justify-items: end;
+  }
 
   .sales-history-table .sales-history-product-reference {
     display: block;

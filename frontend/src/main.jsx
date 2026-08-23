@@ -9,6 +9,7 @@ import "./styles/global.css";
 import "./styles/design-system.css";
 import "./styles/premium-data-table.css";
 import "./styles/stockflow-inventory-system.css";
+import "./styles/tailwind.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

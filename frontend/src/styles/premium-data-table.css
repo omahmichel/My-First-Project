@@ -133,3 +133,55 @@
     table-layout: fixed;
   }
 }
+
+/* STOCKFLOW RECORD TABLE SYSTEM V1
+   Shared desktop/tablet contract for operational record pages.
+   Page-specific CSS owns only its column proportions and mobile cards. */
+@media (min-width: 761px) {
+  .stockflow-record-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .stockflow-record-table-wrapper .sticky-table-scroll-content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .data-table.stockflow-premium-table.stockflow-record-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  .data-table.stockflow-premium-table.stockflow-record-table th,
+  .data-table.stockflow-premium-table.stockflow-record-table td {
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  .data-table.stockflow-premium-table.stockflow-record-table th {
+    vertical-align: middle;
+    white-space: normal !important;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .data-table.stockflow-premium-table.stockflow-record-table td,
+  .data-table.stockflow-premium-table.stockflow-record-table td > strong,
+  .data-table.stockflow-premium-table.stockflow-record-table td > small {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .stockflow-record-heading {
+    display: inline-grid;
+    gap: 1px;
+    justify-items: start;
+    line-height: 1.03;
+    white-space: normal;
+  }
+}

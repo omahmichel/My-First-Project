@@ -12,7 +12,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
 import ProductFormModal from "../../components/products/ProductFormModal";
-import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
@@ -293,7 +292,7 @@ export default function BoutiquePage() {
     status !== "all";
 
   return (
-    <div className="page-stack stockflow-inventory-page boutique-records-page">
+    <div className="page-stack stockflow-inventory-page boutique-records-page rounded-2xl bg-emerald-50/55 p-1.5">
       <PageHeader
         eyebrow="Fashion inventory"
         title="Boutique Inventory"
@@ -424,16 +423,28 @@ export default function BoutiquePage() {
         </div>
 
         <StickyTableScroll className="stockflow-inventory-table-wrapper boutique-records-table-wrapper">
-<table className="data-table stockflow-premium-table stockflow-inventory-table boutique-records-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Style / category</th>
-                <th>Size / colour</th>
-                <th>Stock</th>
-                <th>Pricing</th>
-                <th>Status</th>
-                <th>Actions</th>
+          <table className="w-full min-w-[900px] table-fixed border-collapse font-sans text-left text-[12px] text-slate-800">
+            <colgroup>
+              <col className="w-[19%]" />
+              <col className="w-[11%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+            </colgroup>
+
+            <thead className="bg-slate-50/95">
+              <tr className="border-b border-slate-200">
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Product</th>
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Style / Category</th>
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Variants</th>
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Stock</th>
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Selling Price</th>
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Cost Price</th>
+                <th className="px-3 py-2 align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Status</th>
+                <th className="px-3 py-2 text-center align-middle text-[10.5px] font-bold uppercase tracking-[0.075em] text-slate-600">Actions</th>
               </tr>
             </thead>
 
@@ -447,111 +458,137 @@ export default function BoutiquePage() {
 
                 const variantSummary = product.variants?.length
                   ? `${product.variants.length} variant(s)`
-                  : "No detailed variants";
+                  : "No variants";
+
+                const statusLabel =
+                  product.status === "active"
+                    ? lowStock
+                      ? "Low stock"
+                      : "Available"
+                    : "Inactive";
+
+                const statusClassName =
+                  product.status !== "active"
+                    ? "bg-slate-100 text-slate-700 ring-slate-300"
+                    : lowStock
+                      ? "bg-amber-50 text-amber-800 ring-amber-200"
+                      : "bg-emerald-50 text-emerald-800 ring-emerald-200";
+
+                const statusDotClassName =
+                  product.status !== "active"
+                    ? "bg-slate-400"
+                    : lowStock
+                      ? "bg-amber-500"
+                      : "bg-emerald-500";
 
                 return (
-                  <tr key={product.id}>
-                    <td data-label="Product">
-                      <div className="boutique-record-product">
-                        <span className="boutique-record-marker">
-                          <Shirt size={17} />
-                        </span>
-
-                        <div>
-                          <strong>{product.name}</strong>
-                          <small>{product.brand || "Brand not recorded"}</small>
-                          <small>SKU: {product.sku || "Not recorded"}</small>
+                  <tr
+                    key={product.id}
+                    className="border-b border-slate-200 bg-white transition-colors last:border-b-0 hover:bg-slate-50"
+                  >
+                    <td className="px-3 py-2 align-middle">
+                      <div className="min-w-0">
+                        <strong className="block truncate text-[13.5px] font-bold leading-5 text-slate-950">
+                          {product.name}
+                        </strong>
+                        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] font-medium leading-4 text-slate-600">
+                          <span className="truncate">{product.brand || "Brand not recorded"}</span>
+                          <span className="text-slate-400" aria-hidden="true">•</span>
+                          <span className="truncate">SKU: {product.sku || "Not recorded"}</span>
                         </div>
                       </div>
                     </td>
 
-                    <td data-label="Style / category">
-                      <div className="boutique-record-stack">
-                        <strong>{product.styleCode || "Not recorded"}</strong>
-                        <small>{product.category || "Uncategorized"}</small>
+                    <td className="px-3 py-2 align-middle">
+                      <strong className="block truncate text-[12.5px] font-bold text-slate-900">
+                        {product.styleCode || "Not recorded"}
+                      </strong>
+                      <small className="mt-0.5 block truncate text-[10.5px] font-medium text-slate-600">
+                        {product.category || "Uncategorized"}
+                      </small>
+                    </td>
+
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2 py-1 text-[10.5px] font-semibold leading-none text-slate-700 ring-1 ring-inset ring-slate-200">
+                          Size&nbsp;<strong className="truncate font-semibold">{product.size || "N/A"}</strong>
+                        </span>
+                        <span className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2 py-1 text-[10.5px] font-semibold leading-none text-slate-700 ring-1 ring-inset ring-slate-200">
+                          <span className="truncate">{product.color || "No colour"}</span>
+                        </span>
+                        <span className="inline-flex max-w-full items-center rounded-md bg-white px-2 py-1 text-[10px] font-semibold leading-none text-slate-600 ring-1 ring-inset ring-slate-200">
+                          {variantSummary}
+                        </span>
                       </div>
                     </td>
 
-                    <td data-label="Size / colour">
-                      <div className="boutique-specification-list">
-                        <span>
-                          <small>Size</small>
-                          <strong>{product.size || "Not recorded"}</strong>
-                        </span>
-                        <span>
-                          <small>Colour</small>
-                          <strong>{product.color || "Not recorded"}</strong>
-                        </span>
-                        <span className="boutique-variant-summary">
-                          <small>Variants</small>
-                          <strong>{variantSummary}</strong>
-                        </span>
-                      </div>
-                    </td>
-
-                    <td data-label="Stock">
-                      <div className="boutique-record-stock">
-                        <small>Total stock: {formatNumber(product.totalStock ?? product.stock ?? 0, 0)}</small>
-                        <small>Quantity sold: {formatNumber(product.quantitySold ?? 0, 0)}</small>
-                        <strong className={lowStock ? "danger-text" : ""}>
-                          Available stock: {formatNumber(availableStock, 0)}
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex items-center gap-1.5">
+                        <strong className={`whitespace-nowrap text-[13.5px] font-bold ${lowStock ? "text-amber-800" : "text-slate-950"}`}>
+                          {formatNumber(availableStock, 0)} units
                         </strong>
-                        <small>Alert at {formatNumber(product.lowStockLevel || 0, 0)}</small>
+                        {lowStock ? (
+                          <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[9.5px] font-bold leading-none text-amber-800 ring-1 ring-inset ring-amber-200">
+                            Low
+                          </span>
+                        ) : null}
                       </div>
+                      <small className="mt-0.5 block text-[10.5px] font-medium leading-4 text-slate-600">
+                        <span className="block whitespace-nowrap">
+                          Total {formatNumber(product.totalStock ?? product.stock ?? 0, 0)}
+                          {" · "}Sold {formatNumber(product.quantitySold ?? 0, 0)}
+                        </span>
+                        <span className="block whitespace-nowrap text-slate-500">
+                          Alert {formatNumber(product.lowStockLevel || 0, 0)}
+                        </span>
+                      </small>
                     </td>
 
-                    <td data-label="Pricing">
-                      <div className="boutique-record-pricing">
-                        <strong>{formatCurrency(product.sellingPrice)}</strong>
-                        <span>Selling price</span>
-                        <small>Cost: {formatCurrency(product.costPrice)}</small>
-                      </div>
+                    <td className="px-3 py-2 align-middle">
+                      <strong className="block whitespace-nowrap text-[13.5px] font-bold text-slate-950">
+                        {formatCurrency(product.sellingPrice)}
+                      </strong>
                     </td>
 
-                    <td data-label="Status">
-                      <Badge
-                        tone={
-                          product.status === "active"
-                            ? lowStock
-                              ? "warning"
-                              : "success"
-                            : "neutral"
-                        }
-                      >
-                        {product.status === "active"
-                          ? lowStock
-                            ? "Low stock"
-                            : "Available"
-                          : "Inactive"}
-                      </Badge>
+                    <td className="px-3 py-2 align-middle">
+                      <strong className="block whitespace-nowrap text-[12.5px] font-semibold text-slate-800">
+                        {formatCurrency(product.costPrice)}
+                      </strong>
                     </td>
 
-                    <td data-label="Actions">
-                      <div className="stockflow-inventory-actions stockflow-icon-actions boutique-record-actions">
+                    <td className="px-3 py-2 align-middle">
+                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-bold ring-1 ring-inset ${statusClassName}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusDotClassName}`} aria-hidden="true" />
+                        {statusLabel}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
-                          className="stockflow-icon-action"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Edit ${product.name}`}
                           title="Edit product"
                           onClick={() => openEditProductModal(product)}
                         >
-                          <Pencil size={16} aria-hidden="true" />
+                          <Pencil size={14} aria-hidden="true" />
                         </button>
 
                         <button
                           type="button"
-                          className="stockflow-icon-action"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Adjust stock for ${product.name}`}
                           title="Adjust stock"
                           onClick={() => setStockProduct(product)}
                           disabled={product.status !== "active"}
                         >
-                          <StockActionIcon size={16} aria-hidden="true" />
+                          <StockActionIcon size={14} aria-hidden="true" />
                         </button>
 
                         <button
                           type="button"
-                          className="stockflow-icon-action stockflow-icon-action-secondary boutique-record-secondary-action"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={
                             statusProductId === product.id
                               ? `Updating ${product.name}`
@@ -569,20 +606,20 @@ export default function BoutiquePage() {
                           onClick={() => changeProductStatus(product)}
                           disabled={Boolean(statusProductId)}
                         >
-                          <Power size={16} aria-hidden="true" />
+                          <Power size={14} aria-hidden="true" />
                         </button>
 
                         <button
                           type="button"
-                          className="stockflow-icon-action stockflow-icon-action-danger boutique-record-delete-action"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                           aria-label={`Delete ${product.name}`}
-                          title="Delete product"
+                          title="Archive product"
                           onClick={() => {
                             setDeleteError("");
                             setDeleteProductTarget(product);
                           }}
                         >
-                          <Trash2 size={16} aria-hidden="true" />
+                          <Trash2 size={14} aria-hidden="true" />
                         </button>
                       </div>
                     </td>
@@ -592,9 +629,13 @@ export default function BoutiquePage() {
 
               {!filteredProducts.length ? (
                 <tr>
-                  <td className="boutique-records-empty" colSpan="7">
-                    <strong>No boutique records found.</strong>
-                    <span>Change the filters or add a new boutique record.</span>
+                  <td className="px-6 py-12 text-center" colSpan="8">
+                    <strong className="block text-sm font-semibold text-slate-900">
+                      No boutique records found.
+                    </strong>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Change the filters or add a new boutique record.
+                    </span>
                   </td>
                 </tr>
               ) : null}

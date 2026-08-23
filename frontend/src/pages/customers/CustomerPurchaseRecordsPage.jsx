@@ -388,8 +388,8 @@ export default function CustomerPurchaseRecordsPage() {
           </select>
         </div>
 
-        <StickyTableScroll>
-<table className="data-table stockflow-premium-table purchase-records-table">
+        <StickyTableScroll className="stockflow-record-table-wrapper">
+<table className="data-table stockflow-premium-table stockflow-record-table purchase-records-table">
             <thead>
               <tr>
                 <th>Purchase</th>
@@ -399,7 +399,7 @@ export default function CustomerPurchaseRecordsPage() {
                 <th>Receipt</th>
                 <th>Waybill</th>
                 <th>Total</th>
-                <th>Total payable</th>
+                <th><span className="stockflow-record-heading"><span>Total</span><span>payable</span></span></th>
                 <th>Actions</th>
               </tr>
             </thead>
