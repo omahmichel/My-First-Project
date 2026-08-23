@@ -19,6 +19,7 @@ export default function AppLayout() {
   const { business } = useStore();
   const location = useLocation();
   const subscriptionPath = "/app/subscription";
+  const isBoutiqueBusiness = business.type === "boutique";
 
   // Keeps expired workspaces inside the subscription renewal area.
   if (
@@ -36,7 +37,9 @@ export default function AppLayout() {
     location.pathname !== subscriptionPath;
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${isBoutiqueBusiness ? "stockflow-boutique-app" : ""}`}
+    >
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

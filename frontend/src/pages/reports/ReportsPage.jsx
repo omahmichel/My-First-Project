@@ -1,8 +1,12 @@
 import {
   BarChart3,
   CalendarDays,
+  ChevronDown,
   Download,
+  FileSpreadsheet,
+  FileText,
   PieChart,
+  Table2,
   TrendingUp,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -12,7 +16,11 @@ import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 import { useStore } from "../../context/StoreContext";
 import { formatCurrency } from "../../utils/formatters";
-import { exportBusinessReportCsv } from "../../utils/reportExport";
+import {
+  exportBusinessReportCsv,
+  exportBusinessReportExcel,
+  exportBusinessReportPdf,
+} from "../../utils/reportExport";
 
 import "../../styles/invoice-document-actions.css";
 
@@ -40,6 +48,7 @@ export default function ReportsPage() {
   const [range, setRange] = useState("30");
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
+  const [exportingFormat, setExportingFormat] = useState("");
 
   const report = useMemo(() => {
     const days = Number(range);
@@ -180,22 +189,36 @@ export default function ReportsPage() {
   const loadError =
     salesError || inventoryError || customersError || "";
 
-  function handleExportReport() {
+  async function handleExportReport(format, event) {
+    event?.currentTarget?.closest("details")?.removeAttribute("open");
     setActionMessage("");
     setActionError("");
+    setExportingFormat(format);
+
+    const payload = {
+      business,
+      rangeLabel: RANGE_LABELS[range] || "Selected period",
+      report,
+    };
 
     try {
-      const filename = exportBusinessReportCsv({
-        business,
-        rangeLabel: RANGE_LABELS[range] || "Selected period",
-        report,
-      });
+      let filename = "";
+
+      if (format === "pdf") {
+        filename = exportBusinessReportPdf(payload);
+      } else if (format === "excel") {
+        filename = await exportBusinessReportExcel(payload);
+      } else {
+        filename = exportBusinessReportCsv(payload);
+      }
 
       setActionMessage(`${filename} downloaded successfully.`);
     } catch (error) {
       setActionError(
         error.message || "The business report could not be exported.",
       );
+    } finally {
+      setExportingFormat("");
     }
   }
 
@@ -218,14 +241,78 @@ export default function ReportsPage() {
               <option value="365">Last 12 months</option>
             </select>
 
-            <Button
-              variant="secondary"
-              onClick={handleExportReport}
-              disabled={isLoading}
-            >
-              <Download size={18} />
-              Export report
-            </Button>
+            <details className="relative">
+              <summary
+                className={`inline-flex min-h-10 cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden ${
+                  isLoading || exportingFormat
+                    ? "pointer-events-none opacity-50"
+                    : ""
+                }`}
+                aria-disabled={isLoading || Boolean(exportingFormat)}
+                onClick={(event) => {
+                  if (isLoading || exportingFormat) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                <Download size={18} />
+                {exportingFormat ? "Exporting..." : "Export report"}
+                <ChevronDown size={15} />
+              </summary>
+
+              <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-emerald-50"
+                  onClick={(event) => handleExportReport("pdf", event)}
+                >
+                  <FileText className="mt-0.5 text-emerald-700" size={17} />
+                  <span>
+                    <strong className="block text-xs text-slate-900">
+                      PDF report
+                    </strong>
+                    <small className="mt-0.5 block text-[10px] text-slate-500">
+                      Branded summary and clean report tables
+                    </small>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-emerald-50"
+                  onClick={(event) => handleExportReport("excel", event)}
+                >
+                  <FileSpreadsheet
+                    className="mt-0.5 text-emerald-700"
+                    size={17}
+                  />
+                  <span>
+                    <strong className="block text-xs text-slate-900">
+                      Excel workbook
+                    </strong>
+                    <small className="mt-0.5 block text-[10px] text-slate-500">
+                      Summary, payments, products and sales sheets
+                    </small>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-emerald-50"
+                  onClick={(event) => handleExportReport("csv", event)}
+                >
+                  <Table2 className="mt-0.5 text-slate-500" size={17} />
+                  <span>
+                    <strong className="block text-xs text-slate-900">
+                      CSV data
+                    </strong>
+                    <small className="mt-0.5 block text-[10px] text-slate-500">
+                      Simple portable report data
+                    </small>
+                  </span>
+                </button>
+              </div>
+            </details>
           </>
         }
       />

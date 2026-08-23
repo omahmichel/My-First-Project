@@ -21,7 +21,9 @@ function formatPdfCurrency(value) {
     maximumFractionDigits: 2,
   });
 
-  return `₵${formattedAmount}`;
+  // jsPDF's built-in Helvetica font does not reliably render the Ghana cedi symbol.
+  // Use the ISO currency code in generated PDFs so amounts remain readable everywhere.
+  return `GHS ${formattedAmount}`;
 }
 
 export function formatPaymentMethod(value) {
@@ -90,8 +92,8 @@ export function exportInvoiceList(invoices, business) {
     "Item types",
     "Subtotal",
     "Discount",
-    "Principal paid",
-    "Principal balance",
+    "Amount paid",
+    "Balance due",
     "Overdue charge",
     "Total payable",
     "Sale total",
@@ -358,8 +360,11 @@ export function createInvoicePdf(invoice, business) {
   drawTotal("Discount", displayDiscount);
   drawTotal("Sale total", displaySaleTotal, { prominent: true });
   drawTotal("Amount paid", displayAmountPaid);
-  drawTotal("Outstanding balance", displayOutstandingBalance);
-  drawTotal("Overdue charge", displayOverdueCharge);
+  drawTotal("Balance due", displayOutstandingBalance);
+
+  if (displayOverdueCharge > 0) {
+    drawTotal("Overdue charge", displayOverdueCharge);
+  }
 
   if (totalPayable > 0) {
     pdf.setFillColor(255, 241, 237);
@@ -1148,9 +1153,9 @@ function createCustomerStatementPdf(
       formatPdfCurrency(item.unitPrice),
       formatPdfCurrency(item.total),
       itemIndex === 0
-        ? `Principal paid: ${formatPdfCurrency(
+        ? `Amount paid: ${formatPdfCurrency(
             sale.amountPaid,
-          )}\nOutstanding balance: ${formatPdfCurrency(
+          )}\nBalance due: ${formatPdfCurrency(
             sale.outstandingBalance,
           )}\nOverdue charge: ${formatPdfCurrency(
             sale.overdueCharge ?? 0,
@@ -1176,7 +1181,7 @@ function createCustomerStatementPdf(
     foot: [[
       { content: "", colSpan: 2 },
       {
-        content: "Total Principal Paid",
+        content: "Total Amount Paid",
         styles: {
           fontStyle: "bold",
           halign: "left",

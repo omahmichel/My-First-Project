@@ -5,3 +5,195 @@
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+
+/* STOCKFLOW BOUTIQUE SHARED TAILWIND SCOPE V3
+   Boutique-only shared visual layer.
+   Building-material businesses are intentionally untouched.
+   BoutiquePage.jsx already contains its own Tailwind table utilities, so this
+   layer focuses on the shared pages and common StockFlow surfaces. */
+
+.stockflow-boutique-app .app-content {
+  @apply bg-emerald-50/55;
+}
+
+.stockflow-boutique-app .page-stack:not(.boutique-records-page) {
+  @apply min-w-0;
+}
+
+/* Shared page surfaces */
+.stockflow-boutique-app .panel-card,
+.stockflow-boutique-app .mini-stat-card,
+.stockflow-boutique-app .stat-card,
+.stockflow-boutique-app .customer-card,
+.stockflow-boutique-app .team-card,
+.stockflow-boutique-app .subscription-detail-card,
+.stockflow-boutique-app .subscription-action-card,
+.stockflow-boutique-app .sale-cart-panel {
+  @apply border-slate-200 bg-white shadow-sm;
+}
+
+.stockflow-boutique-app .panel-card,
+.stockflow-boutique-app .customer-card,
+.stockflow-boutique-app .team-card,
+.stockflow-boutique-app .sale-cart-panel {
+  @apply rounded-2xl;
+}
+
+.stockflow-boutique-app .mini-stat-card,
+.stockflow-boutique-app .stat-card,
+.stockflow-boutique-app .subscription-detail-card,
+.stockflow-boutique-app .subscription-action-card {
+  @apply rounded-xl;
+}
+
+.stockflow-boutique-app .panel-card-header {
+  @apply border-slate-200;
+}
+
+.stockflow-boutique-app .panel-card-header h2,
+.stockflow-boutique-app .panel-card-header h3,
+.stockflow-boutique-app .panel-card-header strong,
+.stockflow-boutique-app .customer-card strong,
+.stockflow-boutique-app .team-card strong {
+  @apply text-slate-900;
+}
+
+.stockflow-boutique-app .muted-message,
+.stockflow-boutique-app .result-count {
+  @apply text-slate-500;
+}
+
+/* Shared toolbar/search language. Existing dimensions and overflow stay intact. */
+.stockflow-boutique-app .table-toolbar,
+.stockflow-boutique-app .purchase-records-toolbar,
+.stockflow-boutique-app .sale-product-toolbar {
+  @apply border-slate-200 bg-white;
+}
+
+.stockflow-boutique-app .table-search input,
+.stockflow-boutique-app .table-toolbar select,
+.stockflow-boutique-app .purchase-records-toolbar select,
+.stockflow-boutique-app .sale-product-toolbar select,
+.stockflow-boutique-app .header-select {
+  @apply border-slate-200 bg-white text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100;
+}
+
+/* Appearance only: no table width, overflow, sticky, display or scrollbar rules. */
+.stockflow-boutique-app .data-table thead {
+  @apply bg-slate-50;
+}
+
+.stockflow-boutique-app .data-table th {
+  @apply border-slate-200 font-bold text-slate-600;
+}
+
+.stockflow-boutique-app .data-table td {
+  @apply border-slate-200 text-slate-700;
+}
+
+.stockflow-boutique-app .data-table tbody tr:hover {
+  @apply bg-emerald-50/45;
+}
+
+/* Shared StockFlow buttons inside Boutique workspaces. */
+.stockflow-boutique-app .app-button {
+  @apply rounded-xl font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2;
+}
+
+.stockflow-boutique-app .app-button-primary {
+  @apply border-emerald-700 bg-emerald-700 text-white shadow-sm hover:border-emerald-800 hover:bg-emerald-800;
+}
+
+.stockflow-boutique-app .app-button-secondary {
+  @apply border-slate-200 bg-white text-slate-700 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800;
+}
+
+.stockflow-boutique-app .app-button-danger {
+  @apply border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100;
+}
+
+/* Dashboard and reports */
+.stockflow-boutique-app .dashboard-alert-card,
+.stockflow-boutique-app .permission-callout,
+.stockflow-boutique-app .report-summary-card,
+.stockflow-boutique-app .report-insight-card {
+  @apply border-slate-200 shadow-sm;
+}
+
+.stockflow-boutique-app .quick-action-list a,
+.stockflow-boutique-app .quick-action-list button {
+  @apply transition hover:border-emerald-200 hover:bg-emerald-50;
+}
+
+/* Boutique New Sale shared route */
+.stockflow-boutique-app .sale-product-panel,
+.stockflow-boutique-app .sale-cart-panel {
+  @apply border-slate-200 bg-white shadow-sm;
+}
+
+.stockflow-boutique-app .sale-product-category-heading,
+.stockflow-boutique-app .sale-product-variant-heading,
+.stockflow-boutique-app .sale-cart-heading {
+  @apply text-slate-800;
+}
+
+.stockflow-boutique-app .pos-product-card {
+  @apply border-slate-200 bg-white shadow-sm transition hover:border-emerald-200 hover:shadow-md;
+}
+
+/* Customers and team */
+.stockflow-boutique-app .customer-avatar {
+  @apply bg-emerald-50 text-emerald-700;
+}
+
+.stockflow-boutique-app .customer-card-actions button,
+.stockflow-boutique-app .team-card-footer button {
+  @apply transition;
+}
+
+/* Settings */
+.stockflow-boutique-app .settings-navigation,
+.stockflow-boutique-app .settings-section,
+.stockflow-boutique-app .settings-vat-card,
+.stockflow-boutique-app .payment-account-card,
+.stockflow-boutique-app .payment-account-editor {
+  @apply border-slate-200 bg-white shadow-sm;
+}
+
+/* Subscription */
+.stockflow-boutique-app .subscription-page {
+  @apply text-slate-800;
+}
+
+.stockflow-boutique-app .subscription-pay-button {
+  @apply rounded-xl bg-emerald-700 font-semibold text-white shadow-sm transition hover:bg-emerald-800;
+}
+
+/* Invoice browser page only. Generated PDFs remain unchanged in this phase. */
+.stockflow-boutique-app .invoice-card-list > article {
+  @apply border-slate-200 bg-white;
+}
+
+.stockflow-boutique-app .invoice-list-icon {
+  @apply bg-emerald-50 text-emerald-700;
+}
+
+.stockflow-boutique-app .invoice-document {
+  @apply border-slate-200 bg-white shadow-sm;
+}
+
+/* Pagination appearance only; layout/alignment rules remain page-owned. */
+.stockflow-boutique-app .sales-history-pagination button,
+.stockflow-boutique-app .invoices-pagination button,
+.stockflow-boutique-app .customers-pagination button,
+.stockflow-boutique-app .purchase-records-pagination button,
+.stockflow-boutique-app .team-pagination button {
+  @apply border-slate-200 bg-white text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-45;
+}
+
+@media print {
+  .stockflow-boutique-app .app-content {
+    background: #ffffff !important;
+  }
+}

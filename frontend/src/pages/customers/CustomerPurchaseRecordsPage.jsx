@@ -726,11 +726,11 @@ export default function CustomerPurchaseRecordsPage() {
                 <strong>{formatCurrency(selectedSale.total)}</strong>
               </div>
               <div>
-                <span>Principal paid</span>
+                <span>Amount paid</span>
                 <strong>{formatCurrency(selectedSale.amountPaid)}</strong>
               </div>
               <div>
-                <span>Principal balance</span>
+                <span>Balance due</span>
                 <strong>
                   {formatCurrency(selectedSale.outstandingBalance)}
                 </strong>

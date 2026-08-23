@@ -415,12 +415,12 @@ export default function InvoicesPage() {
               </div>
 
               <div>
-                <span>Principal paid</span>
+                <span>Amount paid</span>
                 <strong>{formatCurrency(selectedInvoice.amountPaid)}</strong>
               </div>
 
               <div>
-                <span>Principal balance</span>
+                <span>Balance due</span>
                 <strong>
                   {formatCurrency(selectedInvoice.outstandingBalance)}
                 </strong>
