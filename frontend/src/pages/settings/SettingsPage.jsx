@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import DealerItemsSelector from "../../components/business/DealerItemsSelector";
 import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
@@ -46,6 +47,9 @@ function formFromBusiness(business) {
     id: business?.id || "",
     name: business?.name || "",
     type: business?.type || "building_materials",
+    dealsIn: Array.isArray(business?.dealsIn)
+      ? business.dealsIn
+      : [],
     phone: business?.phone || "",
     email: business?.email || "",
     location: business?.location || "",
@@ -428,6 +432,17 @@ export default function SettingsPage() {
                 />
               </label>
             </div>
+
+            <DealerItemsSelector
+              businessType={form.type}
+              value={form.dealsIn}
+              onChange={(dealsIn) => {
+                setForm((current) => ({ ...current, dealsIn }));
+                setSaved(false);
+                setSaveError("");
+              }}
+              compact
+            />
           </section>
 
           <section

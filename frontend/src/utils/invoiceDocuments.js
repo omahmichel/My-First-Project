@@ -32,6 +32,30 @@ export function formatPaymentMethod(value) {
     .replace(/\\b\\w/g, (letter) => letter.toUpperCase());
 }
 
+
+function businessDealsInText(business) {
+  const items = Array.isArray(business?.dealsIn)
+    ? business.dealsIn
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+    : [];
+
+  return items.length ? `Deals in: ${items.join(", ")}` : "";
+}
+
+function drawBusinessDealsIn(
+  pdf,
+  business,
+  { x, y, maxWidth, fontSize = 6.5 },
+) {
+  const text = businessDealsInText(business);
+  if (!text) return;
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(fontSize);
+  pdf.text(pdf.splitTextToSize(text, maxWidth), x, y);
+}
+
 function formatDocumentDate(value) {
   const date = value ? new Date(value) : new Date();
 
@@ -172,6 +196,13 @@ export function createInvoicePdf(invoice, business) {
     margin,
     62,
   );
+
+  drawBusinessDealsIn(pdf, business, {
+    x: margin,
+    y: 88,
+    maxWidth: pageWidth - margin * 2,
+    fontSize: 6.7,
+  });
 
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(11);
@@ -565,6 +596,13 @@ export function createReceiptPdf(receipt, sale, business) {
     { align: "right" },
   );
 
+  drawBusinessDealsIn(pdf, business, {
+    x: margin,
+    y: 78,
+    maxWidth: pageWidth - margin * 2,
+    fontSize: 6.1,
+  });
+
   pdf.setTextColor(35, 53, 44);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
@@ -745,6 +783,13 @@ export function createWaybillPdf(sale, business) {
     margin,
     62,
   );
+
+  drawBusinessDealsIn(pdf, business, {
+    x: margin,
+    y: 88,
+    maxWidth: pageWidth - margin * 2,
+    fontSize: 6.7,
+  });
 
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(11);

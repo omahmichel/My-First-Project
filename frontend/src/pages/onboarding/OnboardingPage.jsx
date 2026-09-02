@@ -10,6 +10,7 @@ import {
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
+import DealerItemsSelector from "../../components/business/DealerItemsSelector";
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
@@ -25,6 +26,7 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     type: "building_materials",
+    dealsIn: [],
     name: pendingRegistration?.businessName ?? "",
     ownerName: pendingRegistration?.name ?? user?.name ?? "",
     email: pendingRegistration?.email ?? user?.email ?? "",
@@ -51,7 +53,22 @@ export default function OnboardingPage() {
     }));
   }
 
+  function selectBusinessType(type) {
+    setForm((current) => ({
+      ...current,
+      type,
+      dealsIn: current.type === type ? current.dealsIn : [],
+    }));
+    setError("");
+  }
+
   async function finishSetup() {
+    if (!form.dealsIn.length) {
+      setError("Select at least one item your business deals in.");
+      setStep(2);
+      return;
+    }
+
     if (!form.name.trim()) {
       setError("Enter the business name before finishing setup.");
       setStep(2);
@@ -82,6 +99,7 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           name: form.name.trim(),
           business_type: form.type,
+          dealsIn: form.dealsIn,
           phone: form.phone.trim(),
           email: form.email.trim(),
           location,
@@ -151,12 +169,7 @@ export default function OnboardingPage() {
                     ? "business-choice-active"
                     : ""
                 }
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    type: "building_materials",
-                  }))
-                }
+                onClick={() => selectBusinessType("building_materials")}
               >
                 <Layers3 size={30} />
                 <strong>Building materials shop</strong>
@@ -173,9 +186,7 @@ export default function OnboardingPage() {
                 className={
                   form.type === "boutique" ? "business-choice-active" : ""
                 }
-                onClick={() =>
-                  setForm((current) => ({ ...current, type: "boutique" }))
-                }
+                onClick={() => selectBusinessType("boutique")}
               >
                 <Shirt size={30} />
                 <strong>Boutique or fashion store</strong>
@@ -262,6 +273,14 @@ export default function OnboardingPage() {
                 />
               </label>
             </div>
+
+            <DealerItemsSelector
+              businessType={form.type}
+              value={form.dealsIn}
+              onChange={(dealsIn) =>
+                setForm((current) => ({ ...current, dealsIn }))
+              }
+            />
           </>
         ) : null}
 
@@ -328,6 +347,11 @@ export default function OnboardingPage() {
                   <div>
                     <strong>{form.name || "Your business name"}</strong>
                     <span>{form.location || "Business location"}</span>
+                    <span>
+                      {form.dealsIn.length
+                        ? `Deals in: ${form.dealsIn.join(", ")}`
+                        : "Deals in: Select your business items"}
+                    </span>
                   </div>
                   <b>{form.invoicePrefix || "INV"}-00001</b>
                 </header>

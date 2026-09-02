@@ -76,6 +76,15 @@ class BusinessSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True,
     )
+    dealsIn = serializers.ListField(
+        source="deals_in",
+        child=serializers.CharField(
+            max_length=60,
+            trim_whitespace=True,
+        ),
+        required=False,
+        allow_empty=True,
+    )
 
     class Meta:
         model = Business
@@ -87,6 +96,7 @@ class BusinessSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "location",
+            "dealsIn",
             "vatRegistered",
             "vatRegistrationNumber",
             "invoicePrefix",
@@ -163,6 +173,30 @@ class BusinessSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+    def validate_dealsIn(self, value):
+        # Keeps dealer categories concise, unique, and safe for documents.
+        normalized = []
+        seen = set()
+
+        for raw_item in value:
+            item = " ".join(str(raw_item).split()).strip()
+            if not item:
+                continue
+
+            key = item.casefold()
+            if key in seen:
+                continue
+
+            seen.add(key)
+            normalized.append(item)
+
+        if len(normalized) > 10:
+            raise serializers.ValidationError(
+                "Select up to 10 items your business deals in."
+            )
+
+        return normalized
 
     def validate_vatRegistrationNumber(self, value):
         # Stores the VAT registration number without extra spaces.

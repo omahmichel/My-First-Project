@@ -19,6 +19,7 @@ const EMPTY_BUSINESS = Object.freeze({
   name: "",
   slug: "",
   type: "",
+  dealsIn: [],
   phone: "",
   email: "",
   location: "",
@@ -53,6 +54,7 @@ function normalizeBusiness(record) {
     slug: record.slug,
     type: record.business_type,
     businessType: record.business_type,
+    dealsIn: Array.isArray(record.dealsIn) ? record.dealsIn : [],
     phone: record.phone ?? "",
     email: record.email ?? "",
     location: record.location ?? "",
@@ -1014,6 +1016,9 @@ export function StoreProvider({ children }) {
           phone: String(changes.phone ?? "").trim(),
           email: String(changes.email ?? "").trim(),
           location: String(changes.location ?? "").trim(),
+          dealsIn: Array.isArray(changes.dealsIn ?? business.dealsIn)
+            ? (changes.dealsIn ?? business.dealsIn)
+            : [],
           invoicePrefix: String(
             changes.invoicePrefix ??
               business.invoicePrefix ??

@@ -68,6 +68,9 @@ class Business(models.Model):
     email = models.EmailField(blank=True)
     location = models.CharField(max_length=255, blank=True)
 
+    # Stores the product/material categories this dealer says they trade in.
+    deals_in = models.JSONField(default=list, blank=True)
+
     # Stores optional VAT registration details per business workspace.
     vat_registered = models.BooleanField(default=False)
     vat_registration_number = models.CharField(
