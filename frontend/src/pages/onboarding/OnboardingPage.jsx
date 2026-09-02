@@ -1,13 +1,17 @@
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Building2,
   Check,
   Layers3,
   MapPin,
+  ShieldCheck,
   Shirt,
+  Smartphone,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import DealerItemsSelector from "../../components/business/DealerItemsSelector";
@@ -24,6 +28,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [createdBusinessId, setCreatedBusinessId] = useState("");
+  const [createdPaymentAccountId, setCreatedPaymentAccountId] = useState("");
   const [form, setForm] = useState({
     type: "building_materials",
     dealsIn: [],
@@ -33,12 +39,26 @@ export default function OnboardingPage() {
     phone: "",
     location: "",
     digitalAddress: "",
+    momoNetwork: "",
+    momoAccountName: pendingRegistration?.name ?? user?.name ?? "",
+    momoNumber: "",
+    momoNumberConfirm: "",
     invoicePrefix: "INV",
     receiptPrefix: "RCT",
     vatRegistered: false,
     vatRegistrationNumber: "",
   });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!error) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setError("");
+    }, 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [error]);
 
   if (!pendingRegistration && !user) {
     return <Navigate to="/register" replace />;
@@ -75,6 +95,33 @@ export default function OnboardingPage() {
       return;
     }
 
+    if (!form.momoNetwork) {
+      setError("Select the Mobile Money network that will receive payouts.");
+      setStep(3);
+      return;
+    }
+
+    if (!form.momoAccountName.trim()) {
+      setError("Enter the name registered on the Mobile Money account.");
+      setStep(3);
+      return;
+    }
+
+    const momoNumber = form.momoNumber.replace(/\s+/g, "");
+    const momoNumberConfirm = form.momoNumberConfirm.replace(/\s+/g, "");
+
+    if (!momoNumber) {
+      setError("Enter the registered Mobile Money number.");
+      setStep(3);
+      return;
+    }
+
+    if (momoNumber !== momoNumberConfirm) {
+      setError("The Mobile Money numbers do not match.");
+      setStep(3);
+      return;
+    }
+
     if (
       form.vatRegistered &&
       !form.vatRegistrationNumber.trim()
@@ -82,7 +129,7 @@ export default function OnboardingPage() {
       setError(
         "Enter the VAT registration number before enabling VAT.",
       );
-      setStep(3);
+      setStep(4);
       return;
     }
 
@@ -94,30 +141,90 @@ export default function OnboardingPage() {
         .filter(Boolean)
         .join(" | ");
 
-      const createdBusiness = await apiRequest("/businesses/", {
-        method: "POST",
-        body: JSON.stringify({
-          name: form.name.trim(),
-          business_type: form.type,
-          dealsIn: form.dealsIn,
-          phone: form.phone.trim(),
-          email: form.email.trim(),
-          location,
-          invoicePrefix: form.invoicePrefix.trim().toUpperCase() || "INV",
-          receiptPrefix: form.receiptPrefix.trim().toUpperCase() || "RCT",
-          vatRegistered: Boolean(form.vatRegistered),
-          vatRegistrationNumber:
-            form.vatRegistrationNumber.trim(),
-        }),
-      });
+      let businessId = createdBusinessId;
 
-      await loadBusinesses(createdBusiness.id);
+      if (!businessId) {
+        const createdBusiness = await apiRequest("/businesses/", {
+          method: "POST",
+          body: JSON.stringify({
+            name: form.name.trim(),
+            business_type: form.type,
+            dealsIn: form.dealsIn,
+            phone: form.phone.trim(),
+            email: form.email.trim(),
+            location,
+            invoicePrefix: form.invoicePrefix.trim().toUpperCase() || "INV",
+            receiptPrefix: form.receiptPrefix.trim().toUpperCase() || "RCT",
+            vatRegistered: Boolean(form.vatRegistered),
+            vatRegistrationNumber:
+              form.vatRegistrationNumber.trim(),
+          }),
+        });
+
+        businessId = createdBusiness.id;
+        setCreatedBusinessId(businessId);
+      }
+
+      const receivingAccountPayload = {
+        accountType: "mobile_money",
+        displayName: "Primary Mobile Money",
+        bankName: "",
+        accountName: form.momoAccountName.trim(),
+        network: form.momoNetwork,
+        accountNumber: momoNumber,
+        isActive: true,
+        isDefault: true,
+      };
+
+      let receivingAccount;
+
+      if (createdPaymentAccountId) {
+        receivingAccount = await apiRequest(
+          `/businesses/${businessId}/payment-accounts/${createdPaymentAccountId}/`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(receivingAccountPayload),
+          },
+        );
+      } else {
+        receivingAccount = await apiRequest(
+          `/businesses/${businessId}/payment-accounts/`,
+          {
+            method: "POST",
+            body: JSON.stringify(receivingAccountPayload),
+          },
+        );
+
+        if (receivingAccount?.id) {
+          setCreatedPaymentAccountId(receivingAccount.id);
+        }
+      }
+
+      if (!receivingAccount?.payoutReady && receivingAccount?.id) {
+        receivingAccount = await apiRequest(
+          `/businesses/${businessId}/payment-accounts/${receivingAccount.id}/payout-recipient/sync/`,
+          {
+            method: "POST",
+          },
+        );
+      }
+
+      if (!receivingAccount?.payoutReady) {
+        throw new Error(
+          "Your Mobile Money receiving account was saved, but Paystack could not connect it for payouts. Please try again.",
+        );
+      }
+
+      await loadBusinesses(businessId);
       completeOnboarding();
 
       // Returns to the account-level business home after every workspace setup.
       navigate("/businesses", { replace: true });
     } catch (setupError) {
-      setError(setupError.message);
+      setError(
+        setupError.message ||
+          "StockFlow could not finish the business setup.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -130,7 +237,7 @@ export default function OnboardingPage() {
           <span>S</span>Stock<strong>Flow</strong>
         </div>
         <div className="onboarding-progress">
-          {[1, 2, 3].map((number) => (
+          {[1, 2, 3, 4].map((number) => (
             <div
               className={step >= number ? "onboarding-step-active" : ""}
               key={number}
@@ -141,20 +248,44 @@ export default function OnboardingPage() {
                   ? "Business type"
                   : number === 2
                     ? "Business details"
-                    : "Invoice setup"}
+                    : number === 3
+                      ? "Receiving account"
+                      : "Invoice setup"}
               </strong>
             </div>
           ))}
         </div>
       </header>
 
-      <section className="onboarding-card">
-        {error ? <div className="form-alert form-alert-error">{error}</div> : null}
+      {error ? (
+        <div
+          className="onboarding-toast onboarding-toast-error"
+          role="alert"
+          aria-live="assertive"
+        >
+          <span className="onboarding-toast-icon">
+            <AlertCircle size={20} />
+          </span>
+          <div className="onboarding-toast-copy">
+            <strong>Unable to continue</strong>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            className="onboarding-toast-close"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      ) : null}
 
+      <section className="onboarding-card">
         {step === 1 ? (
           <>
             <div className="onboarding-heading">
-              <span>Step 1 of 3</span>
+              <span>Step 1 of 4</span>
               <h1>What kind of business are you setting up?</h1>
               <p>
                 This controls the specialist product fields shown in your
@@ -204,7 +335,7 @@ export default function OnboardingPage() {
         {step === 2 ? (
           <>
             <div className="onboarding-heading">
-              <span>Step 2 of 3</span>
+              <span>Step 2 of 4</span>
               <h1>Tell us about the business.</h1>
               <p>
                 This information will appear across the workspace and sales
@@ -287,7 +418,102 @@ export default function OnboardingPage() {
         {step === 3 ? (
           <>
             <div className="onboarding-heading">
-              <span>Step 3 of 3</span>
+              <span>Step 3 of 4</span>
+              <h1>Where should StockFlow send your money?</h1>
+              <p>
+                Add the registered Mobile Money account that will receive
+                verified customer payments through Paystack.
+              </p>
+            </div>
+
+            <div className="onboarding-payout-card">
+              <div className="onboarding-payout-title">
+                <span className="onboarding-payout-icon">
+                  <Smartphone size={22} />
+                </span>
+                <div>
+                  <strong>Primary Mobile Money receiving account</strong>
+                  <p>
+                    This account becomes the default payout destination for
+                    this business.
+                  </p>
+                </div>
+              </div>
+
+              <div className="onboarding-form-grid">
+                <label>
+                  Mobile Money network
+                  <select
+                    name="momoNetwork"
+                    value={form.momoNetwork}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="">Select network</option>
+                    <option value="mtn">MTN Mobile Money</option>
+                    <option value="telecel">Telecel Cash</option>
+                    <option value="airteltigo">ATMoney / AirtelTigo Money</option>
+                  </select>
+                </label>
+
+                <label>
+                  Registered account name
+                  <input
+                    name="momoAccountName"
+                    value={form.momoAccountName}
+                    onChange={handleChange}
+                    placeholder="Name registered on the wallet"
+                    maxLength={150}
+                    autoComplete="name"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Registered Mobile Money number
+                  <input
+                    name="momoNumber"
+                    value={form.momoNumber}
+                    onChange={handleChange}
+                    placeholder="e.g. 0241234567"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    maxLength={20}
+                    required
+                  />
+                </label>
+
+                <label>
+                  Confirm Mobile Money number
+                  <input
+                    name="momoNumberConfirm"
+                    value={form.momoNumberConfirm}
+                    onChange={handleChange}
+                    placeholder="Enter the number again"
+                    inputMode="tel"
+                    autoComplete="off"
+                    maxLength={20}
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className="onboarding-payout-security">
+                <ShieldCheck size={19} />
+                <p>
+                  The full wallet number is encrypted in StockFlow. Paystack
+                  receives it only when StockFlow connects your payout
+                  destination.
+                </p>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {step === 4 ? (
+          <>
+            <div className="onboarding-heading">
+              <span>Step 4 of 4</span>
               <h1>Prepare your invoice identity.</h1>
               <p>You can edit these values later from Settings.</p>
             </div>
@@ -377,7 +603,7 @@ export default function OnboardingPage() {
           >
             <ArrowLeft size={18} /> Back
           </Button>
-          {step < 3 ? (
+          {step < 4 ? (
             <Button
               onClick={() => setStep((current) => current + 1)}
               disabled={submitting}
