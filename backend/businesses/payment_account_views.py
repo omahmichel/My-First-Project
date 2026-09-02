@@ -72,6 +72,17 @@ class BusinessPaymentAccountListCreateAPIView(
             updated_by=request.user,
         )
 
+        if (
+            account.account_type
+            == BusinessPaymentAccount.AccountType.MOBILE_MONEY
+            and account.is_active
+        ):
+            from .payout_recipient_service import (
+                sync_mobile_money_payout_recipient_best_effort,
+            )
+
+            account = sync_mobile_money_payout_recipient_best_effort(account)
+
         return Response(
             BusinessPaymentAccountSerializer(account).data,
             status=status.HTTP_201_CREATED,
@@ -103,6 +114,18 @@ class BusinessPaymentAccountDetailAPIView(
         serializer.is_valid(raise_exception=True)
         account = serializer.save(updated_by=request.user)
 
+        if (
+            account.account_type
+            == BusinessPaymentAccount.AccountType.MOBILE_MONEY
+            and account.is_active
+            and not account.payout_ready
+        ):
+            from .payout_recipient_service import (
+                sync_mobile_money_payout_recipient_best_effort,
+            )
+
+            account = sync_mobile_money_payout_recipient_best_effort(account)
+
         return Response(
             BusinessPaymentAccountSerializer(account).data
         )
@@ -131,3 +154,41 @@ class BusinessPaymentAccountDetailAPIView(
         )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BusinessPaymentAccountPayoutSyncAPIView(
+    BusinessPaymentAccountAccessMixin,
+    APIView,
+):
+    # Explicitly retries Paystack recipient registration for one MoMo wallet.
+
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, business_id, account_id):
+        business, _ = self.get_business_for_manage()
+        account = get_object_or_404(
+            BusinessPaymentAccount,
+            pk=account_id,
+            business=business,
+            is_active=True,
+            account_type=BusinessPaymentAccount.AccountType.MOBILE_MONEY,
+        )
+
+        from .payout_recipient_service import (
+            sync_mobile_money_payout_recipient,
+        )
+        from .paystack_client import PaystackError
+
+        try:
+            account = sync_mobile_money_payout_recipient(account)
+        except PaystackError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                    "code": exc.code,
+                    "account": BusinessPaymentAccountSerializer(account).data,
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(BusinessPaymentAccountSerializer(account).data)

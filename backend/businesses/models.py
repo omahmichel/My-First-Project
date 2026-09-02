@@ -184,6 +184,13 @@ class BusinessPaymentAccount(models.Model):
     encrypted_account_number = models.TextField()
     account_last_four = models.CharField(max_length=4)
 
+    # Paystack recipient identifiers never expose the underlying wallet number.
+    # They are safe server-side handles used for merchant payouts.
+    paystack_recipient_code = models.CharField(max_length=80, blank=True)
+    paystack_recipient_id = models.CharField(max_length=80, blank=True)
+    paystack_recipient_synced_at = models.DateTimeField(blank=True, null=True)
+    paystack_recipient_last_error = models.TextField(blank=True)
+
     is_active = models.BooleanField(default=True)
     is_default = models.BooleanField(default=False)
     created_by = models.ForeignKey(
@@ -221,6 +228,32 @@ class BusinessPaymentAccount(models.Model):
         # Exposes only the final four digits in ordinary API responses.
         return f"••••{self.account_last_four}"
 
+    @property
+    def payout_ready(self):
+        return (
+            self.account_type == self.AccountType.MOBILE_MONEY
+            and self.is_active
+            and bool(self.paystack_recipient_code.strip())
+        )
+
+    @property
+    def payout_status(self):
+        if self.account_type != self.AccountType.MOBILE_MONEY:
+            return "not_applicable"
+        if not self.is_active:
+            return "inactive"
+        if self.paystack_recipient_code.strip():
+            return "connected"
+        if self.paystack_recipient_last_error.strip():
+            return "error"
+        return "pending"
+
+    def clear_paystack_recipient(self):
+        self.paystack_recipient_code = ""
+        self.paystack_recipient_id = ""
+        self.paystack_recipient_synced_at = None
+        self.paystack_recipient_last_error = ""
+
     def set_account_number(self, raw_value):
         # Encrypts the full account or wallet number before persistence.
         from .payment_account_crypto import (
@@ -231,6 +264,8 @@ class BusinessPaymentAccount(models.Model):
         normalized = normalize_sensitive_number(raw_value)
         self.encrypted_account_number = encrypt_sensitive_value(normalized)
         self.account_last_four = normalized[-4:]
+        # A changed destination must never reuse the previous Paystack recipient.
+        self.clear_paystack_recipient()
 
     def get_account_number(self):
         # Decrypts only for narrowly controlled internal operations.

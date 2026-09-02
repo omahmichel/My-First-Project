@@ -208,6 +208,91 @@ class PaystackClient:
 
         return data
 
+    def create_transfer_recipient(
+        self,
+        *,
+        name,
+        account_number,
+        bank_code,
+        currency="GHS",
+        metadata=None,
+    ):
+        # Creates one reusable Ghana Mobile Money beneficiary for payouts.
+        normalized_name = str(name or "").strip()
+        normalized_number = str(account_number or "").strip()
+        normalized_bank_code = str(bank_code or "").strip().upper()
+
+        if not normalized_name:
+            raise ValueError("A registered Mobile Money account name is required.")
+        if not normalized_number:
+            raise ValueError("A registered Mobile Money number is required.")
+        if normalized_bank_code not in {"MTN", "ATL", "VOD"}:
+            raise ValueError("The Mobile Money payout network is not supported in Ghana.")
+
+        payload = {
+            "type": "mobile_money",
+            "name": normalized_name,
+            "account_number": normalized_number,
+            "bank_code": normalized_bank_code,
+            "currency": currency,
+        }
+        if metadata:
+            payload["metadata"] = metadata
+
+        data = self._request("POST", "/transferrecipient", json=payload)
+        if not str(data.get("recipient_code", "")).strip():
+            raise PaystackRequestError(
+                "Paystack returned an incomplete transfer-recipient response.",
+                code="paystack_invalid_response",
+            )
+        return data
+
+    def initiate_transfer(
+        self,
+        *,
+        amount_subunit,
+        recipient_code,
+        reference,
+        reason,
+    ):
+        # Sends one merchant payout from the integration's Paystack balance.
+        if not isinstance(amount_subunit, int) or amount_subunit <= 0:
+            raise ValueError("The payout amount must be a positive integer.")
+        if not str(recipient_code or "").strip():
+            raise ValueError("A Paystack recipient code is required.")
+        if not str(reference or "").strip():
+            raise ValueError("A merchant payout reference is required.")
+
+        data = self._request(
+            "POST",
+            "/transfer",
+            json={
+                "source": "balance",
+                "amount": amount_subunit,
+                "recipient": recipient_code,
+                "reference": reference,
+                "reason": str(reason or "StockFlow merchant payout")[:100],
+            },
+        )
+
+        if str(data.get("reference", "")).strip() != reference:
+            raise PaystackRequestError(
+                "Paystack returned an invalid transfer reference.",
+                code="paystack_invalid_response",
+            )
+        if not str(data.get("status", "")).strip():
+            raise PaystackRequestError(
+                "Paystack returned an incomplete transfer response.",
+                code="paystack_invalid_response",
+            )
+        return data
+
+    def verify_transfer(self, reference):
+        if not reference:
+            raise ValueError("A merchant payout reference is required.")
+        encoded_reference = quote(reference, safe="")
+        return self._request("GET", f"/transfer/verify/{encoded_reference}")
+
     def verify_transaction(self, reference):
         # Encodes the reference safely before using it in the URL path.
         if not reference:

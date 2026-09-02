@@ -227,8 +227,40 @@ class PaystackWebhookAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Paystack sends other account events that are not subscriptions.
-        if event.get("event") != "charge.success":
+        event_name = str(event.get("event", "")).strip()
+
+        # Transfer webhooks belong to the merchant-payout ledger, not subscriptions.
+        if event_name in {
+            "transfer.success",
+            "transfer.failed",
+            "transfer.reversed",
+        }:
+            event_data = event.get("data")
+            if not isinstance(event_data, dict):
+                return Response(
+                    {"detail": "Invalid webhook event data."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from sales.merchant_payout_service import (
+                handle_paystack_transfer_webhook,
+            )
+
+            processed = handle_paystack_transfer_webhook(
+                event_name=event_name,
+                event_data=event_data,
+            )
+            return Response(
+                {
+                    "received": True,
+                    "processed": processed,
+                    "event": event_name,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Paystack sends other account events that are not StockFlow charges.
+        if event_name != "charge.success":
             return Response(
                 {
                     "received": True,

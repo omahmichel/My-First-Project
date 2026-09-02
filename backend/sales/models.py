@@ -1155,3 +1155,81 @@ class DebtPaymentAllocation(models.Model):
             f"charge {self.overdue_charge_paid}, "
             f"principal {self.principal_paid}"
         )
+
+
+class MerchantPayout(models.Model):
+    """Tracks one Paystack transfer from StockFlow to a business owner."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        RETRY = "retry", "Retry"
+        BLOCKED = "blocked", "Blocked"
+        SUCCESSFUL = "successful", "Successful"
+        FAILED = "failed", "Failed"
+        REVERSED = "reversed", "Reversed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.PROTECT,
+        related_name="merchant_payouts",
+    )
+    payment = models.OneToOneField(
+        "Payment",
+        on_delete=models.PROTECT,
+        related_name="merchant_payout",
+    )
+    receiving_account = models.ForeignKey(
+        "businesses.BusinessPaymentAccount",
+        on_delete=models.PROTECT,
+        related_name="merchant_payouts",
+        blank=True,
+        null=True,
+    )
+
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    currency = models.CharField(max_length=3, default="GHS")
+    reference = models.CharField(max_length=50, unique=True)
+    transfer_code = models.CharField(max_length=100, blank=True)
+    provider_status = models.CharField(max_length=40, blank=True)
+
+    recipient_code_snapshot = models.CharField(max_length=80, blank=True)
+    receiving_account_name_snapshot = models.CharField(max_length=150, blank=True)
+    receiving_account_network_snapshot = models.CharField(max_length=40, blank=True)
+    receiving_account_masked_number_snapshot = models.CharField(max_length=32, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    attempt_count = models.PositiveIntegerField(default=0)
+    failure_reason = models.TextField(blank=True)
+    last_attempted_at = models.DateTimeField(blank=True, null=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("created_at",)
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0),
+                name="merchant_payout_amount_above_zero",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("status", "created_at"),
+                name="sales_merch_status_08f718_idx",
+            ),
+            models.Index(
+                fields=("business", "created_at"),
+                name="sales_merch_busines_43c620_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} - {self.amount} {self.currency} ({self.status})"
+

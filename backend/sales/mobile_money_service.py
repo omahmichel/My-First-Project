@@ -797,6 +797,12 @@ def _finalize_mobile_money_sale_locked(
         )
     )
 
+    # Queue the merchant payout in the same database transaction.
+    # The actual Paystack transfer happens asynchronously via the payout worker.
+    from .merchant_payout_service import queue_merchant_payout_for_payment_locked
+
+    queue_merchant_payout_for_payment_locked(payment)
+
 
 def verify_and_finalize_mobile_money_sale(
     *,
@@ -1235,6 +1241,11 @@ def _finalize_mobile_money_debt_locked(*, payment, sale, customer, verification)
         "status", "provider_reference", "receipt_number", "failure_reason",
         "note", "verified_at", "updated_at"
     ))
+
+    # Queue a matching merchant payout for this verified debt payment.
+    from .merchant_payout_service import queue_merchant_payout_for_payment_locked
+
+    queue_merchant_payout_for_payment_locked(payment)
 
     _apply_debt_payment_allocation_locked(
         payment=payment,

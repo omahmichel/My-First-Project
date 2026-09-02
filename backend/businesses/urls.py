@@ -13,6 +13,7 @@ from .team_views import (
 from .payment_account_views import (
     BusinessPaymentAccountDetailAPIView,
     BusinessPaymentAccountListCreateAPIView,
+    BusinessPaymentAccountPayoutSyncAPIView,
 )
 
 from .views import BusinessViewSet
@@ -65,5 +66,13 @@ urlpatterns = [
         ),
         BusinessPaymentAccountDetailAPIView.as_view(),
         name="business-payment-account-detail",
+    ),
+    path(
+        (
+            "businesses/<uuid:business_id>/payment-accounts/"
+            "<uuid:account_id>/payout-recipient/sync/"
+        ),
+        BusinessPaymentAccountPayoutSyncAPIView.as_view(),
+        name="business-payment-account-payout-sync",
     ),
 ] + router.urls

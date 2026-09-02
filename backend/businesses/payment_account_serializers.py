@@ -36,6 +36,18 @@ class BusinessPaymentAccountSerializer(serializers.ModelSerializer):
         source="masked_number",
         read_only=True,
     )
+    payoutReady = serializers.BooleanField(
+        source="payout_ready",
+        read_only=True,
+    )
+    payoutStatus = serializers.CharField(
+        source="payout_status",
+        read_only=True,
+    )
+    payoutError = serializers.CharField(
+        source="paystack_recipient_last_error",
+        read_only=True,
+    )
     isActive = serializers.BooleanField(
         source="is_active",
         required=False,
@@ -64,6 +76,9 @@ class BusinessPaymentAccountSerializer(serializers.ModelSerializer):
             "network",
             "accountNumber",
             "maskedNumber",
+            "payoutReady",
+            "payoutStatus",
+            "payoutError",
             "isActive",
             "isDefault",
             "createdAt",
@@ -169,6 +184,13 @@ class BusinessPaymentAccountSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Updates metadata while preserving encrypted account data by default.
         account_number = validated_data.pop("accountNumber", None)
+
+        recipient_identity_changed = any(
+            field in validated_data
+            for field in ("account_type", "account_name", "network")
+        )
+        if recipient_identity_changed:
+            instance.clear_paystack_recipient()
 
         for field, value in validated_data.items():
             setattr(instance, field, value)
