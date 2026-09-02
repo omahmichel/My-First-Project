@@ -33,6 +33,25 @@ export function formatPaymentMethod(value) {
 }
 
 
+function documentItemDescription(item) {
+  const name = safeText(item?.name, "Unnamed item");
+  const reference = String(
+    item?.designCode ??
+      item?.styleCode ??
+      item?.sku ??
+      item?.productSku ??
+      "",
+  ).trim();
+
+  if (!reference) return name;
+
+  if (name.toLowerCase().includes(reference.toLowerCase())) {
+    return name;
+  }
+
+  return `${name} (${reference})`;
+}
+
 function businessDealsInText(business) {
   const items = Array.isArray(business?.dealsIn)
     ? business.dealsIn
@@ -698,7 +717,7 @@ export function createReceiptPdf(receipt, sale, business) {
       startY: (pdf.lastAutoTable?.finalY ?? 290) + 15,
       head: [["Items covered by this sale", "Qty"]],
       body: sale.items.map((item) => [
-        safeText(item.name, "Unnamed item"),
+        documentItemDescription(item),
         `${Number(item.quantity || 0)} ${safeText(item.unit, "unit")}(s)`,
       ]),
       theme: "grid",
@@ -755,10 +774,19 @@ export function createWaybillPdf(sale, business) {
   }
 
   const waybill = sale.waybill;
+  const waybillItemCount = Math.max(1, sale.items?.length ?? 0);
+  const waybillPageHeight = Math.min(
+    842,
+    Math.max(
+      680,
+      600 + Math.max(0, waybillItemCount - 4) * 28,
+    ),
+  );
+
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "pt",
-    format: "a4",
+    format: [595.28, waybillPageHeight],
   });
 
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -814,13 +842,16 @@ export function createWaybillPdf(sale, business) {
     { align: "right" },
   );
 
-  // Frames delivery details as one compact information card.
+  // Gives delivery details enough vertical room without crowding the card.
+  const deliveryCardTop = 117;
+  const deliveryCardHeight = 178;
+
   pdf.setFillColor(228, 237, 232);
   pdf.roundedRect(
     margin + 2,
-    120,
+    deliveryCardTop + 3,
     pageWidth - margin * 2,
-    164,
+    deliveryCardHeight,
     7,
     7,
     "F",
@@ -829,9 +860,9 @@ export function createWaybillPdf(sale, business) {
   pdf.setDrawColor(213, 226, 218);
   pdf.roundedRect(
     margin,
-    117,
+    deliveryCardTop,
     pageWidth - margin * 2,
-    164,
+    deliveryCardHeight,
     7,
     7,
     "FD",
@@ -854,10 +885,12 @@ export function createWaybillPdf(sale, business) {
     theme: "plain",
     margin: { left: margin, right: margin },
     styles: {
-      cellPadding: 5,
+      cellPadding: 4.5,
       font: "helvetica",
-      fontSize: 9,
+      fontSize: 8.8,
       textColor: [35, 53, 44],
+      overflow: "linebreak",
+      valign: "middle",
     },
     columnStyles: {
       0: {
@@ -873,12 +906,15 @@ export function createWaybillPdf(sale, business) {
 
   const itemRows = (sale.items ?? []).map((item, index) => [
     String(index + 1),
-    safeText(item.name, "Unnamed item"),
+    documentItemDescription(item),
     `${Number(item.quantity || 0)} ${safeText(item.unit, "unit")}(s)`,
   ]);
 
   autoTable(pdf, {
-    startY: (pdf.lastAutoTable?.finalY ?? 240) + 18,
+    startY: Math.max(
+      (pdf.lastAutoTable?.finalY ?? 240) + 18,
+      deliveryCardTop + deliveryCardHeight + 14,
+    ),
     head: [["#", "Item description", "Quantity dispatched"]],
     body: itemRows.length
       ? itemRows
