@@ -545,3 +545,23 @@
     font-weight: 850;
   }
 }
+
+/* BUILDING MATERIALS ALL PRODUCTS TABLE SPACING V1 */
+@media (min-width: 761px) {
+  .app-shell:not(.stockflow-boutique-app)
+    .products-control-page
+    .products-table.stockflow-premium-table th {
+    padding: 11px 14px !important;
+    line-height: 1.25;
+    vertical-align: middle;
+  }
+
+  .app-shell:not(.stockflow-boutique-app)
+    .products-control-page
+    .products-table.stockflow-premium-table td {
+    padding: 12px 14px !important;
+    line-height: 1.35;
+    vertical-align: middle;
+  }
+}
+/* BUILDING MATERIALS ALL PRODUCTS TABLE SPACING V1 END */

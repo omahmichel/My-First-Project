@@ -843,3 +843,23 @@
     font-weight: 800;
   }
 }
+
+/* BUILDING MATERIALS TILE INVENTORY TABLE SPACING V1 */
+@media (min-width: 701px) {
+  .app-shell:not(.stockflow-boutique-app)
+    .tile-records-page
+    .tile-records-table.stockflow-premium-table th {
+    padding: 11px 14px !important;
+    line-height: 1.25;
+    vertical-align: middle;
+  }
+
+  .app-shell:not(.stockflow-boutique-app)
+    .tile-records-page
+    .tile-records-table.stockflow-premium-table td {
+    padding: 12px 14px !important;
+    line-height: 1.35;
+    vertical-align: middle;
+  }
+}
+/* BUILDING MATERIALS TILE INVENTORY TABLE SPACING V1 END */
