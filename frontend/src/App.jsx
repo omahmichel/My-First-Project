@@ -27,6 +27,7 @@ import ReportsPage from "./pages/reports/ReportsPage";
 import TeamPage from "./pages/team/TeamPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 import SubscriptionPage from "./pages/settings/SubscriptionPage";
+import ReportIssuePage from "./pages/support/ReportIssuePage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
@@ -113,6 +114,7 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
+          <Route path="report-issue" element={<ReportIssuePage />} />
           <Route path="subscription" element={<SubscriptionPage />} />
         </Route>
       </Route>

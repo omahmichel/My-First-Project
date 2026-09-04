@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  Bug,
   Boxes,
   CircleDollarSign,
   ClipboardList,
@@ -34,6 +35,7 @@ const commonNavigation = [
   { to: "/app/stock-movements", label: "Stock movements", icon: FileText },
   { to: "/app/reports", label: "Reports", icon: BarChart3 },
   { to: "/app/team", label: "Team", icon: Users },
+  { to: "/app/report-issue", label: "Report an issue", icon: Bug },
   { to: "/app/subscription", label: "Subscription", icon: CreditCard },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];
@@ -83,11 +85,15 @@ export default function Sidebar({ open, onClose }) {
     ...commonNavigation.slice(2),
   ];
 
-  // Expired workspaces expose only the renewal destination.
+  // Expired workspaces keep renewal and support available.
+  const expiredWorkspacePaths = new Set([
+    "/app/subscription",
+    "/app/report-issue",
+  ]);
   const navigation = business.hasSystemAccess
     ? fullNavigation
     : fullNavigation.filter(
-        (item) => item.to === "/app/subscription",
+        (item) => expiredWorkspacePaths.has(item.to),
       );
 
   return (

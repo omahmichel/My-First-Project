@@ -6,6 +6,7 @@ from .subscription_views import (
     SubscriptionPaymentInitializeAPIView,
     SubscriptionPaymentVerifyAPIView,
 )
+from .support_views import SupportIssueReportAPIView
 from .team_views import (
     BusinessTeamDeleteAPIView,
     BusinessTeamListCreateAPIView,
@@ -27,6 +28,11 @@ urlpatterns = [
         "payments/paystack/webhook/",
         PaystackWebhookAPIView.as_view(),
         name="paystack-webhook",
+    ),
+    path(
+        "businesses/<uuid:business_id>/support/issues/",
+        SupportIssueReportAPIView.as_view(),
+        name="business-support-issue-report",
     ),
     path(
         (

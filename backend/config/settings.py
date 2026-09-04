@@ -307,6 +307,10 @@ DEFAULT_FROM_EMAIL = os.getenv(
     "DJANGO_DEFAULT_FROM_EMAIL",
     "StockFlow <no-reply@stockflow.local>",
 ).strip()
+STOCKFLOW_SUPPORT_EMAIL = os.getenv(
+    "STOCKFLOW_SUPPORT_EMAIL",
+    "stockflowghana@gmail.com",
+).strip()
 
 if EMAIL_USE_TLS and EMAIL_USE_SSL:
     raise ImproperlyConfigured(
@@ -379,6 +383,10 @@ REST_FRAMEWORK = {
         "subscription_payment_verify": os.getenv(
             "THROTTLE_RATE_SUBSCRIPTION_PAYMENT_VERIFY",
             "30/min",
+        ),
+        "support_issue_report": os.getenv(
+            "THROTTLE_RATE_SUPPORT_ISSUE_REPORT",
+            "5/hour",
         ),
         "mobile_money_sale_initialize": os.getenv(
             "THROTTLE_RATE_MOBILE_MONEY_SALE_INITIALIZE",

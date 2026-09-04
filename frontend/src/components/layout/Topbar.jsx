@@ -16,6 +16,7 @@ const titles = {
   "/app/stock-movements": "Stock movements",
   "/app/reports": "Reports",
   "/app/team": "Team",
+  "/app/report-issue": "Report an issue",
   "/app/subscription": "Subscription",
   "/app/settings": "Settings",
 };

@@ -19,13 +19,18 @@ export default function AppLayout() {
   const { business } = useStore();
   const location = useLocation();
   const subscriptionPath = "/app/subscription";
+  const supportPath = "/app/report-issue";
   const isBoutiqueBusiness = business.type === "boutique";
+  const expiredWorkspaceAllowedPaths = new Set([
+    subscriptionPath,
+    supportPath,
+  ]);
 
-  // Keeps expired workspaces inside the subscription renewal area.
+  // Keeps expired workspaces limited to renewal and support.
   if (
     business.id &&
     !business.hasSystemAccess &&
-    location.pathname !== subscriptionPath
+    !expiredWorkspaceAllowedPaths.has(location.pathname)
   ) {
     return <Navigate to={subscriptionPath} replace />;
   }
