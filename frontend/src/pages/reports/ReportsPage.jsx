@@ -489,13 +489,11 @@ export default function ReportsPage() {
 
         <article className="panel-card report-insight-card">
           <span>Management note</span>
-          <h2>
-            Stock and profit remain estimates until every sale and
-            adjustment is recorded.
-          </h2>
+          <h2>Keep your records accurate</h2>
           <p>
-            Consistent usage is more important than adding complicated
-            accounting features at this stage.
+            Record every sale, restock, return, damage, and stock adjustment.
+            Accurate records help StockFlow give you reliable stock and profit
+            figures.
           </p>
         </article>
       </section>

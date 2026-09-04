@@ -69,7 +69,7 @@
   Applies the same raised surface language to shared cards used by
   Dashboard, products, inventory, customers, reports, settings, and sales.
 */
-.app-content .page-stack:not(.team-page) .panel-card,
+.app-content .page-stack:not(.team-page) .panel-card:not(.report-insight-card),
 .app-content .page-stack:not(.team-page) .stat-card,
 .app-content .page-stack:not(.team-page) .form-card,
 .app-content .page-stack:not(.team-page) .settings-card,
