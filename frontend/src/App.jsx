@@ -6,6 +6,7 @@ import IndustryRoute from "./routes/IndustryRoute";
 import RoleRoute from "./routes/RoleRoute";
 import LandingPage from "./pages/public/LandingPage";
 import LoginPage from "./pages/auth/LoginPage";
+import LoginOTPPage from "./pages/auth/LoginOTPPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -33,6 +34,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/verify-login" element={<LoginOTPPage />} />
       <Route
         path="/forgot-password"
         element={<ForgotPasswordPage />}

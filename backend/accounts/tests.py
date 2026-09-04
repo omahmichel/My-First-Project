@@ -17,6 +17,8 @@ TEST_REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
         "auth_login": "2/min",
+        "auth_login_verify": "2/min",
+        "auth_login_resend": "2/min",
         "auth_register": "2/min",
         "auth_register_verify": "2/min",
         "auth_register_resend": "2/min",

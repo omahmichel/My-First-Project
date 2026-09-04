@@ -82,7 +82,10 @@ export default function ForgotPasswordPage() {
       <section className="auth-form-panel">
         <div className="auth-form-card">
           <Link to="/" className="auth-brand">
-            <span>S</span>Stock<strong>Flow</strong>
+            <span>S</span>
+            <span className="auth-brand-word">
+              Stock<strong>Flow</strong>
+            </span>
           </Link>
 
           <div className="auth-heading">

@@ -1,13 +1,20 @@
+from django.conf import settings
+
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
 
+from .login_otp_service import (
+    LoginEmailDeliveryError,
+    deliver_login_otp,
+    issue_login_otp,
+    login_token_response,
+    resend_login_otp,
+    verify_login_otp,
+)
 from .registration_otp_service import (
     RegistrationEmailDeliveryError,
     issue_registration_otp,
@@ -16,6 +23,8 @@ from .registration_otp_service import (
     verify_registration_otp,
 )
 from .serializers import (
+    LoginOTPResendSerializer,
+    LoginOTPVerifySerializer,
     LoginSerializer,
     RegisterSerializer,
     RegistrationOTPResendSerializer,
@@ -110,12 +119,141 @@ class RegistrationOTPResendAPIView(APIView):
         )
 
 
-class LoginAPIView(TokenObtainPairView):
-    # Authenticates an email-based user and returns JWT tokens.
+class LoginAPIView(APIView):
+    # Validates email/password and creates a 2FA challenge without SMTP latency.
 
     permission_classes = (AllowAny,)
-    serializer_class = LoginSerializer
     throttle_scope = "auth_login"
+
+    def post(self, request):
+        serializer = LoginSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        challenge, email_delivery_required = issue_login_otp(
+            serializer.validated_data["user"],
+        )
+
+        return Response(
+            {
+                "message": (
+                    "Password accepted. Preparing your sign-in security code."
+                    if email_delivery_required
+                    else "Use the security code already sent to your email."
+                ),
+                "challengeId": challenge.challenge_token,
+                "email": challenge.user.email,
+                "expiresIn": settings.LOGIN_OTP_EXPIRY_SECONDS,
+                "resendCooldown": (
+                    0
+                    if email_delivery_required
+                    else settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+                ),
+                "emailDeliveryRequired": email_delivery_required,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class LoginOTPDeliverAPIView(APIView):
+    # Delivers the first OTP after the login request has already completed.
+
+    permission_classes = (AllowAny,)
+    throttle_scope = "auth_login_deliver"
+
+    def post(self, request):
+        serializer = LoginOTPResendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            challenge, email_sent = deliver_login_otp(
+                serializer.validated_data["challengeId"],
+            )
+        except LoginEmailDeliveryError:
+            return Response(
+                {
+                    "detail": (
+                        "StockFlow could not send the sign-in security code. "
+                        "Please try again."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "A six-digit security code was sent to your email."
+                    if email_sent
+                    else "Use the security code already sent to your email."
+                ),
+                "challengeId": challenge.challenge_token,
+                "email": challenge.user.email,
+                "expiresIn": settings.LOGIN_OTP_EXPIRY_SECONDS,
+                "resendCooldown": settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+                "emailDeliveryRequired": False,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class LoginOTPVerifyAPIView(APIView):
+    # Completes login and issues JWT credentials only after OTP verification.
+
+    permission_classes = (AllowAny,)
+    throttle_scope = "auth_login_verify"
+
+    def post(self, request):
+        serializer = LoginOTPVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tokens = verify_login_otp(
+            challenge_token=serializer.validated_data["challengeId"],
+            otp=serializer.validated_data["otp"],
+        )
+        return Response(
+            login_token_response(tokens),
+            status=status.HTTP_200_OK,
+        )
+
+
+class LoginOTPResendAPIView(APIView):
+    # Reissues the login security code after the configured cooldown.
+
+    permission_classes = (AllowAny,)
+    throttle_scope = "auth_login_resend"
+
+    def post(self, request):
+        serializer = LoginOTPResendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            challenge = resend_login_otp(
+                serializer.validated_data["challengeId"],
+            )
+        except LoginEmailDeliveryError:
+            return Response(
+                {
+                    "detail": (
+                        "StockFlow could not send the sign-in security code. "
+                        "Please try again."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "message": "A new security code was sent to your email.",
+                "challengeId": challenge.challenge_token,
+                "email": challenge.user.email,
+                "expiresIn": settings.LOGIN_OTP_EXPIRY_SECONDS,
+                "resendCooldown": settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class RefreshAPIView(TokenRefreshView):

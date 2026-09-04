@@ -72,7 +72,10 @@ export default function RegisterPage() {
       <section className="auth-form-panel">
         <div className="auth-form-card auth-form-card-wide">
           <Link to="/" className="auth-brand">
-            <span>S</span>Stock<strong>Flow</strong>
+            <span>S</span>
+            <span className="auth-brand-word">
+              Stock<strong>Flow</strong>
+            </span>
           </Link>
           <div className="auth-heading">
             <span>60-day free trial</span>

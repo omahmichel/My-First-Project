@@ -39,6 +39,47 @@ function sanitizePendingRegistration(registration) {
   };
 }
 
+const PENDING_LOGIN_KEY = "stockflow_pending_login";
+
+function sanitizePendingLogin(pendingLogin) {
+  if (!pendingLogin?.challengeId || !pendingLogin?.email) return null;
+
+  const expiresAt = Number(pendingLogin.expiresAt) || 0;
+  if (expiresAt && expiresAt <= Date.now()) return null;
+
+  return {
+    challengeId: String(pendingLogin.challengeId),
+    email: String(pendingLogin.email).trim().toLowerCase(),
+    expiresAt,
+    resendAvailableAt: Number(pendingLogin.resendAvailableAt) || 0,
+    emailDeliveryRequired: Boolean(pendingLogin.emailDeliveryRequired),
+  };
+}
+
+function loadPendingLogin() {
+  try {
+    const rawValue = window.sessionStorage.getItem(PENDING_LOGIN_KEY);
+    return sanitizePendingLogin(rawValue ? JSON.parse(rawValue) : null);
+  } catch {
+    return null;
+  }
+}
+
+function savePendingLogin(pendingLogin) {
+  const safeValue = sanitizePendingLogin(pendingLogin);
+
+  if (!safeValue) {
+    window.sessionStorage.removeItem(PENDING_LOGIN_KEY);
+    return null;
+  }
+
+  window.sessionStorage.setItem(
+    PENDING_LOGIN_KEY,
+    JSON.stringify(safeValue),
+  );
+  return safeValue;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() =>
     loadStoredValue("auth_user", null),
@@ -59,6 +100,7 @@ export function AuthProvider({ children }) {
 
     return safeRegistration;
   });
+  const [pendingLogin, setPendingLogin] = useState(() => loadPendingLogin());
   const [isInitializing, setIsInitializing] = useState(true);
 
   // Clears all authentication state without depending on the API response.
@@ -129,17 +171,46 @@ export function AuthProvider({ children }) {
     };
   }, [clearAuthentication]);
 
-  // Authenticates with Django and stores both JWT tokens safely in this browser.
+  // Validates the password and stores only the short-lived 2FA challenge.
   async function login({ email, password }) {
     if (!email?.trim() || !password?.trim()) {
       throw new Error("Enter your email and password.");
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
     const response = await apiRequest("/auth/login/", {
       method: "POST",
       body: JSON.stringify({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
+      }),
+    });
+
+    const now = Date.now();
+    const nextPendingLogin = savePendingLogin({
+      challengeId: response.challengeId,
+      email: response.email ?? normalizedEmail,
+      expiresAt: now + Number(response.expiresIn ?? 600) * 1000,
+      resendAvailableAt:
+        now + Number(response.resendCooldown ?? 60) * 1000,
+      emailDeliveryRequired: Boolean(response.emailDeliveryRequired),
+    });
+
+    if (!nextPendingLogin) {
+      throw new Error("StockFlow could not start secure sign-in.");
+    }
+
+    setPendingLogin(nextPendingLogin);
+    return nextPendingLogin;
+  }
+
+  // Completes 2FA, then stores JWT credentials for the authenticated session.
+  async function verifyLoginOtp({ challengeId, otp }) {
+    const response = await apiRequest("/auth/login/verify/", {
+      method: "POST",
+      body: JSON.stringify({
+        challengeId,
+        otp: otp.trim(),
       }),
     });
 
@@ -149,7 +220,51 @@ export function AuthProvider({ children }) {
     const nextUser = normalizeUser(response.user);
     setUser(nextUser);
     saveStoredValue("auth_user", nextUser);
+    setPendingLogin(null);
+    savePendingLogin(null);
     return nextUser;
+  }
+
+  // Delivers the first OTP after password verification has already returned.
+  async function deliverLoginOtp(challengeId) {
+    const response = await apiRequest("/auth/login/deliver/", {
+      method: "POST",
+      body: JSON.stringify({ challengeId }),
+    });
+
+    const now = Date.now();
+    const nextPendingLogin = savePendingLogin({
+      challengeId: response.challengeId ?? challengeId,
+      email: response.email ?? pendingLogin?.email ?? "",
+      expiresAt: now + Number(response.expiresIn ?? 600) * 1000,
+      resendAvailableAt:
+        now + Number(response.resendCooldown ?? 60) * 1000,
+      emailDeliveryRequired: false,
+    });
+
+    setPendingLogin(nextPendingLogin);
+    return nextPendingLogin;
+  }
+
+  // Requests a replacement code for the current secure login challenge.
+  async function resendLoginOtp(challengeId) {
+    const response = await apiRequest("/auth/login/resend/", {
+      method: "POST",
+      body: JSON.stringify({ challengeId }),
+    });
+
+    const now = Date.now();
+    const nextPendingLogin = savePendingLogin({
+      challengeId: response.challengeId ?? challengeId,
+      email: response.email ?? pendingLogin?.email ?? "",
+      expiresAt: now + Number(response.expiresIn ?? 600) * 1000,
+      resendAvailableAt:
+        now + Number(response.resendCooldown ?? 60) * 1000,
+      emailDeliveryRequired: false,
+    });
+
+    setPendingLogin(nextPendingLogin);
+    return nextPendingLogin;
   }
 
   // Starts registration by sending an OTP without creating the account yet.
@@ -252,6 +367,8 @@ export function AuthProvider({ children }) {
       clearAuthentication();
       setPendingRegistration(null);
       saveStoredValue("pending_registration", null);
+      setPendingLogin(null);
+      savePendingLogin(null);
     }
   }
 
@@ -259,16 +376,20 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       pendingRegistration,
+      pendingLogin,
       isAuthenticated: Boolean(user),
       isInitializing,
       login,
+      verifyLoginOtp,
+      deliverLoginOtp,
+      resendLoginOtp,
       register,
       verifyRegistrationOtp,
       resendRegistrationOtp,
       completeOnboarding,
       logout,
     }),
-    [isInitializing, pendingRegistration, user],
+    [isInitializing, pendingLogin, pendingRegistration, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

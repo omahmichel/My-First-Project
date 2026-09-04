@@ -277,6 +277,20 @@ REGISTRATION_OTP_MAX_ATTEMPTS = get_env_positive_int(
     default=5,
 )
 
+# Controls login two-factor authentication security and resend behaviour.
+LOGIN_OTP_EXPIRY_SECONDS = get_env_positive_int(
+    "LOGIN_OTP_EXPIRY_SECONDS",
+    default=600,
+)
+LOGIN_OTP_RESEND_COOLDOWN_SECONDS = get_env_positive_int(
+    "LOGIN_OTP_RESEND_COOLDOWN_SECONDS",
+    default=60,
+)
+LOGIN_OTP_MAX_ATTEMPTS = get_env_positive_int(
+    "LOGIN_OTP_MAX_ATTEMPTS",
+    default=5,
+)
+
 # Uses console delivery locally and environment-driven SMTP in production.
 EMAIL_BACKEND = os.getenv(
     "DJANGO_EMAIL_BACKEND",
@@ -327,6 +341,18 @@ REST_FRAMEWORK = {
         "anon": os.getenv("THROTTLE_RATE_ANON", "100/hour"),
         "user": os.getenv("THROTTLE_RATE_USER", "1000/hour"),
         "auth_login": os.getenv("THROTTLE_RATE_LOGIN", "10/min"),
+        "auth_login_deliver": os.getenv(
+            "THROTTLE_RATE_LOGIN_DELIVER",
+            "10/min",
+        ),
+        "auth_login_verify": os.getenv(
+            "THROTTLE_RATE_LOGIN_VERIFY",
+            "10/min",
+        ),
+        "auth_login_resend": os.getenv(
+            "THROTTLE_RATE_LOGIN_RESEND",
+            "5/hour",
+        ),
         "auth_register": os.getenv("THROTTLE_RATE_REGISTER", "5/hour"),
         "auth_register_verify": os.getenv(
             "THROTTLE_RATE_REGISTER_VERIFY",

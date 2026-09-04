@@ -1,6 +1,6 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import AuthenticationFailed
 
 User = get_user_model()
 
@@ -97,10 +97,40 @@ class RegistrationOTPResendSerializer(serializers.Serializer):
         return value.strip().lower()
 
 
-class LoginSerializer(TokenObtainPairSerializer):
-    # Returns JWT tokens together with safe user details.
+class LoginSerializer(serializers.Serializer):
+    # Validates the password without issuing JWT credentials before 2FA.
+
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_email(self, value):
+        return value.strip().lower()
 
     def validate(self, attrs):
-        data = super().validate(attrs)
-        data["user"] = UserSerializer(self.user).data
-        return data
+        user = authenticate(
+            request=self.context.get("request"),
+            email=attrs["email"],
+            password=attrs["password"],
+        )
+
+        if user is None:
+            raise AuthenticationFailed("Invalid email or password.")
+
+        attrs["user"] = user
+        return attrs
+
+
+class LoginOTPVerifySerializer(serializers.Serializer):
+    challengeId = serializers.CharField(max_length=64)
+    otp = serializers.RegexField(
+        regex=r"^\d{6}$",
+        max_length=6,
+        min_length=6,
+    )
+
+
+class LoginOTPResendSerializer(serializers.Serializer):
+    challengeId = serializers.CharField(max_length=64)

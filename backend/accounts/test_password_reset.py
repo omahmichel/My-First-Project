@@ -93,7 +93,10 @@ class PasswordResetAPITests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(login_response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertIn("challengeId", login_response.data)
+        self.assertNotIn("access", login_response.data)
+        self.assertNotIn("refresh", login_response.data)
 
         refresh_response = self.client.post(
             self.refresh_url,

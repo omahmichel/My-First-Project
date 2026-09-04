@@ -6,6 +6,9 @@ from .password_reset_views import (
 from .views import (
     CurrentUserAPIView,
     LoginAPIView,
+    LoginOTPDeliverAPIView,
+    LoginOTPResendAPIView,
+    LoginOTPVerifyAPIView,
     LogoutAPIView,
     RegisterAPIView,
     RegistrationOTPResendAPIView,
@@ -28,6 +31,21 @@ urlpatterns = [
         name="register-resend",
     ),
     path("login/", LoginAPIView.as_view(), name="login"),
+    path(
+        "login/deliver/",
+        LoginOTPDeliverAPIView.as_view(),
+        name="login-deliver",
+    ),
+    path(
+        "login/verify/",
+        LoginOTPVerifyAPIView.as_view(),
+        name="login-verify",
+    ),
+    path(
+        "login/resend/",
+        LoginOTPResendAPIView.as_view(),
+        name="login-resend",
+    ),
     path("refresh/", RefreshAPIView.as_view(), name="refresh"),
     path("me/", CurrentUserAPIView.as_view(), name="current-user"),
     path("logout/", LogoutAPIView.as_view(), name="logout"),

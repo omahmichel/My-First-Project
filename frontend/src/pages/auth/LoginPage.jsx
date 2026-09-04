@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
-import { useStore } from "../../context/StoreContext";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -12,7 +11,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
-  const { loadBusinesses } = useStore();
   const navigate = useNavigate();
 
   function handleChange(event) {
@@ -29,15 +27,7 @@ export default function LoginPage() {
 
     try {
       await login(form);
-      const availableBusinesses = await loadBusinesses();
-
-      // Existing accounts choose a workspace before entering a dashboard.
-      navigate(
-        availableBusinesses.length > 0
-          ? "/businesses"
-          : "/onboarding",
-        { replace: true },
-      );
+      navigate("/verify-login", { replace: true });
     } catch (loginError) {
       setError(loginError.message);
     } finally {
@@ -71,7 +61,10 @@ export default function LoginPage() {
       <section className="auth-form-panel">
         <div className="auth-form-card">
           <Link to="/" className="auth-brand">
-            <span>S</span>Stock<strong>Flow</strong>
+            <span>S</span>
+            <span className="auth-brand-word">
+              Stock<strong>Flow</strong>
+            </span>
           </Link>
           <div className="auth-heading">
             <span>Secure account access</span>

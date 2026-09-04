@@ -77,3 +77,26 @@ class PendingRegistration(models.Model):
     def __str__(self):
         return self.email
 
+
+class PendingLoginChallenge(models.Model):
+    # Stores a short-lived hashed OTP after password authentication succeeds.
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="pending_login_challenge",
+    )
+    challenge_token = models.CharField(max_length=64, unique=True, db_index=True)
+    otp_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField(db_index=True)
+    resend_available_at = models.DateTimeField()
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at",)
+
+    def __str__(self):
+        return self.user.email
+
