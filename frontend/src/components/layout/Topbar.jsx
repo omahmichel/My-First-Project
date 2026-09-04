@@ -14,6 +14,7 @@ const titles = {
   "/app/invoices": "Invoices",
   "/app/customers": "Customers",
   "/app/stock-movements": "Stock movements",
+  "/app/restocking": "Suppliers & restocking",
   "/app/reports": "Reports",
   "/app/team": "Team",
   "/app/report-issue": "Report an issue",

@@ -1,5 +1,11 @@
 from django.urls import path
 
+from .restock_views import (
+    BusinessRestockListCreateAPIView,
+    BusinessRestockPaymentAPIView,
+    BusinessSupplierDetailAPIView,
+    BusinessSupplierListCreateAPIView,
+)
 from .views import (
     BusinessProductDetailAPIView,
     BusinessProductListCreateAPIView,
@@ -37,5 +43,26 @@ urlpatterns = [
         "businesses/<uuid:business_id>/stock-movements/",
         BusinessStockMovementListAPIView.as_view(),
         name="business-stock-movement-list",
+    ),
+    path(
+        "businesses/<uuid:business_id>/suppliers/",
+        BusinessSupplierListCreateAPIView.as_view(),
+        name="business-supplier-list-create",
+    ),
+    path(
+        "businesses/<uuid:business_id>/suppliers/<uuid:supplier_id>/",
+        BusinessSupplierDetailAPIView.as_view(),
+        name="business-supplier-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/restocks/",
+        BusinessRestockListCreateAPIView.as_view(),
+        name="business-restock-list-create",
+    ),
+    path(
+        "businesses/<uuid:business_id>/restocks/"
+        "<uuid:purchase_id>/payments/",
+        BusinessRestockPaymentAPIView.as_view(),
+        name="business-restock-payment",
     ),
 ]

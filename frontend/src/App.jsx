@@ -18,6 +18,7 @@ import ProductsPage from "./pages/inventory/ProductsPage";
 import TilesPage from "./pages/inventory/TilesPage";
 import BoutiquePage from "./pages/inventory/BoutiquePage";
 import StockMovementsPage from "./pages/inventory/StockMovementsPage";
+import RestockingPage from "./pages/inventory/RestockingPage";
 import NewSalePage from "./pages/sales/NewSalePage";
 import SalesHistoryPage from "./pages/sales/SalesHistoryPage";
 import InvoicesPage from "./pages/invoices/InvoicesPage";
@@ -84,6 +85,7 @@ export default function App() {
             </Route>
 
             <Route path="stock-movements" element={<StockMovementsPage />} />
+            <Route path="restocking" element={<RestockingPage />} />
           </Route>
 
           <Route

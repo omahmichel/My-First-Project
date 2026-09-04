@@ -250,3 +250,10 @@ class StockMovement(models.Model):
             f"{self.quantity:+d} {self.unit}"
         )
 
+# Registers supplier/restocking models with the inventory Django app.
+from .restock_models import (  # noqa: E402,F401
+    RestockItem,
+    RestockPayment,
+    RestockPurchase,
+    Supplier,
+)
