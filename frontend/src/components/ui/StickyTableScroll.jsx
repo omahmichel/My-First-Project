@@ -2,14 +2,107 @@ import { useEffect, useRef, useState } from "react";
 
 import "../../styles/sticky-table-scroll.css";
 
-// Keeps a synchronized horizontal scrollbar visible while a wide table is on screen.
+// Keeps wide application tables horizontally synchronized and freezes their
+// column headers below the app topbar while the user scrolls through records.
 export default function StickyTableScroll({ children, className = "" }) {
   const contentRef = useRef(null);
   const scrollbarRef = useRef(null);
   const spacerRef = useRef(null);
+  const frozenHeaderRef = useRef(null);
+  const frozenSourceTableRef = useRef(null);
+  const frozenSignatureRef = useRef("");
   const frameRef = useRef(null);
   const [visible, setVisible] = useState(false);
   const [barStyle, setBarStyle] = useState({ left: 0, width: 0 });
+  const [frozenVisible, setFrozenVisible] = useState(false);
+  const [frozenStyle, setFrozenStyle] = useState({
+    left: 0,
+    top: 0,
+    width: 0,
+  });
+
+  function syncFrozenHeader(content = contentRef.current) {
+    const frozen = frozenHeaderRef.current;
+    const table = content?.querySelector("table");
+    const thead = table?.querySelector("thead");
+
+    if (!content || !frozen || !table || !thead) {
+      setFrozenVisible(false);
+      return;
+    }
+
+    const contentRect = content.getBoundingClientRect();
+    const tableRect = table.getBoundingClientRect();
+    const headRect = thead.getBoundingClientRect();
+    const topbar = document.querySelector(".app-topbar");
+    const topbarBottom = topbar
+      ? Math.max(0, topbar.getBoundingClientRect().bottom)
+      : 0;
+    const left = Math.max(0, contentRect.left);
+    const right = Math.min(window.innerWidth, contentRect.right);
+    const width = Math.max(0, right - left);
+    const shouldFreeze =
+      headRect.top <= topbarBottom &&
+      tableRect.bottom > topbarBottom + headRect.height &&
+      width > 120;
+
+    setFrozenStyle({ left, top: topbarBottom, width });
+    setFrozenVisible(shouldFreeze);
+
+    const signature = thead.innerHTML;
+    if (
+      frozenSourceTableRef.current !== table ||
+      frozenSignatureRef.current !== signature ||
+      !frozen.firstElementChild
+    ) {
+      frozen.replaceChildren();
+
+      const clonedTable = table.cloneNode(false);
+      const clonedHead = thead.cloneNode(true);
+
+      clonedTable.removeAttribute("id");
+      clonedTable.setAttribute("aria-hidden", "true");
+      clonedTable.appendChild(clonedHead);
+      frozen.appendChild(clonedTable);
+
+      frozenSourceTableRef.current = table;
+      frozenSignatureRef.current = signature;
+    }
+
+    const clonedTable = frozen.querySelector("table");
+    const sourceCells = thead.querySelectorAll("th");
+    const clonedCells = clonedTable?.querySelectorAll("th") ?? [];
+
+    sourceCells.forEach((cell, index) => {
+      const clonedCell = clonedCells[index];
+      if (!clonedCell) return;
+
+      const widthPx = cell.getBoundingClientRect().width;
+      const computed = window.getComputedStyle(cell);
+
+      clonedCell.style.boxSizing = "border-box";
+      clonedCell.style.width = `${widthPx}px`;
+      clonedCell.style.minWidth = `${widthPx}px`;
+      clonedCell.style.maxWidth = `${widthPx}px`;
+      clonedCell.style.backgroundColor = computed.backgroundColor;
+      clonedCell.style.color = computed.color;
+      clonedCell.style.padding = computed.padding;
+      clonedCell.style.font = computed.font;
+      clonedCell.style.fontWeight = computed.fontWeight;
+      clonedCell.style.letterSpacing = computed.letterSpacing;
+      clonedCell.style.textAlign = computed.textAlign;
+      clonedCell.style.verticalAlign = computed.verticalAlign;
+      clonedCell.style.borderBottom = computed.borderBottom;
+    });
+
+    if (clonedTable) {
+      clonedTable.style.width = `${tableRect.width}px`;
+      clonedTable.style.minWidth = `${tableRect.width}px`;
+      clonedTable.style.transform = `translateX(${
+        contentRect.left - left - content.scrollLeft
+      }px)`;
+    }
+  }
 
   useEffect(() => {
     const content = contentRef.current;
@@ -18,7 +111,7 @@ export default function StickyTableScroll({ children, className = "" }) {
 
     if (!content || !scrollbar || !spacer) return undefined;
 
-    function updateScrollbar() {
+    function updateLayout() {
       window.cancelAnimationFrame(frameRef.current);
 
       frameRef.current = window.requestAnimationFrame(() => {
@@ -38,10 +131,11 @@ export default function StickyTableScroll({ children, className = "" }) {
 
         setBarStyle({ left, width });
         setVisible(hasHorizontalOverflow && tableIsVisible);
+        syncFrozenHeader(content);
       });
     }
 
-    const resizeObserver = new ResizeObserver(updateScrollbar);
+    const resizeObserver = new ResizeObserver(updateLayout);
 
     resizeObserver.observe(content);
 
@@ -49,22 +143,23 @@ export default function StickyTableScroll({ children, className = "" }) {
       resizeObserver.observe(content.firstElementChild);
     }
 
-    window.addEventListener("resize", updateScrollbar);
-    window.addEventListener("scroll", updateScrollbar, { passive: true });
+    window.addEventListener("resize", updateLayout);
+    window.addEventListener("scroll", updateLayout, { passive: true });
 
-    updateScrollbar();
+    updateLayout();
 
     return () => {
       window.cancelAnimationFrame(frameRef.current);
       resizeObserver.disconnect();
-      window.removeEventListener("resize", updateScrollbar);
-      window.removeEventListener("scroll", updateScrollbar);
+      window.removeEventListener("resize", updateLayout);
+      window.removeEventListener("scroll", updateLayout);
     };
   }, []);
 
   function syncFromTable() {
     if (scrollbarRef.current && contentRef.current) {
       scrollbarRef.current.scrollLeft = contentRef.current.scrollLeft;
+      syncFrozenHeader(contentRef.current);
     }
   }
 
@@ -82,6 +177,13 @@ export default function StickyTableScroll({ children, className = "" }) {
     .filter(Boolean)
     .join(" ");
 
+  const frozenClassName = [
+    "sticky-table-frozen-header",
+    frozenVisible ? "sticky-table-frozen-header-visible" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <>
       <div
@@ -91,6 +193,17 @@ export default function StickyTableScroll({ children, className = "" }) {
       >
         {children}
       </div>
+
+      <div
+        ref={frozenHeaderRef}
+        className={frozenClassName}
+        style={{
+          left: `${frozenStyle.left}px`,
+          top: `${frozenStyle.top}px`,
+          width: `${frozenStyle.width}px`,
+        }}
+        aria-hidden="true"
+      />
 
       <div
         ref={scrollbarRef}

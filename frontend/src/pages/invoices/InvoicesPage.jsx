@@ -379,7 +379,7 @@ export default function InvoicesPage() {
               </div>
             </section>
 
-            <table>
+            <table className="invoice-items-table">
               <thead>
                 <tr>
                   <th>Item</th>

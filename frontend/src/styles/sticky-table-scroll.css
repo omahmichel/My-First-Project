@@ -79,3 +79,49 @@
   width: 0 !important;
   height: 0 !important;
 }
+
+/* Frozen operational table headers */
+.sticky-table-frozen-header {
+  position: fixed;
+  z-index: 850;
+  display: none;
+  overflow: hidden !important;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  pointer-events: none;
+  border-bottom: 1px solid rgba(205, 223, 214, 0.95);
+  background: var(--surface, #fff);
+  box-shadow: 0 9px 18px rgba(15, 42, 30, 0.09);
+}
+
+.sticky-table-frozen-header-visible {
+  display: block;
+}
+
+.sticky-table-frozen-header::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.sticky-table-frozen-header table {
+  margin: 0 !important;
+  border-collapse: collapse;
+  transform-origin: left top;
+}
+
+.sticky-table-frozen-header thead,
+.sticky-table-frozen-header tr {
+  margin: 0;
+}
+
+.sticky-table-frozen-header th {
+  position: static !important;
+  box-sizing: border-box;
+}
+
+@media print {
+  .sticky-table-frozen-header {
+    display: none !important;
+  }
+}

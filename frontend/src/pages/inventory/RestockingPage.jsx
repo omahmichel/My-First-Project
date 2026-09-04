@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import PageHeader from "../../components/ui/PageHeader";
+import StickyTableScroll from "../../components/ui/StickyTableScroll";
 import { useStore } from "../../context/StoreContext";
 import { apiRequest } from "../../services/api";
 import { formatCurrency } from "../../utils/formatters";
@@ -307,7 +308,7 @@ export default function RestockingPage() {
             />
           </label>
         </div>
-        <div className="restock-table-wrap">
+        <StickyTableScroll className="restock-table-wrap">
           <table className="data-table restock-table">
             <thead><tr>
               <th>Restock</th><th>Supplier</th><th>Items</th>
@@ -342,7 +343,7 @@ export default function RestockingPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </StickyTableScroll>
         {loading && <div className="restock-loading"><LoaderCircle /> Loading...</div>}
       </section>
 

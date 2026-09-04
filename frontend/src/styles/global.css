@@ -877,3 +877,12 @@ p {
     white-space: nowrap;
   }
 }
+
+/* Sticky invoice preview item header */
+.invoice-document .invoice-items-table thead th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: #fff;
+  box-shadow: inset 0 -1px 0 var(--line, #d9e3dd);
+}
