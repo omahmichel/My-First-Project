@@ -40,6 +40,91 @@ class IntelligenceSalesTrendSerializer(serializers.Serializer):
     periodEnd = serializers.DateTimeField(source="period_end")
 
 
+class IntelligencePeriodPerformanceEntrySerializer(
+    serializers.Serializer
+):
+    saleCount = serializers.IntegerField(source="sale_count")
+    unitsSold = serializers.IntegerField(source="units_sold")
+    revenue = serializers.DecimalField(max_digits=18, decimal_places=2)
+    historicalCost = serializers.DecimalField(
+        source="historical_cost",
+        max_digits=18,
+        decimal_places=2,
+    )
+    grossProfit = serializers.DecimalField(
+        source="gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    profitMargin = serializers.DecimalField(
+        source="profit_margin",
+        max_digits=8,
+        decimal_places=2,
+    )
+    previousSaleCount = serializers.IntegerField(
+        source="previous_sale_count"
+    )
+    previousUnitsSold = serializers.IntegerField(
+        source="previous_units_sold"
+    )
+    previousRevenue = serializers.DecimalField(
+        source="previous_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    previousGrossProfit = serializers.DecimalField(
+        source="previous_gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    revenueChange = serializers.DecimalField(
+        source="revenue_change",
+        max_digits=18,
+        decimal_places=2,
+    )
+    revenueChangePercentage = serializers.DecimalField(
+        source="revenue_change_percentage",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    revenueDirection = serializers.CharField(
+        source="revenue_direction"
+    )
+    grossProfitChange = serializers.DecimalField(
+        source="gross_profit_change",
+        max_digits=18,
+        decimal_places=2,
+    )
+    grossProfitChangePercentage = serializers.DecimalField(
+        source="gross_profit_change_percentage",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    grossProfitDirection = serializers.CharField(
+        source="gross_profit_direction"
+    )
+    periodStart = serializers.DateTimeField(source="period_start")
+    periodEnd = serializers.DateTimeField(source="period_end")
+    previousPeriodStart = serializers.DateTimeField(
+        source="previous_period_start"
+    )
+    previousPeriodEnd = serializers.DateTimeField(
+        source="previous_period_end"
+    )
+
+
+class IntelligencePerformancePeriodsSerializer(serializers.Serializer):
+    today = IntelligencePeriodPerformanceEntrySerializer()
+    last7Days = IntelligencePeriodPerformanceEntrySerializer(
+        source="last_7_days"
+    )
+    last30Days = IntelligencePeriodPerformanceEntrySerializer(
+        source="last_30_days"
+    )
+
+
 class IntelligenceInventorySummarySerializer(serializers.Serializer):
     activeProductCount = serializers.IntegerField(source="active_product_count")
     totalStockUnits = serializers.IntegerField(source="total_stock_units")
@@ -142,6 +227,13 @@ class IntelligenceMethodologySerializer(serializers.Serializer):
         source="recognized_sale_statuses", child=serializers.CharField()
     )
     salesSummaryScope = serializers.CharField(source="sales_summary_scope")
+    periodPerformanceWindows = serializers.ListField(
+        source="period_performance_windows",
+        child=serializers.CharField(),
+    )
+    todayComparisonBasis = serializers.CharField(
+        source="today_comparison_basis"
+    )
     salesTrendDays = serializers.IntegerField(source="sales_trend_days")
     slowMovingDays = serializers.IntegerField(source="slow_moving_days")
     deadStockDays = serializers.IntegerField(source="dead_stock_days")
@@ -157,6 +249,9 @@ class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     generatedAt = serializers.DateTimeField(source="generated_at")
     businessHealth = IntelligenceBusinessHealthSerializer(source="business_health")
     sales = IntelligenceSalesSummarySerializer()
+    performancePeriods = IntelligencePerformancePeriodsSerializer(
+        source="performance_periods"
+    )
     salesTrend = IntelligenceSalesTrendSerializer(source="sales_trend")
     inventory = IntelligenceInventorySummarySerializer()
     debts = IntelligenceDebtSummarySerializer()

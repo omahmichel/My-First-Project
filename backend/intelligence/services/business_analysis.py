@@ -43,10 +43,8 @@ def money(value):
 
 
 
-def calculate_sales_summary(business):
-    """Calculate authoritative performance from recognized sales."""
-    sales = list(get_recognized_sales(business))
-
+def _summarize_sales_collection(sales):
+    'Summarize one verified collection of recognized sales.'
     revenue = sum(
         (money(sale.total) for sale in sales),
         ZERO_MONEY,
@@ -82,6 +80,11 @@ def calculate_sales_summary(business):
     }
 
 
+def calculate_sales_summary(business):
+    'Calculate authoritative performance from recognized sales.'
+    return _summarize_sales_collection(
+        list(get_recognized_sales(business))
+    )
 
 def calculate_inventory_summary(business):
     """Calculate current inventory exposure and stock risk."""
@@ -210,6 +213,149 @@ def _sales_revenue(sales):
         (money(sale.total) for sale in sales),
         ZERO_MONEY,
     )
+
+
+def _percentage_change(*, current, previous):
+    if previous <= ZERO_MONEY:
+        return None
+
+    return (
+        ((current - previous) / previous) * Decimal("100")
+    ).quantize(Decimal("0.01"))
+
+
+def _movement_direction(change):
+    if change > ZERO_MONEY:
+        return "up"
+    if change < ZERO_MONEY:
+        return "down"
+    return "flat"
+
+
+def _sales_inside_window(sales, *, start, end):
+    return [
+        sale
+        for sale in sales
+        if (
+            sale.completed_at is not None
+            and start <= sale.completed_at < end
+        )
+    ]
+
+
+def _build_period_performance(
+    *,
+    sales,
+    current_start,
+    current_end,
+    previous_start,
+    previous_end,
+):
+    current = _summarize_sales_collection(
+        _sales_inside_window(
+            sales,
+            start=current_start,
+            end=current_end,
+        )
+    )
+    previous = _summarize_sales_collection(
+        _sales_inside_window(
+            sales,
+            start=previous_start,
+            end=previous_end,
+        )
+    )
+
+    revenue_change = current["revenue"] - previous["revenue"]
+    gross_profit_change = (
+        current["gross_profit"] - previous["gross_profit"]
+    )
+
+    return {
+        **current,
+        "period_start": current_start,
+        "period_end": current_end,
+        "previous_period_start": previous_start,
+        "previous_period_end": previous_end,
+        "previous_sale_count": previous["sale_count"],
+        "previous_units_sold": previous["units_sold"],
+        "previous_revenue": previous["revenue"],
+        "previous_gross_profit": previous["gross_profit"],
+        "revenue_change": revenue_change,
+        "revenue_change_percentage": _percentage_change(
+            current=current["revenue"],
+            previous=previous["revenue"],
+        ),
+        "revenue_direction": _movement_direction(revenue_change),
+        "gross_profit_change": gross_profit_change,
+        "gross_profit_change_percentage": _percentage_change(
+            current=current["gross_profit"],
+            previous=previous["gross_profit"],
+        ),
+        "gross_profit_direction": _movement_direction(
+            gross_profit_change
+        ),
+    }
+
+
+def calculate_period_performance(business, *, as_of=None):
+    'Calculate today, rolling 7-day and rolling 30-day performance.'
+    now = as_of or timezone.now()
+
+    if timezone.is_naive(now):
+        now = timezone.make_aware(
+            now,
+            timezone.get_current_timezone(),
+        )
+
+    local_now = timezone.localtime(
+        now,
+        timezone.get_current_timezone(),
+    )
+    today_start = local_now.replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    previous_today_start = today_start - timedelta(days=1)
+    previous_today_end = now - timedelta(days=1)
+
+    last_7_start = now - timedelta(days=7)
+    previous_7_start = now - timedelta(days=14)
+
+    last_30_start = now - timedelta(days=30)
+    previous_30_start = now - timedelta(days=60)
+
+    sales = _recognized_sales_between(
+        business=business,
+        start=previous_30_start,
+        end=now,
+    )
+
+    return {
+        "today": _build_period_performance(
+            sales=sales,
+            current_start=today_start,
+            current_end=now,
+            previous_start=previous_today_start,
+            previous_end=previous_today_end,
+        ),
+        "last_7_days": _build_period_performance(
+            sales=sales,
+            current_start=last_7_start,
+            current_end=now,
+            previous_start=previous_7_start,
+            previous_end=last_7_start,
+        ),
+        "last_30_days": _build_period_performance(
+            sales=sales,
+            current_start=last_30_start,
+            current_end=now,
+            previous_start=previous_30_start,
+            previous_end=last_30_start,
+        ),
+    }
 
 
 def calculate_sales_trend(business, *, days=30, as_of=None):
@@ -550,6 +696,10 @@ def calculate_business_overview(business, *, as_of=None):
     now = as_of or timezone.now()
 
     sales = calculate_sales_summary(business)
+    period_performance = calculate_period_performance(
+        business,
+        as_of=now,
+    )
     sales_trend = calculate_sales_trend(
         business,
         days=30,
@@ -577,6 +727,7 @@ def calculate_business_overview(business, *, as_of=None):
         "business_name": business.name,
         "generated_at": now,
         "sales": sales,
+        "performance_periods": period_performance,
         "sales_trend": sales_trend,
         "inventory": inventory,
         "debts": debts,
@@ -586,6 +737,14 @@ def calculate_business_overview(business, *, as_of=None):
         "methodology": {
             "recognized_sale_statuses": list(RECOGNIZED_SALE_STATUSES),
             "sales_summary_scope": "all_time",
+            "period_performance_windows": [
+                "today",
+                "rolling_7_days",
+                "rolling_30_days",
+            ],
+            "today_comparison_basis": (
+                "previous_day_same_elapsed_time"
+            ),
             "sales_trend_days": 30,
             "slow_moving_days": SLOW_MOVING_DAYS,
             "dead_stock_days": DEAD_STOCK_DAYS,

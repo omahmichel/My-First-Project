@@ -204,6 +204,40 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             Decimal(str(response.data["sales"]["grossProfit"])),
             Decimal("120.00"),
         )
+
+        periods = response.data["performancePeriods"]
+        self.assertEqual(
+            Decimal(str(periods["today"]["revenue"])),
+            Decimal("0.00"),
+        )
+        self.assertEqual(
+            Decimal(str(periods["last7Days"]["revenue"])),
+            Decimal("300.00"),
+        )
+        self.assertEqual(
+            Decimal(str(periods["last7Days"]["grossProfit"])),
+            Decimal("120.00"),
+        )
+        self.assertEqual(
+            Decimal(str(periods["last7Days"]["previousRevenue"])),
+            Decimal("0.00"),
+        )
+        self.assertEqual(
+            Decimal(str(periods["last7Days"]["revenueChange"])),
+            Decimal("300.00"),
+        )
+        self.assertIsNone(
+            periods["last7Days"]["revenueChangePercentage"]
+        )
+        self.assertEqual(
+            periods["last7Days"]["revenueDirection"],
+            "up",
+        )
+        self.assertEqual(
+            Decimal(str(periods["last30Days"]["revenue"])),
+            Decimal("300.00"),
+        )
+
         self.assertEqual(response.data["sales"]["unitsSold"], 3)
         self.assertEqual(
             Decimal(str(response.data["debts"]["customerDebt"])),
@@ -219,7 +253,95 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             response.data["methodology"]["recognizedSaleStatuses"],
             ["completed", "partially_paid"],
         )
+        self.assertEqual(
+            response.data["methodology"]["periodPerformanceWindows"],
+            ["today", "rolling_7_days", "rolling_30_days"],
+        )
+        self.assertEqual(
+            response.data["methodology"]["todayComparisonBasis"],
+            "previous_day_same_elapsed_time",
+        )
         self.assertEqual(response.data["confidence"]["grade"], "low")
+
+    def test_period_performance_compares_against_real_previous_window(self):
+        previous_period_sale = Sale.objects.create(
+            business=self.business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-SALE-PREV-7D",
+            invoice_number="INT-INV-PREV-7D",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("80.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("80.00"),
+            amount_paid=Decimal("80.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=timezone.now() - timedelta(days=10),
+        )
+        original_cost_price = self.product.cost_price
+        self.product.cost_price = Decimal("40.00")
+        self.product.save()
+
+        SaleItem.objects.create(
+            sale=previous_period_sale,
+            product=self.product,
+            product_name=self.product.name,
+            sku=self.product.sku,
+            design_code="",
+            unit=self.product.unit,
+            quantity=1,
+            unit_price=Decimal("80.00"),
+            cost_price=self.product.cost_price,
+            line_total=Decimal("80.00"),
+        )
+
+        self.product.cost_price = original_cost_price
+        self.product.save()
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(self.overview_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        period = response.data["performancePeriods"]["last7Days"]
+
+        self.assertEqual(
+            Decimal(str(period["revenue"])),
+            Decimal("300.00"),
+        )
+        self.assertEqual(
+            Decimal(str(period["previousRevenue"])),
+            Decimal("80.00"),
+        )
+        self.assertEqual(
+            Decimal(str(period["revenueChange"])),
+            Decimal("220.00"),
+        )
+        self.assertEqual(
+            Decimal(str(period["revenueChangePercentage"])),
+            Decimal("275.00"),
+        )
+        self.assertEqual(period["revenueDirection"], "up")
+        self.assertEqual(
+            Decimal(str(period["grossProfit"])),
+            Decimal("120.00"),
+        )
+        self.assertEqual(
+            Decimal(str(period["previousGrossProfit"])),
+            Decimal("40.00"),
+        )
+        self.assertEqual(
+            Decimal(str(period["grossProfitChange"])),
+            Decimal("80.00"),
+        )
+        self.assertEqual(
+            Decimal(str(period["grossProfitChangePercentage"])),
+            Decimal("200.00"),
+        )
+        self.assertEqual(period["grossProfitDirection"], "up")
 
     def test_manager_can_read_overview(self):
         self.client.force_authenticate(user=self.manager)
