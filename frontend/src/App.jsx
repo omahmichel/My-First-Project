@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import AppLayout from "./components/layout/AppLayout";
+import IntelligenceLayout from "./components/intelligence/IntelligenceLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import IndustryRoute from "./routes/IndustryRoute";
 import RoleRoute from "./routes/RoleRoute";
@@ -24,6 +25,10 @@ import SalesHistoryPage from "./pages/sales/SalesHistoryPage";
 import InvoicesPage from "./pages/invoices/InvoicesPage";
 import CustomersPage from "./pages/customers/CustomersPage";
 import CustomerPurchaseRecordsPage from "./pages/customers/CustomerPurchaseRecordsPage";
+import IntelligenceOverviewPage from "./pages/intelligence/IntelligenceOverviewPage";
+import IntelligenceForecastsPage from "./pages/intelligence/IntelligenceForecastsPage";
+import IntelligenceRecommendationsPage from "./pages/intelligence/IntelligenceRecommendationsPage";
+import IntelligenceInsightsPage from "./pages/intelligence/IntelligenceInsightsPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import TeamPage from "./pages/team/TeamPage";
 import SettingsPage from "./pages/settings/SettingsPage";
@@ -55,6 +60,35 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         {/* Account-level home for only the businesses this user can access. */}
         <Route path="/businesses" element={<MyBusinessesPage />} />
+
+        <Route
+          element={
+            <RoleRoute
+              allowedRoles={["owner", "manager"]}
+              areaLabel="StockFlow Intelligence"
+            />
+          }
+        >
+          <Route path="/intelligence" element={<IntelligenceLayout />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route
+              path="overview"
+              element={<IntelligenceOverviewPage />}
+            />
+            <Route
+              path="forecasts"
+              element={<IntelligenceForecastsPage />}
+            />
+            <Route
+              path="recommendations"
+              element={<IntelligenceRecommendationsPage />}
+            />
+            <Route
+              path="insights"
+              element={<IntelligenceInsightsPage />}
+            />
+          </Route>
+        </Route>
 
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />

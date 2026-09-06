@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BrainCircuit,
   Building2,
   Bug,
   Boxes,
@@ -181,6 +182,20 @@ export default function Sidebar({ open, onClose }) {
               <span>{label}</span>
             </NavLink>
           ))}
+
+          {business.hasSystemAccess &&
+          ["owner", "manager"].includes(business.currentUserRole) ? (
+            <NavLink
+              to="/intelligence/overview"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "sidebar-link-active" : ""}`
+              }
+            >
+              <BrainCircuit size={19} />
+              <span>Intelligence</span>
+            </NavLink>
+          ) : null}
         </nav>
 
         <button type="button" className="sidebar-logout" onClick={handleLogout}>
