@@ -36,13 +36,14 @@ const navigation = [
     label: "Insights",
     icon: Lightbulb,
   },
-];
-
-const comingSoon = [
   {
+    to: "/intelligence/ask",
     label: "Ask StockFlow",
     icon: Bot,
   },
+];
+
+const comingSoon = [
   {
     label: "Automation",
     icon: Sparkles,

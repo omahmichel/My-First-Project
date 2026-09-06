@@ -479,3 +479,43 @@ DEBT_REMINDER_RETRY_MINUTES = get_env_positive_int(
     "DEBT_REMINDER_RETRY_MINUTES",
     default=15,
 )
+
+# StockFlow AI Analyst. Credentials remain environment-only and optional.
+STOCKFLOW_AI_PROVIDER = os.getenv(
+    "STOCKFLOW_AI_PROVIDER",
+    "openai",
+).strip().lower()
+STOCKFLOW_AI_API_KEY = os.getenv(
+    "STOCKFLOW_AI_API_KEY",
+    "",
+).strip()
+STOCKFLOW_AI_MODEL = (
+    os.getenv(
+        "STOCKFLOW_AI_MODEL",
+        "gpt-5.6-luna",
+    ).strip()
+    or "gpt-5.6-luna"
+)
+STOCKFLOW_AI_API_URL = (
+    os.getenv(
+        "STOCKFLOW_AI_API_URL",
+        "https://api.openai.com/v1/responses",
+    ).strip()
+    or "https://api.openai.com/v1/responses"
+)
+STOCKFLOW_AI_TIMEOUT_SECONDS = get_env_positive_int(
+    "STOCKFLOW_AI_TIMEOUT_SECONDS",
+    default=45,
+)
+STOCKFLOW_AI_MAX_OUTPUT_TOKENS = get_env_positive_int(
+    "STOCKFLOW_AI_MAX_OUTPUT_TOKENS",
+    default=900,
+)
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["intelligence_analyst"] = (
+    os.getenv(
+        "THROTTLE_RATE_INTELLIGENCE_ANALYST",
+        "30/hour",
+    ).strip()
+    or "30/hour"
+)

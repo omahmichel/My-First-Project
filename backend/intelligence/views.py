@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from businesses.access import get_business_and_role_for_user
@@ -13,6 +14,12 @@ from .serializers import (
     IntelligenceForecastRequestSerializer,
     IntelligenceForecastRunSerializer,
     IntelligenceRecommendationCollectionSerializer,
+    IntelligenceAnalystRequestSerializer,
+    IntelligenceAnalystResponseSerializer,
+)
+from .ai.analyst import (
+    AIAnalystUnavailable,
+    answer_business_question,
 )
 from .services.business_analysis import calculate_business_overview
 from .services.forecasting import generate_and_store_forecast
@@ -146,3 +153,45 @@ class BusinessIntelligenceRecommendationAPIView(APIView):
             serializer.data,
             status=status.HTTP_201_CREATED,
         )
+
+class BusinessIntelligenceAnalystAPIView(APIView):
+    permission_classes = (IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "intelligence_analyst"
+
+    def post(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+
+        request_serializer = IntelligenceAnalystRequestSerializer(
+            data=request.data
+        )
+        request_serializer.is_valid(raise_exception=True)
+
+        try:
+            payload = answer_business_question(
+                business=business,
+                question=request_serializer.validated_data[
+                    "question"
+                ],
+                history=request_serializer.validated_data.get(
+                    "history",
+                    [],
+                ),
+            )
+        except AIAnalystUnavailable as exc:
+            return Response(
+                {
+                    "detail": exc.message,
+                    "code": exc.code,
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        serializer = IntelligenceAnalystResponseSerializer(
+            instance=payload
+        )
+        return Response(serializer.data)

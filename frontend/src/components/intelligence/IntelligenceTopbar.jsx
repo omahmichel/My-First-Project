@@ -13,6 +13,7 @@ const pageTitles = {
   "/intelligence/forecasts": "Forecasts",
   "/intelligence/recommendations": "Stock Recommendations",
   "/intelligence/insights": "Insights",
+  "/intelligence/ask": "Ask StockFlow",
 };
 
 

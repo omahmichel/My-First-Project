@@ -1258,6 +1258,110 @@ class BusinessIntelligenceOverviewTests(APITestCase):
         )
         self.assertEqual(get_response.data["count"], 7)
 
+
+    @patch("intelligence.views.answer_business_question")
+    def test_owner_can_ask_grounded_stockflow_analyst(
+        self,
+        mocked_answer,
+    ):
+        mocked_answer.return_value = {
+            "answer": (
+                "Verified 30-day revenue is ₵300.00. "
+                "Data confidence is low."
+            ),
+            "provider": "openai",
+            "model": "gpt-5.6-luna",
+            "generated_at": timezone.now(),
+            "confidence": "low",
+            "evidence": {
+                "overallConfidence": "low",
+                "overviewGeneratedAt": timezone.now().isoformat(),
+                "availableForecastHorizons": [],
+                "activeRecommendationCount": 0,
+                "sources": [
+                    "verified_intelligence_overview",
+                    "stored_forecasts",
+                    "active_recommendations",
+                ],
+            },
+            "read_only": True,
+        }
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            reverse(
+                "business-intelligence-analyst",
+                kwargs={"business_id": self.business.id},
+            ),
+            {
+                "question": "What happened in my business?",
+                "history": [],
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(response.data["confidence"], "low")
+        self.assertTrue(response.data["readOnly"])
+        self.assertIn("₵300.00", response.data["answer"])
+        mocked_answer.assert_called_once()
+
+    @patch("intelligence.views.answer_business_question")
+    def test_cashier_cannot_use_stockflow_analyst(
+        self,
+        mocked_answer,
+    ):
+        self.client.force_authenticate(user=self.cashier)
+
+        response = self.client.post(
+            reverse(
+                "business-intelligence-analyst",
+                kwargs={"business_id": self.business.id},
+            ),
+            {"question": "Tell me the business strategy."},
+            format="json",
+        )
+
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+        mocked_answer.assert_not_called()
+
+    @patch("intelligence.views.answer_business_question")
+    def test_analyst_configuration_failure_is_safe(
+        self,
+        mocked_answer,
+    ):
+        from intelligence.ai.analyst import AIAnalystUnavailable
+
+        mocked_answer.side_effect = AIAnalystUnavailable(
+            code="ai_not_configured",
+            message="Ask StockFlow is not configured yet.",
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            reverse(
+                "business-intelligence-analyst",
+                kwargs={"business_id": self.business.id},
+            ),
+            {"question": "What should I review today?"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+        self.assertEqual(
+            response.data["code"],
+            "ai_not_configured",
+        )
+
     def test_manager_can_read_overview(self):
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(self.overview_url())

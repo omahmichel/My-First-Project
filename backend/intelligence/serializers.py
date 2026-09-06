@@ -753,3 +753,40 @@ class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     )
     confidence = IntelligenceConfidenceSerializer()
     methodology = IntelligenceMethodologySerializer()
+
+class IntelligenceAnalystHistoryMessageSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(
+        choices=("user", "assistant"),
+    )
+    content = serializers.CharField(
+        max_length=1600,
+        trim_whitespace=True,
+    )
+
+
+class IntelligenceAnalystRequestSerializer(serializers.Serializer):
+    question = serializers.CharField(
+        max_length=800,
+        trim_whitespace=True,
+    )
+    history = IntelligenceAnalystHistoryMessageSerializer(
+        many=True,
+        required=False,
+    )
+
+    def validate_history(self, value):
+        if len(value) > 6:
+            raise serializers.ValidationError(
+                "Only the six most recent chat messages may be sent."
+            )
+        return value
+
+
+class IntelligenceAnalystResponseSerializer(serializers.Serializer):
+    answer = serializers.CharField()
+    provider = serializers.CharField()
+    model = serializers.CharField()
+    generatedAt = serializers.DateTimeField(source="generated_at")
+    confidence = serializers.CharField()
+    evidence = serializers.DictField()
+    readOnly = serializers.BooleanField(source="read_only")
