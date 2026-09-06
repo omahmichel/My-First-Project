@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     BusinessIntelligenceForecastAPIView,
     BusinessIntelligenceOverviewAPIView,
+    BusinessIntelligenceRecommendationAPIView,
 )
 
 
@@ -16,5 +17,10 @@ urlpatterns = [
         "businesses/<uuid:business_id>/intelligence/forecasts/",
         BusinessIntelligenceForecastAPIView.as_view(),
         name="business-intelligence-forecast",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/recommendations/",
+        BusinessIntelligenceRecommendationAPIView.as_view(),
+        name="business-intelligence-recommendations",
     ),
 ]

@@ -695,6 +695,40 @@ class IntelligenceForecastRunSerializer(serializers.Serializer):
     generatedAt = serializers.DateTimeField(source="generated_at")
 
 
+
+class IntelligenceRecommendationSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    insightType = serializers.CharField(source="insight_type")
+    severity = serializers.CharField()
+    confidence = serializers.CharField()
+    title = serializers.CharField()
+    summary = serializers.CharField()
+    evidence = serializers.DictField()
+    status = serializers.CharField()
+    generatedAt = serializers.DateTimeField(source="generated_at")
+    resolvedAt = serializers.DateTimeField(
+        source="resolved_at",
+        allow_null=True,
+    )
+
+
+class IntelligenceRecommendationCollectionSerializer(
+    serializers.Serializer
+):
+    engine = serializers.CharField()
+    forecastHorizonDays = serializers.IntegerField(
+        source="forecast_horizon_days"
+    )
+    generatedAt = serializers.DateTimeField(source="generated_at")
+    count = serializers.SerializerMethodField()
+    recommendations = IntelligenceRecommendationSerializer(
+        many=True
+    )
+
+    def get_count(self, obj):
+        return len(obj["recommendations"])
+
+
 class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     businessId = serializers.UUIDField(source="business_id")
     businessName = serializers.CharField(source="business_name")

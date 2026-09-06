@@ -1,5 +1,7 @@
+import uuid
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.urls import reverse
 from django.utils import timezone
@@ -9,7 +11,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from businesses.models import Business, BusinessMembership
 from customers.models import Customer
-from intelligence.models import ForecastRun
+from intelligence.models import BusinessInsight, ForecastRun
 from inventory.models import Product, StockMovement
 from sales.models import Sale, SaleItem
 
@@ -1059,6 +1061,202 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             ).count(),
             0,
         )
+
+
+    @patch(
+        "intelligence.services.recommendations.calculate_forecast"
+    )
+    @patch(
+        "intelligence.services.recommendations.calculate_business_overview"
+    )
+    def test_recommendation_engine_generates_combined_persisted_insights(
+        self,
+        mock_overview,
+        mock_forecast,
+    ):
+        recommendation_business = Business.objects.create(
+            owner=self.owner,
+            name="Recommendation Test Shop",
+            slug="recommendation-test-shop",
+            business_type=Business.BusinessType.BUILDING_MATERIALS,
+        )
+
+        old_engine_insight = BusinessInsight.objects.create(
+            business=recommendation_business,
+            insight_type=BusinessInsight.InsightType.INVENTORY,
+            severity=BusinessInsight.Severity.ATTENTION,
+            confidence=BusinessInsight.Confidence.MEDIUM,
+            title="Old engine recommendation",
+            summary="Old generated recommendation",
+            evidence={
+                "engine": "deterministic_recommendation_v1",
+                "recommendation_code": "old",
+            },
+        )
+        unrelated_insight = BusinessInsight.objects.create(
+            business=recommendation_business,
+            insight_type=BusinessInsight.InsightType.PERFORMANCE,
+            severity=BusinessInsight.Severity.INFO,
+            confidence=BusinessInsight.Confidence.LOW,
+            title="Unrelated future insight",
+            summary="Must remain active",
+            evidence={"source": "manual_test"},
+        )
+
+        mock_overview.return_value = {
+            "confidence": {"grade": "high"},
+            "inventory_overstock": {
+                "overstock_cover_days": 60,
+                "candidates": [
+                    {
+                        "product_id": str(uuid.uuid4()),
+                        "name": "Slow Cement",
+                        "sku": "REC-OVER-001",
+                        "available_stock": 100,
+                        "quantity_sold_30d": 10,
+                        "target_stock_units": 20,
+                        "excess_units": 80,
+                        "estimated_days_of_cover": Decimal("300.0"),
+                        "excess_cost_value": Decimal("400.00"),
+                    }
+                ],
+            },
+            "product_profitability": {
+                "comparison_period_days": 30,
+                "margin_deterioration": [
+                    {
+                        "product_id": str(uuid.uuid4()),
+                        "name": "Margin Block",
+                        "sku": "REC-MARGIN-001",
+                        "profit_margin": Decimal("20.00"),
+                        "previous_profit_margin": Decimal("35.00"),
+                        "margin_change_points": Decimal("-15.00"),
+                        "realized_revenue": Decimal("500.00"),
+                        "gross_profit": Decimal("100.00"),
+                    }
+                ],
+            },
+            "sales_anomaly": {
+                "status": "anomaly",
+                "signal_type": "revenue_drop",
+                "severity": "high",
+                "confidence_grade": "high",
+                "evaluated_date": timezone.localdate(),
+                "current_revenue": Decimal("100.00"),
+                "baseline_average_revenue": Decimal("500.00"),
+                "percentage_change": Decimal("-80.00"),
+                "baseline_sample_count": 4,
+                "threshold_percent": Decimal("75.00"),
+            },
+            "debts": {
+                "customer_debt": Decimal("300.00"),
+                "supplier_debt": Decimal("200.00"),
+                "customers_with_debt": 2,
+                "supplier_purchases_with_balance": 1,
+            },
+            "sales_trend": {
+                "period_days": 30,
+                "direction": "down",
+                "current_revenue": Decimal("700.00"),
+                "previous_revenue": Decimal("1000.00"),
+                "absolute_change": Decimal("-300.00"),
+                "percentage_change": Decimal("-30.00"),
+            },
+        }
+        mock_forecast.return_value = {
+            "results": {
+                "products": [
+                    {
+                        "product_id": str(uuid.uuid4()),
+                        "name": "Fast Cement",
+                        "sku": "REC-STOCK-001",
+                        "available_stock": 5,
+                        "daily_demand": "2.00",
+                        "days_of_stock_remaining": "2.5",
+                        "projected_stock_out_date": (
+                            timezone.localdate()
+                            + timedelta(days=3)
+                        ).isoformat(),
+                        "stock_out_within_horizon": True,
+                        "expected_quantity": "60.00",
+                        "confidence_grade": "high",
+                    }
+                ]
+            }
+        }
+
+        url = reverse(
+            "business-intelligence-recommendations",
+            kwargs={"business_id": recommendation_business.id},
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(url, {}, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(
+            response.data["engine"],
+            "deterministic_recommendation_v1",
+        )
+        self.assertEqual(
+            response.data["forecastHorizonDays"],
+            30,
+        )
+        self.assertEqual(response.data["count"], 7)
+        self.assertEqual(
+            response.data["recommendations"][0]["severity"],
+            "high",
+        )
+
+        codes = {
+            item["evidence"]["recommendation_code"]
+            for item in response.data["recommendations"]
+        }
+        self.assertEqual(
+            codes,
+            {
+                "restock_stockout_risk",
+                "reduce_overstock_exposure",
+                "review_margin_deterioration",
+                "investigate_sales_anomaly",
+                "collect_customer_debt",
+                "review_supplier_debt",
+                "review_revenue_decline",
+            },
+        )
+
+        old_engine_insight.refresh_from_db()
+        unrelated_insight.refresh_from_db()
+        self.assertEqual(
+            old_engine_insight.status,
+            BusinessInsight.Status.RESOLVED,
+        )
+        self.assertIsNotNone(old_engine_insight.resolved_at)
+        self.assertEqual(
+            unrelated_insight.status,
+            BusinessInsight.Status.ACTIVE,
+        )
+
+        active_engine_count = sum(
+            1
+            for insight in BusinessInsight.objects.filter(
+                business=recommendation_business,
+                status=BusinessInsight.Status.ACTIVE,
+            )
+            if insight.evidence.get("engine")
+            == "deterministic_recommendation_v1"
+        )
+        self.assertEqual(active_engine_count, 7)
+
+        get_response = self.client.get(url)
+        self.assertEqual(
+            get_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(get_response.data["count"], 7)
 
     def test_manager_can_read_overview(self):
         self.client.force_authenticate(user=self.manager)
