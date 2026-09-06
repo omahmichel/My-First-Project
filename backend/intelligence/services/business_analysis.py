@@ -24,6 +24,9 @@ DEAD_STOCK_DAYS = 60
 STOCK_OUT_RISK_DAYS = 14
 CONFIDENCE_LOOKBACK_DAYS = 60
 OVERSTOCK_COVER_DAYS = 60
+ANOMALY_BASELINE_OCCURRENCES = 4
+ANOMALY_CHANGE_THRESHOLD_PERCENT = Decimal("75.00")
+ANOMALY_MIN_ACTIVE_BASELINES = 2
 
 
 def get_recognized_sales(business):
@@ -967,6 +970,149 @@ def calculate_data_confidence(business, *, as_of=None):
     }
 
 
+def calculate_sales_anomaly(
+    business,
+    *,
+    confidence,
+    as_of=None,
+):
+    """Evaluate the latest completed day against prior same-weekday history."""
+    now = as_of or timezone.now()
+
+    if timezone.is_naive(now):
+        now = timezone.make_aware(
+            now,
+            timezone.get_current_timezone(),
+        )
+
+    local_now = timezone.localtime(
+        now,
+        timezone.get_current_timezone(),
+    )
+    latest_complete_day_end = local_now.replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    evaluated_start = latest_complete_day_end - timedelta(days=1)
+    evaluated_date = evaluated_start.date()
+
+    result = {
+        "eligible": False,
+        "status": "insufficient_history",
+        "confidence_grade": confidence["grade"],
+        "evaluated_date": evaluated_date,
+        "current_revenue": ZERO_MONEY,
+        "baseline_weekday": evaluated_start.strftime("%A"),
+        "baseline_sample_count": 0,
+        "baseline_average_revenue": ZERO_MONEY,
+        "percentage_change": None,
+        "direction": "flat",
+        "threshold_percent": ANOMALY_CHANGE_THRESHOLD_PERCENT,
+        "signal_type": None,
+        "severity": None,
+        "baseline_samples": [],
+    }
+
+    if confidence["grade"] == "low":
+        return result
+
+    baseline_dates = [
+        evaluated_date - timedelta(days=7 * occurrence)
+        for occurrence in range(1, ANOMALY_BASELINE_OCCURRENCES + 1)
+    ]
+    history_start = evaluated_start - timedelta(
+        days=7 * ANOMALY_BASELINE_OCCURRENCES
+    )
+
+    sales = _recognized_sales_between(
+        business=business,
+        start=history_start,
+        end=latest_complete_day_end,
+    )
+
+    revenue_by_date = defaultdict(lambda: ZERO_MONEY)
+    for sale in sales:
+        sale_date = timezone.localtime(
+            sale.completed_at,
+            timezone.get_current_timezone(),
+        ).date()
+        revenue_by_date[sale_date] += money(sale.total)
+
+    current_revenue = revenue_by_date[evaluated_date]
+    baseline_samples = [
+        {
+            "date": baseline_date,
+            "revenue": revenue_by_date[baseline_date],
+        }
+        for baseline_date in baseline_dates
+    ]
+    active_baselines = [
+        sample
+        for sample in baseline_samples
+        if sample["revenue"] > ZERO_MONEY
+    ]
+
+    result["current_revenue"] = current_revenue
+    result["baseline_sample_count"] = len(active_baselines)
+    result["baseline_samples"] = baseline_samples
+
+    if len(active_baselines) < ANOMALY_MIN_ACTIVE_BASELINES:
+        result["status"] = "insufficient_baseline"
+        return result
+
+    baseline_average = (
+        sum(
+            (sample["revenue"] for sample in active_baselines),
+            ZERO_MONEY,
+        )
+        / Decimal(len(active_baselines))
+    ).quantize(Decimal("0.01"))
+
+    percentage_change = (
+        ((current_revenue - baseline_average) / baseline_average)
+        * Decimal("100")
+    ).quantize(Decimal("0.01"))
+
+    direction = _movement_direction(
+        current_revenue - baseline_average
+    )
+
+    result.update(
+        {
+            "eligible": True,
+            "status": "normal",
+            "baseline_average_revenue": baseline_average,
+            "percentage_change": percentage_change,
+            "direction": direction,
+        }
+    )
+
+    if abs(percentage_change) < ANOMALY_CHANGE_THRESHOLD_PERCENT:
+        return result
+
+    result.update(
+        {
+            "status": "anomaly",
+            "signal_type": (
+                "revenue_spike"
+                if percentage_change > ZERO_MONEY
+                else "revenue_drop"
+            ),
+            "severity": (
+                "high"
+                if (
+                    percentage_change >= Decimal("150.00")
+                    or percentage_change <= Decimal("-90.00")
+                )
+                else "attention"
+            ),
+        }
+    )
+    return result
+
+
 def calculate_business_health(
     *,
     sales_trend,
@@ -1049,6 +1195,11 @@ def calculate_business_overview(business, *, as_of=None):
         business,
         as_of=now,
     )
+    sales_anomaly = calculate_sales_anomaly(
+        business,
+        confidence=confidence,
+        as_of=now,
+    )
     business_health = calculate_business_health(
         sales_trend=sales_trend,
         inventory=inventory,
@@ -1068,6 +1219,7 @@ def calculate_business_overview(business, *, as_of=None):
         "products": product_performance,
         "product_profitability": product_profitability,
         "inventory_overstock": inventory_overstock,
+        "sales_anomaly": sales_anomaly,
         "confidence": confidence,
         "business_health": business_health,
         "methodology": {
@@ -1087,6 +1239,12 @@ def calculate_business_overview(business, *, as_of=None):
             "stock_out_risk_days": STOCK_OUT_RISK_DAYS,
             "overstock_cover_days": OVERSTOCK_COVER_DAYS,
             "overstock_method": "recent_demand_days_of_cover",
+            "anomaly_baseline_occurrences": ANOMALY_BASELINE_OCCURRENCES,
+            "anomaly_change_threshold_percent": (
+                ANOMALY_CHANGE_THRESHOLD_PERCENT
+            ),
+            "anomaly_min_active_baselines": ANOMALY_MIN_ACTIVE_BASELINES,
+            "anomaly_comparison": "same_weekday_prior_4_occurrences",
             "confidence_lookback_days": CONFIDENCE_LOOKBACK_DAYS,
         },
     }

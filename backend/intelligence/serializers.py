@@ -351,6 +351,58 @@ class IntelligenceInventoryOverstockSerializer(serializers.Serializer):
     candidates = IntelligenceOverstockCandidateSerializer(many=True)
 
 
+class IntelligenceAnomalyBaselineSampleSerializer(
+    serializers.Serializer
+):
+    date = serializers.DateField()
+    revenue = serializers.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+    )
+
+
+class IntelligenceSalesAnomalySerializer(serializers.Serializer):
+    eligible = serializers.BooleanField()
+    status = serializers.CharField()
+    confidenceGrade = serializers.CharField(source="confidence_grade")
+    evaluatedDate = serializers.DateField(source="evaluated_date")
+    currentRevenue = serializers.DecimalField(
+        source="current_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    baselineWeekday = serializers.CharField(source="baseline_weekday")
+    baselineSampleCount = serializers.IntegerField(
+        source="baseline_sample_count"
+    )
+    baselineAverageRevenue = serializers.DecimalField(
+        source="baseline_average_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    percentageChange = serializers.DecimalField(
+        source="percentage_change",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    direction = serializers.CharField()
+    thresholdPercent = serializers.DecimalField(
+        source="threshold_percent",
+        max_digits=10,
+        decimal_places=2,
+    )
+    signalType = serializers.CharField(
+        source="signal_type",
+        allow_null=True,
+    )
+    severity = serializers.CharField(allow_null=True)
+    baselineSamples = IntelligenceAnomalyBaselineSampleSerializer(
+        source="baseline_samples",
+        many=True,
+    )
+
+
 class IntelligenceConfidenceSerializer(serializers.Serializer):
     grade = serializers.CharField()
     historyDays = serializers.IntegerField(source="history_days")
@@ -385,6 +437,20 @@ class IntelligenceMethodologySerializer(serializers.Serializer):
         source="overstock_cover_days"
     )
     overstockMethod = serializers.CharField(source="overstock_method")
+    anomalyBaselineOccurrences = serializers.IntegerField(
+        source="anomaly_baseline_occurrences"
+    )
+    anomalyChangeThresholdPercent = serializers.DecimalField(
+        source="anomaly_change_threshold_percent",
+        max_digits=10,
+        decimal_places=2,
+    )
+    anomalyMinActiveBaselines = serializers.IntegerField(
+        source="anomaly_min_active_baselines"
+    )
+    anomalyComparison = serializers.CharField(
+        source="anomaly_comparison"
+    )
     confidenceLookbackDays = serializers.IntegerField(
         source="confidence_lookback_days"
     )
@@ -408,6 +474,9 @@ class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     )
     inventoryOverstock = IntelligenceInventoryOverstockSerializer(
         source="inventory_overstock"
+    )
+    salesAnomaly = IntelligenceSalesAnomalySerializer(
+        source="sales_anomaly"
     )
     confidence = IntelligenceConfidenceSerializer()
     methodology = IntelligenceMethodologySerializer()

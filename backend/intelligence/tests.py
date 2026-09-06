@@ -262,6 +262,115 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             "previous_day_same_elapsed_time",
         )
         self.assertEqual(response.data["confidence"]["grade"], "low")
+        self.assertFalse(response.data["salesAnomaly"]["eligible"])
+        self.assertEqual(
+            response.data["salesAnomaly"]["status"],
+            "insufficient_history",
+        )
+
+    def test_sales_anomaly_uses_same_weekday_baseline(self):
+        anomaly_business = Business.objects.create(
+            owner=self.owner,
+            name="Anomaly Test Shop",
+            slug="anomaly-test-shop",
+            business_type=Business.BusinessType.BUILDING_MATERIALS,
+        )
+
+        now = timezone.now()
+        today_start = timezone.localtime(now).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        target_time = today_start - timedelta(hours=12)
+        target_date = target_time.date()
+
+        def create_sale(*, days_back, amount, suffix):
+            completed_at = target_time - timedelta(days=days_back)
+            return Sale.objects.create(
+                business=anomaly_business,
+                customer=None,
+                customer_name="Walk-in customer",
+                customer_phone="",
+                sale_number=f"INT-ANOM-{suffix}",
+                invoice_number=f"INT-ANOM-INV-{suffix}",
+                payment_method=Sale.PaymentMethod.CASH,
+                status=Sale.Status.COMPLETED,
+                subtotal=amount,
+                discount=Decimal("0.00"),
+                total=amount,
+                amount_paid=amount,
+                outstanding_balance=Decimal("0.00"),
+                cashier=self.owner,
+                cashier_name=self.owner.full_name,
+                completed_at=completed_at,
+            )
+
+        for offset, suffix in (
+            (7, "B1"),
+            (14, "B2"),
+            (21, "B3"),
+            (28, "B4"),
+        ):
+            create_sale(
+                days_back=offset,
+                amount=Decimal("100.00"),
+                suffix=suffix,
+            )
+
+        for offset, suffix in (
+            (30, "H1"),
+            (31, "H2"),
+            (32, "H3"),
+            (33, "H4"),
+            (34, "H5"),
+            (35, "H6"),
+        ):
+            create_sale(
+                days_back=offset,
+                amount=Decimal("20.00"),
+                suffix=suffix,
+            )
+
+        create_sale(
+            days_back=0,
+            amount=Decimal("300.00"),
+            suffix="TARGET",
+        )
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(
+            self.overview_url(anomaly_business)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        anomaly = response.data["salesAnomaly"]
+        self.assertTrue(anomaly["eligible"])
+        self.assertEqual(anomaly["status"], "anomaly")
+        self.assertEqual(anomaly["confidenceGrade"], "medium")
+        self.assertEqual(
+            anomaly["evaluatedDate"],
+            target_date.isoformat(),
+        )
+        self.assertEqual(anomaly["baselineSampleCount"], 4)
+        self.assertEqual(
+            Decimal(str(anomaly["currentRevenue"])),
+            Decimal("300.00"),
+        )
+        self.assertEqual(
+            Decimal(str(anomaly["baselineAverageRevenue"])),
+            Decimal("100.00"),
+        )
+        self.assertEqual(
+            Decimal(str(anomaly["percentageChange"])),
+            Decimal("200.00"),
+        )
+        self.assertEqual(anomaly["direction"], "up")
+        self.assertEqual(anomaly["signalType"], "revenue_spike")
+        self.assertEqual(anomaly["severity"], "high")
+        self.assertEqual(len(anomaly["baselineSamples"]), 4)
 
     def test_inventory_overstock_uses_recent_demand_cover(self):
         overstock_business = Business.objects.create(
