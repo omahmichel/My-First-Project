@@ -456,6 +456,245 @@ class IntelligenceMethodologySerializer(serializers.Serializer):
     )
 
 
+
+class IntelligenceForecastRequestSerializer(serializers.Serializer):
+    horizonDays = serializers.ChoiceField(
+        source="horizon_days",
+        choices=(7, 30, 90),
+    )
+
+
+class IntelligenceForecastConfidenceSerializer(serializers.Serializer):
+    grade = serializers.CharField()
+    dataGrade = serializers.CharField(source="data_grade")
+    historyDays = serializers.IntegerField(source="history_days")
+    transactionCount = serializers.IntegerField(
+        source="transaction_count"
+    )
+    activeSellingDays = serializers.IntegerField(
+        source="active_selling_days"
+    )
+    dailyRevenueVariabilityPercent = serializers.DecimalField(
+        source="daily_revenue_variability_percent",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    reason = serializers.CharField()
+
+
+class IntelligenceBusinessForecastSerializer(serializers.Serializer):
+    expectedQuantity = serializers.DecimalField(
+        source="expected_quantity",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedRevenue = serializers.DecimalField(
+        source="expected_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedGrossProfit = serializers.DecimalField(
+        source="expected_gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    historicalMarginPercent = serializers.DecimalField(
+        source="historical_margin_percent",
+        max_digits=10,
+        decimal_places=2,
+    )
+    dailyUnitVelocity = serializers.DecimalField(
+        source="daily_unit_velocity",
+        max_digits=18,
+        decimal_places=2,
+    )
+    dailyRevenueVelocity = serializers.DecimalField(
+        source="daily_revenue_velocity",
+        max_digits=18,
+        decimal_places=2,
+    )
+    revenueDirection = serializers.CharField(
+        source="revenue_direction"
+    )
+    revenueTrendPercent = serializers.DecimalField(
+        source="revenue_trend_percent",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    stockOutRiskCount = serializers.IntegerField(
+        source="stock_out_risk_count"
+    )
+
+
+class IntelligenceProductForecastSerializer(serializers.Serializer):
+    productId = serializers.UUIDField(source="product_id")
+    name = serializers.CharField()
+    sku = serializers.CharField()
+    category = serializers.CharField()
+    availableStock = serializers.IntegerField(
+        source="available_stock"
+    )
+    dailyDemand = serializers.DecimalField(
+        source="daily_demand",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedQuantity = serializers.DecimalField(
+        source="expected_quantity",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedRevenue = serializers.DecimalField(
+        source="expected_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedGrossProfit = serializers.DecimalField(
+        source="expected_gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    historicalMarginPercent = serializers.DecimalField(
+        source="historical_margin_percent",
+        max_digits=10,
+        decimal_places=2,
+    )
+    demandDirection = serializers.CharField(
+        source="demand_direction"
+    )
+    demandTrendPercent = serializers.DecimalField(
+        source="demand_trend_percent",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    activeSellingDays = serializers.IntegerField(
+        source="active_selling_days"
+    )
+    confidenceGrade = serializers.CharField(
+        source="confidence_grade"
+    )
+    daysOfStockRemaining = serializers.DecimalField(
+        source="days_of_stock_remaining",
+        max_digits=18,
+        decimal_places=1,
+        allow_null=True,
+    )
+    projectedStockOutDate = serializers.DateField(
+        source="projected_stock_out_date",
+        allow_null=True,
+    )
+    stockOutWithinHorizon = serializers.BooleanField(
+        source="stock_out_within_horizon"
+    )
+
+
+class IntelligenceCategoryForecastSerializer(serializers.Serializer):
+    category = serializers.CharField()
+    productCount = serializers.IntegerField(
+        source="product_count"
+    )
+    expectedQuantity = serializers.DecimalField(
+        source="expected_quantity",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedRevenue = serializers.DecimalField(
+        source="expected_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    expectedGrossProfit = serializers.DecimalField(
+        source="expected_gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    stockOutRiskCount = serializers.IntegerField(
+        source="stock_out_risk_count"
+    )
+
+
+class IntelligenceForecastMethodologySerializer(serializers.Serializer):
+    lookbackDays = serializers.IntegerField(source="lookback_days")
+    recentWindowDays = serializers.IntegerField(
+        source="recent_window_days"
+    )
+    recentWeight = serializers.DecimalField(
+        source="recent_weight",
+        max_digits=4,
+        decimal_places=2,
+    )
+    longTermWeight = serializers.DecimalField(
+        source="long_term_weight",
+        max_digits=4,
+        decimal_places=2,
+    )
+    trendThresholdPercent = serializers.DecimalField(
+        source="trend_threshold_percent",
+        max_digits=10,
+        decimal_places=2,
+    )
+    seasonalityStatus = serializers.CharField(
+        source="seasonality_status"
+    )
+    recognizedSaleStatuses = serializers.ListField(
+        source="recognized_sale_statuses",
+        child=serializers.CharField(),
+    )
+    currentStockBasis = serializers.CharField(
+        source="current_stock_basis"
+    )
+    completedDaysOnly = serializers.BooleanField(
+        source="completed_days_only"
+    )
+    productMediumMinActiveDays = serializers.IntegerField(
+        source="product_medium_min_active_days"
+    )
+    productHighMinActiveDays = serializers.IntegerField(
+        source="product_high_min_active_days"
+    )
+    horizonConfidencePolicy = serializers.CharField(
+        source="horizon_confidence_policy"
+    )
+
+
+class IntelligenceForecastRunSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    businessId = serializers.UUIDField(source="business_id")
+    horizonDays = serializers.IntegerField(source="horizon_days")
+    status = serializers.CharField()
+    algorithm = serializers.CharField()
+    algorithmVersion = serializers.CharField(
+        source="algorithm_version"
+    )
+    historyStart = serializers.DateField(
+        source="history_start",
+        allow_null=True,
+    )
+    historyEnd = serializers.DateField(
+        source="history_end",
+        allow_null=True,
+    )
+    confidence = IntelligenceForecastConfidenceSerializer()
+    businessForecast = IntelligenceBusinessForecastSerializer(
+        source="results.business"
+    )
+    productForecasts = IntelligenceProductForecastSerializer(
+        source="results.products",
+        many=True,
+    )
+    categoryForecasts = IntelligenceCategoryForecastSerializer(
+        source="results.categories",
+        many=True,
+    )
+    methodology = IntelligenceForecastMethodologySerializer(
+        source="parameters"
+    )
+    generatedAt = serializers.DateTimeField(source="generated_at")
+
+
 class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     businessId = serializers.UUIDField(source="business_id")
     businessName = serializers.CharField(source="business_name")

@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from businesses.models import Business, BusinessMembership
 from customers.models import Customer
+from intelligence.models import ForecastRun
 from inventory.models import Product, StockMovement
 from sales.models import Sale, SaleItem
 
@@ -728,6 +729,336 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             Decimal("200.00"),
         )
         self.assertEqual(period["grossProfitDirection"], "up")
+
+
+    def test_forecast_engine_generates_and_stores_combined_forecast(self):
+        forecast_business = Business.objects.create(
+            owner=self.owner,
+            name="Forecast Test Shop",
+            slug="forecast-test-shop",
+            business_type=Business.BusinessType.BUILDING_MATERIALS,
+        )
+        product = Product.objects.create(
+            business=forecast_business,
+            name="Forecast Cement",
+            sku="INT-FORECAST-001",
+            category="Cement",
+            unit=Product.Unit.BAG,
+            stock=5,
+            reserved_stock=0,
+            low_stock_level=2,
+            cost_price=Decimal("6.00"),
+            selling_price=Decimal("10.00"),
+        )
+
+        now = timezone.now()
+        today_start = timezone.localtime(now).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        anchor_time = today_start - timedelta(hours=12)
+
+        for index, days_back in enumerate(
+            (0, 3, 6, 9, 12, 15, 18, 21, 24, 35),
+            start=1,
+        ):
+            completed_at = anchor_time - timedelta(days=days_back)
+            sale = Sale.objects.create(
+                business=forecast_business,
+                customer=None,
+                customer_name="Walk-in customer",
+                customer_phone="",
+                sale_number=f"INT-FORECAST-{index}",
+                invoice_number=f"INT-FORECAST-INV-{index}",
+                payment_method=Sale.PaymentMethod.CASH,
+                status=Sale.Status.COMPLETED,
+                subtotal=Decimal("100.00"),
+                discount=Decimal("0.00"),
+                total=Decimal("100.00"),
+                amount_paid=Decimal("100.00"),
+                outstanding_balance=Decimal("0.00"),
+                cashier=self.owner,
+                cashier_name=self.owner.full_name,
+                completed_at=completed_at,
+            )
+            SaleItem.objects.create(
+                sale=sale,
+                product=product,
+                product_name=product.name,
+                sku=product.sku,
+                design_code="",
+                unit=product.unit,
+                quantity=10,
+                unit_price=Decimal("10.00"),
+                cost_price=Decimal("6.00"),
+                line_total=Decimal("100.00"),
+            )
+
+        url = reverse(
+            "business-intelligence-forecast",
+            kwargs={"business_id": forecast_business.id},
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            url,
+            {"horizonDays": 7},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(response.data["horizonDays"], 7)
+        self.assertEqual(
+            response.data["algorithm"],
+            "weighted_daily_velocity",
+        )
+        self.assertEqual(
+            response.data["algorithmVersion"],
+            "1.0",
+        )
+        self.assertEqual(
+            response.data["confidence"]["grade"],
+            "medium",
+        )
+        self.assertEqual(
+            response.data["confidence"]["dataGrade"],
+            "medium",
+        )
+        self.assertGreater(
+            Decimal(str(
+                response.data["businessForecast"][
+                    "expectedRevenue"
+                ]
+            )),
+            Decimal("0.00"),
+        )
+        self.assertGreater(
+            Decimal(str(
+                response.data["businessForecast"][
+                    "expectedGrossProfit"
+                ]
+            )),
+            Decimal("0.00"),
+        )
+        self.assertEqual(
+            response.data["businessForecast"][
+                "stockOutRiskCount"
+            ],
+            1,
+        )
+
+        product_forecast = response.data["productForecasts"][0]
+        self.assertEqual(
+            product_forecast["sku"],
+            "INT-FORECAST-001",
+        )
+        self.assertEqual(
+            product_forecast["availableStock"],
+            5,
+        )
+        self.assertTrue(
+            product_forecast["stockOutWithinHorizon"]
+        )
+        self.assertIsNotNone(
+            product_forecast["projectedStockOutDate"]
+        )
+
+        category_forecast = response.data["categoryForecasts"][0]
+        self.assertEqual(
+            category_forecast["category"],
+            "Cement",
+        )
+        self.assertEqual(
+            category_forecast["stockOutRiskCount"],
+            1,
+        )
+        self.assertEqual(
+            response.data["methodology"][
+                "recognizedSaleStatuses"
+            ],
+            ["completed", "partially_paid"],
+        )
+        self.assertTrue(
+            response.data["methodology"]["completedDaysOnly"]
+        )
+
+        self.assertEqual(
+            ForecastRun.objects.filter(
+                business=forecast_business,
+                horizon_days=7,
+            ).count(),
+            1,
+        )
+
+        history_response = self.client.get(
+            f"{url}?horizonDays=7"
+        )
+        self.assertEqual(
+            history_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(len(history_response.data), 1)
+        self.assertEqual(
+            history_response.data[0]["id"],
+            response.data["id"],
+        )
+
+        long_response = self.client.post(
+            url,
+            {"horizonDays": 90},
+            format="json",
+        )
+        self.assertEqual(
+            long_response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(
+            long_response.data["confidence"]["dataGrade"],
+            "medium",
+        )
+        self.assertEqual(
+            long_response.data["confidence"]["grade"],
+            "low",
+        )
+        self.assertEqual(
+            long_response.data["methodology"][
+                "horizonConfidencePolicy"
+            ],
+            "90_day_downgrades_one_level",
+        )
+
+    def test_forecast_engine_keeps_low_data_forecast_low_confidence(self):
+        low_data_business = Business.objects.create(
+            owner=self.owner,
+            name="Low Data Forecast Shop",
+            slug="low-data-forecast-shop",
+            business_type=Business.BusinessType.BOUTIQUE,
+        )
+        product = Product.objects.create(
+            business=low_data_business,
+            name="Low Data Shirt",
+            sku="INT-FORECAST-LOW-001",
+            category="Shirts",
+            unit=Product.Unit.PIECE,
+            stock=20,
+            reserved_stock=0,
+            low_stock_level=3,
+            cost_price=Decimal("20.00"),
+            selling_price=Decimal("30.00"),
+        )
+
+        today_start = timezone.localtime(timezone.now()).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        completed_at = today_start - timedelta(hours=12)
+
+        sale = Sale.objects.create(
+            business=low_data_business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-FORECAST-LOW",
+            invoice_number="INT-FORECAST-LOW-INV",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("60.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("60.00"),
+            amount_paid=Decimal("60.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=completed_at,
+        )
+        SaleItem.objects.create(
+            sale=sale,
+            product=product,
+            product_name=product.name,
+            sku=product.sku,
+            design_code="",
+            unit=product.unit,
+            quantity=2,
+            unit_price=Decimal("30.00"),
+            cost_price=Decimal("20.00"),
+            line_total=Decimal("60.00"),
+        )
+
+        url = reverse(
+            "business-intelligence-forecast",
+            kwargs={"business_id": low_data_business.id},
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            url,
+            {"horizonDays": 30},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(
+            response.data["confidence"]["grade"],
+            "low",
+        )
+        self.assertEqual(
+            response.data["confidence"]["dataGrade"],
+            "low",
+        )
+        self.assertGreater(
+            Decimal(str(
+                response.data["businessForecast"][
+                    "expectedRevenue"
+                ]
+            )),
+            Decimal("0.00"),
+        )
+        self.assertEqual(
+            response.data["productForecasts"][0][
+                "confidenceGrade"
+            ],
+            "low",
+        )
+
+    def test_forecast_engine_rejects_unsupported_horizon(self):
+        forecast_business = Business.objects.create(
+            owner=self.owner,
+            name="Invalid Forecast Horizon Shop",
+            slug="invalid-forecast-horizon-shop",
+            business_type=Business.BusinessType.BUILDING_MATERIALS,
+        )
+        url = reverse(
+            "business-intelligence-forecast",
+            kwargs={"business_id": forecast_business.id},
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            url,
+            {"horizonDays": 14},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            ForecastRun.objects.filter(
+                business=forecast_business,
+            ).count(),
+            0,
+        )
 
     def test_manager_can_read_overview(self):
         self.client.force_authenticate(user=self.manager)
