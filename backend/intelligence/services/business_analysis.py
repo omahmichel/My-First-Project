@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from inventory.models import Product
 from inventory.restock_models import RestockPurchase
@@ -578,6 +578,211 @@ def calculate_product_performance(business, *, as_of=None):
     }
 
 
+def _sale_item_realized_revenues(sale):
+    'Allocate sale-level discount proportionally across sale items.'
+    items = list(sale.items.all())
+
+    if not items:
+        return []
+
+    subtotal = money(sale.subtotal)
+    total = money(sale.total)
+    discount = money(sale.discount)
+
+    if discount <= ZERO_MONEY or subtotal <= ZERO_MONEY:
+        return [
+            (item, money(item.line_total))
+            for item in items
+        ]
+
+    # Smaller lines are rounded first; the largest line receives the
+    # final cent reconciliation so allocated revenue equals Sale.total.
+    ordered_items = sorted(
+        items,
+        key=lambda item: (
+            money(item.line_total),
+            str(item.pk),
+        ),
+    )
+
+    allocations = []
+    allocated_revenue = ZERO_MONEY
+
+    for item in ordered_items[:-1]:
+        realized_revenue = (
+            (money(item.line_total) * total) / subtotal
+        ).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+        allocations.append((item, realized_revenue))
+        allocated_revenue += realized_revenue
+
+    last_item = ordered_items[-1]
+    allocations.append(
+        (
+            last_item,
+            total - allocated_revenue,
+        )
+    )
+
+    return allocations
+
+
+def _aggregate_product_profitability(sales):
+    'Aggregate realized revenue and historical cost by product.'
+    products = {}
+
+    for sale in sales:
+        for item, realized_revenue in _sale_item_realized_revenues(sale):
+            product_key = (
+                item.product_id,
+                item.sku,
+                item.product_name,
+            )
+            entry = products.setdefault(
+                product_key,
+                {
+                    "product_id": item.product_id,
+                    "name": item.product_name,
+                    "sku": item.sku,
+                    "quantity_sold": 0,
+                    "realized_revenue": ZERO_MONEY,
+                    "historical_cost": ZERO_MONEY,
+                },
+            )
+
+            entry["quantity_sold"] += item.quantity
+            entry["realized_revenue"] += realized_revenue
+            entry["historical_cost"] += (
+                money(item.cost_price) * item.quantity
+            )
+
+    for entry in products.values():
+        gross_profit = (
+            entry["realized_revenue"] - entry["historical_cost"]
+        )
+        profit_margin = (
+            (
+                gross_profit
+                / entry["realized_revenue"]
+                * Decimal("100")
+            )
+            if entry["realized_revenue"] > ZERO_MONEY
+            else ZERO_MONEY
+        ).quantize(Decimal("0.01"))
+
+        entry["gross_profit"] = gross_profit
+        entry["profit_margin"] = profit_margin
+
+    return products
+
+
+def calculate_product_profitability(
+    business,
+    *,
+    days=30,
+    as_of=None,
+):
+    'Rank product profitability using discount-adjusted realized revenue.'
+    now = as_of or timezone.now()
+    current_start = now - timedelta(days=days)
+    previous_start = current_start - timedelta(days=days)
+
+    current_sales = _recognized_sales_between(
+        business=business,
+        start=current_start,
+        end=now,
+    )
+    previous_sales = _recognized_sales_between(
+        business=business,
+        start=previous_start,
+        end=current_start,
+    )
+
+    current = _aggregate_product_profitability(current_sales)
+    previous = _aggregate_product_profitability(previous_sales)
+
+    results = []
+
+    for product_key, entry in current.items():
+        previous_entry = previous.get(product_key)
+        previous_profit_margin = (
+            previous_entry["profit_margin"]
+            if previous_entry is not None
+            else None
+        )
+        margin_change_points = (
+            (
+                entry["profit_margin"]
+                - previous_profit_margin
+            ).quantize(Decimal("0.01"))
+            if previous_profit_margin is not None
+            else None
+        )
+
+        results.append(
+            {
+                **entry,
+                "previous_realized_revenue": (
+                    previous_entry["realized_revenue"]
+                    if previous_entry is not None
+                    else ZERO_MONEY
+                ),
+                "previous_gross_profit": (
+                    previous_entry["gross_profit"]
+                    if previous_entry is not None
+                    else ZERO_MONEY
+                ),
+                "previous_profit_margin": previous_profit_margin,
+                "margin_change_points": margin_change_points,
+            }
+        )
+
+    best = sorted(
+        results,
+        key=lambda item: (
+            item["gross_profit"],
+            item["realized_revenue"],
+            item["name"],
+        ),
+        reverse=True,
+    )
+    worst = sorted(
+        results,
+        key=lambda item: (
+            item["gross_profit"],
+            item["realized_revenue"],
+            item["name"],
+        ),
+    )
+    margin_deterioration = sorted(
+        (
+            item
+            for item in results
+            if (
+                item["margin_change_points"] is not None
+                and item["margin_change_points"] < ZERO_MONEY
+            )
+        ),
+        key=lambda item: item["margin_change_points"],
+    )
+
+    return {
+        "period_days": days,
+        "comparison_period_days": days,
+        "discount_allocation_method": (
+            "proportional_by_line_subtotal"
+        ),
+        "discount_rounding_method": (
+            "cent_reconciliation_to_largest_line"
+        ),
+        "best_performing_products": best[:5],
+        "worst_performing_products": worst[:5],
+        "margin_deterioration": margin_deterioration[:10],
+    }
+
+
 def calculate_data_confidence(business, *, as_of=None):
     """Grade overview confidence from verified transaction history depth."""
     now = as_of or timezone.now()
@@ -711,6 +916,11 @@ def calculate_business_overview(business, *, as_of=None):
         business,
         as_of=now,
     )
+    product_profitability = calculate_product_profitability(
+        business,
+        days=30,
+        as_of=now,
+    )
     confidence = calculate_data_confidence(
         business,
         as_of=now,
@@ -732,6 +942,7 @@ def calculate_business_overview(business, *, as_of=None):
         "inventory": inventory,
         "debts": debts,
         "products": product_performance,
+        "product_profitability": product_profitability,
         "confidence": confidence,
         "business_health": business_health,
         "methodology": {

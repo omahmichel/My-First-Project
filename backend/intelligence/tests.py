@@ -263,6 +263,180 @@ class BusinessIntelligenceOverviewTests(APITestCase):
         )
         self.assertEqual(response.data["confidence"]["grade"], "low")
 
+    def test_product_profitability_allocates_sale_discount(self):
+        profitability_business = Business.objects.create(
+            owner=self.owner,
+            name="Profitability Test Shop",
+            slug="profitability-test-shop",
+            business_type=Business.BusinessType.BUILDING_MATERIALS,
+        )
+        product_a = Product.objects.create(
+            business=profitability_business,
+            name="Profit Product A",
+            sku="INT-PROFIT-A",
+            category="Test",
+            unit=Product.Unit.PIECE,
+            stock=20,
+            reserved_stock=0,
+            low_stock_level=2,
+            cost_price=Decimal("60.00"),
+            selling_price=Decimal("100.00"),
+        )
+        product_b = Product.objects.create(
+            business=profitability_business,
+            name="Profit Product B",
+            sku="INT-PROFIT-B",
+            category="Test",
+            unit=Product.Unit.PIECE,
+            stock=20,
+            reserved_stock=0,
+            low_stock_level=2,
+            cost_price=Decimal("20.00"),
+            selling_price=Decimal("50.00"),
+        )
+
+        previous_sale = Sale.objects.create(
+            business=profitability_business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-PROFIT-PREV",
+            invoice_number="INT-PROFIT-INV-PREV",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("100.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("100.00"),
+            amount_paid=Decimal("100.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=timezone.now() - timedelta(days=40),
+        )
+
+        product_a.cost_price = Decimal("40.00")
+        product_a.save()
+        SaleItem.objects.create(
+            sale=previous_sale,
+            product=product_a,
+            product_name=product_a.name,
+            sku=product_a.sku,
+            design_code="",
+            unit=product_a.unit,
+            quantity=1,
+            unit_price=Decimal("100.00"),
+            cost_price=product_a.cost_price,
+            line_total=Decimal("100.00"),
+        )
+        product_a.cost_price = Decimal("60.00")
+        product_a.save()
+
+        current_sale = Sale.objects.create(
+            business=profitability_business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-PROFIT-CURRENT",
+            invoice_number="INT-PROFIT-INV-CURRENT",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("200.00"),
+            discount=Decimal("20.00"),
+            total=Decimal("180.00"),
+            amount_paid=Decimal("180.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=timezone.now() - timedelta(days=5),
+        )
+        SaleItem.objects.create(
+            sale=current_sale,
+            product=product_a,
+            product_name=product_a.name,
+            sku=product_a.sku,
+            design_code="",
+            unit=product_a.unit,
+            quantity=1,
+            unit_price=Decimal("100.00"),
+            cost_price=product_a.cost_price,
+            line_total=Decimal("100.00"),
+        )
+        SaleItem.objects.create(
+            sale=current_sale,
+            product=product_b,
+            product_name=product_b.name,
+            sku=product_b.sku,
+            design_code="",
+            unit=product_b.unit,
+            quantity=2,
+            unit_price=Decimal("50.00"),
+            cost_price=product_b.cost_price,
+            line_total=Decimal("100.00"),
+        )
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(
+            self.overview_url(profitability_business)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        profitability = response.data["productProfitability"]
+        self.assertEqual(profitability["periodDays"], 30)
+        self.assertEqual(
+            profitability["discountAllocationMethod"],
+            "proportional_by_line_subtotal",
+        )
+        self.assertEqual(
+            profitability["discountRoundingMethod"],
+            "cent_reconciliation_to_largest_line",
+        )
+
+        best = profitability["bestPerformingProducts"][0]
+        self.assertEqual(best["sku"], "INT-PROFIT-B")
+        self.assertEqual(
+            Decimal(str(best["realizedRevenue"])),
+            Decimal("90.00"),
+        )
+        self.assertEqual(
+            Decimal(str(best["historicalCost"])),
+            Decimal("40.00"),
+        )
+        self.assertEqual(
+            Decimal(str(best["grossProfit"])),
+            Decimal("50.00"),
+        )
+        self.assertEqual(
+            Decimal(str(best["profitMargin"])),
+            Decimal("55.56"),
+        )
+
+        worst = profitability["worstPerformingProducts"][0]
+        self.assertEqual(worst["sku"], "INT-PROFIT-A")
+        self.assertEqual(
+            Decimal(str(worst["realizedRevenue"])),
+            Decimal("90.00"),
+        )
+        self.assertEqual(
+            Decimal(str(worst["grossProfit"])),
+            Decimal("30.00"),
+        )
+        self.assertEqual(
+            Decimal(str(worst["previousProfitMargin"])),
+            Decimal("60.00"),
+        )
+        self.assertEqual(
+            Decimal(str(worst["marginChangePoints"])),
+            Decimal("-26.67"),
+        )
+
+        deterioration = profitability["marginDeterioration"][0]
+        self.assertEqual(deterioration["sku"], "INT-PROFIT-A")
+        self.assertEqual(
+            Decimal(str(deterioration["marginChangePoints"])),
+            Decimal("-26.67"),
+        )
+
     def test_period_performance_compares_against_real_previous_window(self):
         previous_period_sale = Sale.objects.create(
             business=self.business,

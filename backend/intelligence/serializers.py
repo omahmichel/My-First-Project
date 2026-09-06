@@ -208,6 +208,91 @@ class IntelligenceProductPerformanceSerializer(serializers.Serializer):
     rules = IntelligenceProductRulesSerializer()
 
 
+class IntelligenceProductProfitabilityEntrySerializer(
+    serializers.Serializer
+):
+    productId = serializers.UUIDField(
+        source="product_id",
+        allow_null=True,
+    )
+    name = serializers.CharField()
+    sku = serializers.CharField()
+    quantitySold = serializers.IntegerField(source="quantity_sold")
+    realizedRevenue = serializers.DecimalField(
+        source="realized_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    historicalCost = serializers.DecimalField(
+        source="historical_cost",
+        max_digits=18,
+        decimal_places=2,
+    )
+    grossProfit = serializers.DecimalField(
+        source="gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    profitMargin = serializers.DecimalField(
+        source="profit_margin",
+        max_digits=10,
+        decimal_places=2,
+    )
+    previousRealizedRevenue = serializers.DecimalField(
+        source="previous_realized_revenue",
+        max_digits=18,
+        decimal_places=2,
+    )
+    previousGrossProfit = serializers.DecimalField(
+        source="previous_gross_profit",
+        max_digits=18,
+        decimal_places=2,
+    )
+    previousProfitMargin = serializers.DecimalField(
+        source="previous_profit_margin",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+    marginChangePoints = serializers.DecimalField(
+        source="margin_change_points",
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+    )
+
+
+class IntelligenceProductProfitabilitySerializer(serializers.Serializer):
+    periodDays = serializers.IntegerField(source="period_days")
+    comparisonPeriodDays = serializers.IntegerField(
+        source="comparison_period_days"
+    )
+    discountAllocationMethod = serializers.CharField(
+        source="discount_allocation_method"
+    )
+    discountRoundingMethod = serializers.CharField(
+        source="discount_rounding_method"
+    )
+    bestPerformingProducts = (
+        IntelligenceProductProfitabilityEntrySerializer(
+            source="best_performing_products",
+            many=True,
+        )
+    )
+    worstPerformingProducts = (
+        IntelligenceProductProfitabilityEntrySerializer(
+            source="worst_performing_products",
+            many=True,
+        )
+    )
+    marginDeterioration = (
+        IntelligenceProductProfitabilityEntrySerializer(
+            source="margin_deterioration",
+            many=True,
+        )
+    )
+
+
 class IntelligenceConfidenceSerializer(serializers.Serializer):
     grade = serializers.CharField()
     historyDays = serializers.IntegerField(source="history_days")
@@ -256,5 +341,8 @@ class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     inventory = IntelligenceInventorySummarySerializer()
     debts = IntelligenceDebtSummarySerializer()
     products = IntelligenceProductPerformanceSerializer()
+    productProfitability = IntelligenceProductProfitabilitySerializer(
+        source="product_profitability"
+    )
     confidence = IntelligenceConfidenceSerializer()
     methodology = IntelligenceMethodologySerializer()
