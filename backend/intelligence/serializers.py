@@ -293,6 +293,64 @@ class IntelligenceProductProfitabilitySerializer(serializers.Serializer):
     )
 
 
+class IntelligenceOverstockCandidateSerializer(
+    serializers.Serializer
+):
+    productId = serializers.UUIDField(source="product_id")
+    name = serializers.CharField()
+    sku = serializers.CharField()
+    availableStock = serializers.IntegerField(source="available_stock")
+    quantitySold30d = serializers.IntegerField(source="quantity_sold_30d")
+    averageDailyDemand = serializers.DecimalField(
+        source="average_daily_demand",
+        max_digits=14,
+        decimal_places=2,
+    )
+    estimatedDaysOfCover = serializers.DecimalField(
+        source="estimated_days_of_cover",
+        max_digits=14,
+        decimal_places=1,
+    )
+    targetStockUnits = serializers.IntegerField(
+        source="target_stock_units"
+    )
+    excessUnits = serializers.IntegerField(source="excess_units")
+    currentCostPrice = serializers.DecimalField(
+        source="current_cost_price",
+        max_digits=18,
+        decimal_places=2,
+    )
+    excessCostValue = serializers.DecimalField(
+        source="excess_cost_value",
+        max_digits=18,
+        decimal_places=2,
+    )
+    lastStockInAt = serializers.DateTimeField(
+        source="last_stock_in_at",
+        allow_null=True,
+    )
+
+
+class IntelligenceInventoryOverstockSerializer(serializers.Serializer):
+    demandLookbackDays = serializers.IntegerField(
+        source="demand_lookback_days"
+    )
+    overstockCoverDays = serializers.IntegerField(
+        source="overstock_cover_days"
+    )
+    candidateCount = serializers.IntegerField(source="candidate_count")
+    totalExcessUnits = serializers.IntegerField(
+        source="total_excess_units"
+    )
+    totalExcessCostValue = serializers.DecimalField(
+        source="total_excess_cost_value",
+        max_digits=18,
+        decimal_places=2,
+    )
+    method = serializers.CharField()
+    candidates = IntelligenceOverstockCandidateSerializer(many=True)
+
+
 class IntelligenceConfidenceSerializer(serializers.Serializer):
     grade = serializers.CharField()
     historyDays = serializers.IntegerField(source="history_days")
@@ -323,6 +381,10 @@ class IntelligenceMethodologySerializer(serializers.Serializer):
     slowMovingDays = serializers.IntegerField(source="slow_moving_days")
     deadStockDays = serializers.IntegerField(source="dead_stock_days")
     stockOutRiskDays = serializers.IntegerField(source="stock_out_risk_days")
+    overstockCoverDays = serializers.IntegerField(
+        source="overstock_cover_days"
+    )
+    overstockMethod = serializers.CharField(source="overstock_method")
     confidenceLookbackDays = serializers.IntegerField(
         source="confidence_lookback_days"
     )
@@ -343,6 +405,9 @@ class BusinessIntelligenceOverviewSerializer(serializers.Serializer):
     products = IntelligenceProductPerformanceSerializer()
     productProfitability = IntelligenceProductProfitabilitySerializer(
         source="product_profitability"
+    )
+    inventoryOverstock = IntelligenceInventoryOverstockSerializer(
+        source="inventory_overstock"
     )
     confidence = IntelligenceConfidenceSerializer()
     methodology = IntelligenceMethodologySerializer()

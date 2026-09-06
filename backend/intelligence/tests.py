@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from businesses.models import Business, BusinessMembership
 from customers.models import Customer
-from inventory.models import Product
+from inventory.models import Product, StockMovement
 from sales.models import Sale, SaleItem
 
 
@@ -262,6 +262,109 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             "previous_day_same_elapsed_time",
         )
         self.assertEqual(response.data["confidence"]["grade"], "low")
+
+    def test_inventory_overstock_uses_recent_demand_cover(self):
+        overstock_business = Business.objects.create(
+            owner=self.owner,
+            name="Overstock Test Shop",
+            slug="overstock-test-shop",
+            business_type=Business.BusinessType.BUILDING_MATERIALS,
+        )
+        product = Product.objects.create(
+            business=overstock_business,
+            name="Overstock Cement",
+            sku="INT-OVERSTOCK-001",
+            category="Cement",
+            unit=Product.Unit.BAG,
+            stock=100,
+            reserved_stock=0,
+            low_stock_level=10,
+            cost_price=Decimal("5.00"),
+            selling_price=Decimal("8.00"),
+        )
+
+        sale = Sale.objects.create(
+            business=overstock_business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-OVERSTOCK-SALE",
+            invoice_number="INT-OVERSTOCK-INV",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("80.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("80.00"),
+            amount_paid=Decimal("80.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=timezone.now() - timedelta(days=5),
+        )
+        SaleItem.objects.create(
+            sale=sale,
+            product=product,
+            product_name=product.name,
+            sku=product.sku,
+            design_code="",
+            unit=product.unit,
+            quantity=10,
+            unit_price=Decimal("8.00"),
+            cost_price=product.cost_price,
+            line_total=Decimal("80.00"),
+        )
+
+        StockMovement.objects.create(
+            business=overstock_business,
+            product=product,
+            movement_type=StockMovement.MovementType.STOCK_IN,
+            quantity=10,
+            previous_stock=90,
+            new_stock=100,
+            reason="Recent restock for overstock test",
+            created_by=self.owner,
+        )
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(
+            self.overview_url(overstock_business)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        overstock = response.data["inventoryOverstock"]
+        self.assertEqual(overstock["demandLookbackDays"], 30)
+        self.assertEqual(overstock["overstockCoverDays"], 60)
+        self.assertEqual(overstock["candidateCount"], 1)
+        self.assertEqual(overstock["totalExcessUnits"], 80)
+        self.assertEqual(
+            Decimal(str(overstock["totalExcessCostValue"])),
+            Decimal("400.00"),
+        )
+        self.assertEqual(
+            overstock["method"],
+            "recent_demand_days_of_cover",
+        )
+
+        candidate = overstock["candidates"][0]
+        self.assertEqual(candidate["sku"], "INT-OVERSTOCK-001")
+        self.assertEqual(candidate["availableStock"], 100)
+        self.assertEqual(candidate["quantitySold30d"], 10)
+        self.assertEqual(candidate["targetStockUnits"], 20)
+        self.assertEqual(candidate["excessUnits"], 80)
+        self.assertEqual(
+            Decimal(str(candidate["estimatedDaysOfCover"])),
+            Decimal("300.0"),
+        )
+        self.assertEqual(
+            Decimal(str(candidate["currentCostPrice"])),
+            Decimal("5.00"),
+        )
+        self.assertEqual(
+            Decimal(str(candidate["excessCostValue"])),
+            Decimal("400.00"),
+        )
+        self.assertIsNotNone(candidate["lastStockInAt"])
 
     def test_product_profitability_allocates_sale_discount(self):
         profitability_business = Business.objects.create(

@@ -1,8 +1,8 @@
 from collections import defaultdict
 from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 
-from inventory.models import Product
+from inventory.models import Product, StockMovement
 from inventory.restock_models import RestockPurchase
 from django.db.models import Max
 from sales.models import Sale, SaleItem
@@ -23,6 +23,7 @@ SLOW_MOVING_DAYS = 30
 DEAD_STOCK_DAYS = 60
 STOCK_OUT_RISK_DAYS = 14
 CONFIDENCE_LOOKBACK_DAYS = 60
+OVERSTOCK_COVER_DAYS = 60
 
 
 def get_recognized_sales(business):
@@ -783,6 +784,125 @@ def calculate_product_profitability(
     }
 
 
+def calculate_inventory_overstock(business, *, as_of=None):
+    now = as_of or timezone.now()
+    demand_start = now - timedelta(days=SLOW_MOVING_DAYS)
+
+    products = list(
+        Product.objects.filter(
+            business=business,
+            is_active=True,
+        ).order_by("name")
+    )
+    recent_sales = _recognized_sales_between(
+        business=business,
+        start=demand_start,
+        end=now,
+    )
+
+    quantity_sold = defaultdict(int)
+    for sale in recent_sales:
+        for item in sale.items.all():
+            quantity_sold[item.product_id] += item.quantity
+
+    last_stock_in_by_product = {
+        row["product_id"]: row["last_stock_in_at"]
+        for row in (
+            StockMovement.objects.filter(
+                business=business,
+                movement_type=StockMovement.MovementType.STOCK_IN,
+            )
+            .values("product_id")
+            .annotate(last_stock_in_at=Max("created_at"))
+        )
+    }
+
+    candidates = []
+    total_excess_units = 0
+    total_excess_cost_value = ZERO_MONEY
+
+    for product in products:
+        sold_30d = quantity_sold[product.id]
+
+        # No-demand stock is already covered by slow/dead-stock signals.
+        if sold_30d <= 0:
+            continue
+
+        available_stock = max(
+            0,
+            product.stock - product.reserved_stock,
+        )
+        average_daily_demand = (
+            Decimal(sold_30d) / Decimal(SLOW_MOVING_DAYS)
+        )
+
+        target_stock_units = int(
+            (
+                average_daily_demand
+                * Decimal(OVERSTOCK_COVER_DAYS)
+            ).to_integral_value(rounding=ROUND_CEILING)
+        )
+
+        excess_units = max(
+            0,
+            available_stock - target_stock_units,
+        )
+        if excess_units <= 0:
+            continue
+
+        estimated_days_of_cover = (
+            Decimal(available_stock) / average_daily_demand
+        ).quantize(Decimal("0.1"))
+        excess_cost_value = (
+            money(product.cost_price) * excess_units
+        )
+
+        candidates.append(
+            {
+                "product_id": product.id,
+                "name": product.name,
+                "sku": product.sku,
+                "available_stock": available_stock,
+                "quantity_sold_30d": sold_30d,
+                "average_daily_demand": (
+                    average_daily_demand.quantize(
+                        Decimal("0.01")
+                    )
+                ),
+                "estimated_days_of_cover": estimated_days_of_cover,
+                "target_stock_units": target_stock_units,
+                "excess_units": excess_units,
+                "current_cost_price": money(product.cost_price),
+                "excess_cost_value": excess_cost_value,
+                "last_stock_in_at": last_stock_in_by_product.get(
+                    product.id
+                ),
+            }
+        )
+
+        total_excess_units += excess_units
+        total_excess_cost_value += excess_cost_value
+
+    candidates.sort(
+        key=lambda item: (
+            item["excess_cost_value"],
+            item["excess_units"],
+            item["name"],
+        ),
+        reverse=True,
+    )
+
+    return {
+        "demand_lookback_days": SLOW_MOVING_DAYS,
+        "overstock_cover_days": OVERSTOCK_COVER_DAYS,
+        "candidate_count": len(candidates),
+        "total_excess_units": total_excess_units,
+        "total_excess_cost_value": total_excess_cost_value,
+        "candidates": candidates[:10],
+        "method": "recent_demand_days_of_cover",
+    }
+
+
 def calculate_data_confidence(business, *, as_of=None):
     """Grade overview confidence from verified transaction history depth."""
     now = as_of or timezone.now()
@@ -921,6 +1041,10 @@ def calculate_business_overview(business, *, as_of=None):
         days=30,
         as_of=now,
     )
+    inventory_overstock = calculate_inventory_overstock(
+        business,
+        as_of=now,
+    )
     confidence = calculate_data_confidence(
         business,
         as_of=now,
@@ -943,6 +1067,7 @@ def calculate_business_overview(business, *, as_of=None):
         "debts": debts,
         "products": product_performance,
         "product_profitability": product_profitability,
+        "inventory_overstock": inventory_overstock,
         "confidence": confidence,
         "business_health": business_health,
         "methodology": {
@@ -960,6 +1085,8 @@ def calculate_business_overview(business, *, as_of=None):
             "slow_moving_days": SLOW_MOVING_DAYS,
             "dead_stock_days": DEAD_STOCK_DAYS,
             "stock_out_risk_days": STOCK_OUT_RISK_DAYS,
+            "overstock_cover_days": OVERSTOCK_COVER_DAYS,
+            "overstock_method": "recent_demand_days_of_cover",
             "confidence_lookback_days": CONFIDENCE_LOOKBACK_DAYS,
         },
     }
