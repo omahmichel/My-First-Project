@@ -1362,6 +1362,216 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             "ai_not_configured",
         )
 
+
+    def test_report_engine_defines_all_roadmap_report_types(self):
+        from intelligence.services.reports import REPORT_DEFINITIONS
+
+        self.assertEqual(
+            set(REPORT_DEFINITIONS),
+            {
+                "daily_summary",
+                "weekly_management",
+                "monthly_management",
+                "sales_profit",
+                "stock_risk_restocking",
+                "supplier_balances",
+                "customer_debt",
+            },
+        )
+
+    def test_weekly_report_top_products_use_weekly_window(self):
+        from intelligence.services.reports import build_report_payload
+
+        older_product = Product.objects.create(
+            business=self.business,
+            name="Older Period Product",
+            sku="INT-REPORT-OLDER",
+            category="Test",
+            unit=Product.Unit.PIECE,
+            stock=20,
+            reserved_stock=0,
+            low_stock_level=2,
+            cost_price=Decimal("10.00"),
+            selling_price=Decimal("20.00"),
+        )
+        older_sale = Sale.objects.create(
+            business=self.business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-REPORT-OLDER-SALE",
+            invoice_number="INT-REPORT-OLDER-INV",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("2000.00"),
+            discount=Decimal("0.00"),
+            total=Decimal("2000.00"),
+            amount_paid=Decimal("2000.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=timezone.now() - timedelta(days=20),
+        )
+        SaleItem.objects.create(
+            sale=older_sale,
+            product=older_product,
+            product_name=older_product.name,
+            sku=older_product.sku,
+            design_code="",
+            unit=older_product.unit,
+            quantity=100,
+            unit_price=Decimal("20.00"),
+            cost_price=Decimal("10.00"),
+            line_total=Decimal("2000.00"),
+        )
+
+        payload = build_report_payload(
+            business=self.business,
+            report_type="weekly_management",
+        )
+        top_section = next(
+            section
+            for section in payload["sections"]
+            if section["key"] == "top_products"
+        )
+        product_names = {
+            row["name"]
+            for row in top_section["rows"]
+        }
+
+        self.assertIn(self.product.name, product_names)
+        self.assertNotIn(older_product.name, product_names)
+
+    def test_owner_generates_and_reads_persisted_weekly_report(self):
+        from intelligence.models import GeneratedReport
+
+        self.client.force_authenticate(user=self.owner)
+
+        create_response = self.client.post(
+            reverse(
+                "business-intelligence-reports",
+                kwargs={"business_id": self.business.id},
+            ),
+            {
+                "reportType": "weekly_management",
+                "includeAiSummary": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            create_response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(
+            create_response.data["reportType"],
+            "weekly_management",
+        )
+        self.assertEqual(
+            create_response.data["aiStatus"],
+            "not_requested",
+        )
+        self.assertIn(
+            "whatHappened",
+            create_response.data["payload"]["managementQuestions"],
+        )
+        self.assertEqual(
+            GeneratedReport.objects.filter(
+                business=self.business,
+            ).count(),
+            1,
+        )
+
+        detail_response = self.client.get(
+            reverse(
+                "business-intelligence-report-detail",
+                kwargs={
+                    "business_id": self.business.id,
+                    "report_id": create_response.data["id"],
+                },
+            )
+        )
+        self.assertEqual(
+            detail_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            detail_response.data["id"],
+            create_response.data["id"],
+        )
+
+    @patch("intelligence.services.reports.generate_report_narrative")
+    def test_ai_report_failure_keeps_deterministic_report_available(
+        self,
+        mocked_narrative,
+    ):
+        mocked_narrative.return_value = {
+            "status": "unavailable",
+            "narrative": "",
+            "provider": "openai",
+            "model": "gpt-5.6-luna",
+        }
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            reverse(
+                "business-intelligence-reports",
+                kwargs={"business_id": self.business.id},
+            ),
+            {
+                "reportType": "monthly_management",
+                "includeAiSummary": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(response.data["aiStatus"], "unavailable")
+        self.assertTrue(response.data["payload"]["metrics"])
+        mocked_narrative.assert_called_once()
+
+    def test_manager_can_list_intelligence_reports(self):
+        from intelligence.models import GeneratedReport
+
+        GeneratedReport.objects.create(
+            business=self.business,
+            generated_by=self.owner,
+            report_type="daily_summary",
+            title="Daily Business Summary",
+            payload={},
+        )
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(
+            reverse(
+                "business-intelligence-reports",
+                kwargs={"business_id": self.business.id},
+            )
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_cashier_cannot_generate_intelligence_report(self):
+        self.client.force_authenticate(user=self.cashier)
+
+        response = self.client.post(
+            reverse(
+                "business-intelligence-reports",
+                kwargs={"business_id": self.business.id},
+            ),
+            {"reportType": "weekly_management"},
+            format="json",
+        )
+
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
     def test_manager_can_read_overview(self):
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(self.overview_url())

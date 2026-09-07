@@ -5,6 +5,8 @@ from .views import (
     BusinessIntelligenceForecastAPIView,
     BusinessIntelligenceOverviewAPIView,
     BusinessIntelligenceRecommendationAPIView,
+    BusinessIntelligenceReportCollectionAPIView,
+    BusinessIntelligenceReportDetailAPIView,
 )
 
 
@@ -28,5 +30,16 @@ urlpatterns = [
         "businesses/<uuid:business_id>/intelligence/analyst/",
         BusinessIntelligenceAnalystAPIView.as_view(),
         name="business-intelligence-analyst",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/reports/",
+        BusinessIntelligenceReportCollectionAPIView.as_view(),
+        name="business-intelligence-reports",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/reports/"
+        "<uuid:report_id>/",
+        BusinessIntelligenceReportDetailAPIView.as_view(),
+        name="business-intelligence-report-detail",
     ),
 ]

@@ -14,6 +14,7 @@ const pageTitles = {
   "/intelligence/recommendations": "Stock Recommendations",
   "/intelligence/insights": "Insights",
   "/intelligence/ask": "Ask StockFlow",
+  "/intelligence/reports": "Intelligence Reports",
 };
 
 

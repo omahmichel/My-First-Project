@@ -41,16 +41,17 @@ const navigation = [
     label: "Ask StockFlow",
     icon: Bot,
   },
+  {
+    to: "/intelligence/reports",
+    label: "Intelligence Reports",
+    icon: BrainCircuit,
+  },
 ];
 
 const comingSoon = [
   {
     label: "Automation",
     icon: Sparkles,
-  },
-  {
-    label: "Intelligence Reports",
-    icon: BrainCircuit,
   },
 ];
 

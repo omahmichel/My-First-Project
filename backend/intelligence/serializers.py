@@ -790,3 +790,51 @@ class IntelligenceAnalystResponseSerializer(serializers.Serializer):
     confidence = serializers.CharField()
     evidence = serializers.DictField()
     readOnly = serializers.BooleanField(source="read_only")
+
+class IntelligenceReportRequestSerializer(serializers.Serializer):
+    reportType = serializers.ChoiceField(
+        source="report_type",
+        choices=(
+            "daily_summary",
+            "weekly_management",
+            "monthly_management",
+            "sales_profit",
+            "stock_risk_restocking",
+            "supplier_balances",
+            "customer_debt",
+        ),
+    )
+    includeAiSummary = serializers.BooleanField(
+        source="include_ai_summary",
+        required=False,
+        default=False,
+    )
+
+
+class IntelligenceGeneratedReportSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    businessId = serializers.UUIDField(source="business_id")
+    reportType = serializers.CharField(source="report_type")
+    title = serializers.CharField()
+    periodStart = serializers.DateTimeField(
+        source="period_start",
+        allow_null=True,
+    )
+    periodEnd = serializers.DateTimeField(
+        source="period_end",
+        allow_null=True,
+    )
+    dataConfidence = serializers.CharField(source="data_confidence")
+    payload = serializers.DictField()
+    aiNarrative = serializers.CharField(source="ai_narrative")
+    aiStatus = serializers.CharField(source="ai_status")
+    aiProvider = serializers.CharField(source="ai_provider")
+    aiModel = serializers.CharField(source="ai_model")
+    generatedAt = serializers.DateTimeField(source="generated_at")
+    generatedBy = serializers.SerializerMethodField()
+
+    def get_generatedBy(self, obj):
+        user = obj.generated_by
+        if not user:
+            return None
+        return user.full_name or user.email

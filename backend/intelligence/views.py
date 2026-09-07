@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -16,13 +17,17 @@ from .serializers import (
     IntelligenceRecommendationCollectionSerializer,
     IntelligenceAnalystRequestSerializer,
     IntelligenceAnalystResponseSerializer,
+    IntelligenceGeneratedReportSerializer,
+    IntelligenceReportRequestSerializer,
 )
 from .ai.analyst import (
     AIAnalystUnavailable,
     answer_business_question,
 )
 from .services.business_analysis import calculate_business_overview
+from .models import GeneratedReport
 from .services.forecasting import generate_and_store_forecast
+from .services.reports import generate_and_store_report
 from .services.recommendations import (
     RECOMMENDATION_ENGINE,
     RECOMMENDATION_FORECAST_HORIZON_DAYS,
@@ -193,5 +198,88 @@ class BusinessIntelligenceAnalystAPIView(APIView):
 
         serializer = IntelligenceAnalystResponseSerializer(
             instance=payload
+        )
+        return Response(serializer.data)
+
+class BusinessIntelligenceReportCollectionAPIView(APIView):
+    """Lists and generates persisted verified management reports."""
+
+    permission_classes = (IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "intelligence_reports"
+
+    def get(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+
+        queryset = GeneratedReport.objects.filter(business=business)
+
+        report_type = request.query_params.get("reportType", "").strip()
+        if report_type:
+            valid_types = {
+                choice
+                for choice, _ in GeneratedReport.ReportType.choices
+            }
+            if report_type not in valid_types:
+                return Response(
+                    {"detail": "Unsupported Intelligence report type."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            queryset = queryset.filter(report_type=report_type)
+
+        serializer = IntelligenceGeneratedReportSerializer(
+            instance=queryset[:50],
+            many=True,
+        )
+        return Response(serializer.data)
+
+    def post(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+
+        request_serializer = IntelligenceReportRequestSerializer(
+            data=request.data
+        )
+        request_serializer.is_valid(raise_exception=True)
+
+        report = generate_and_store_report(
+            business=business,
+            generated_by=request.user,
+            **request_serializer.validated_data,
+        )
+        serializer = IntelligenceGeneratedReportSerializer(
+            instance=report
+        )
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class BusinessIntelligenceReportDetailAPIView(APIView):
+    """Returns one persisted report inside its owning business only."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, business_id, report_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+
+        report = get_object_or_404(
+            GeneratedReport,
+            id=report_id,
+            business=business,
+        )
+        serializer = IntelligenceGeneratedReportSerializer(
+            instance=report
         )
         return Response(serializer.data)

@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 from businesses.models import Business
@@ -179,5 +180,71 @@ class ForecastRun(models.Model):
     def __str__(self):
         return (
             f"{self.business.name} - {self.horizon_days} day forecast "
+            f"- {self.generated_at:%Y-%m-%d %H:%M}"
+        )
+
+class GeneratedReport(models.Model):
+    """Stores one verified management report generated from StockFlow truth."""
+
+    class ReportType(models.TextChoices):
+        DAILY_SUMMARY = "daily_summary", "Daily business summary"
+        WEEKLY_MANAGEMENT = "weekly_management", "Weekly management report"
+        MONTHLY_MANAGEMENT = "monthly_management", "Monthly management report"
+        SALES_PROFIT = "sales_profit", "Sales and profit report"
+        STOCK_RISK = (
+            "stock_risk_restocking",
+            "Stock risk and restocking report",
+        )
+        SUPPLIER_BALANCES = "supplier_balances", "Supplier balances report"
+        CUSTOMER_DEBT = "customer_debt", "Customer debt report"
+
+    class AIStatus(models.TextChoices):
+        NOT_REQUESTED = "not_requested", "Not requested"
+        COMPLETED = "completed", "Completed"
+        UNAVAILABLE = "unavailable", "Unavailable"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="generated_intelligence_reports",
+    )
+    generated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="generated_intelligence_reports",
+        blank=True,
+        null=True,
+    )
+    report_type = models.CharField(
+        max_length=40,
+        choices=ReportType.choices,
+        db_index=True,
+    )
+    title = models.CharField(max_length=180)
+    period_start = models.DateTimeField(blank=True, null=True)
+    period_end = models.DateTimeField(blank=True, null=True)
+    data_confidence = models.CharField(max_length=20, default="low")
+    payload = models.JSONField(default=dict)
+    ai_narrative = models.TextField(blank=True)
+    ai_status = models.CharField(
+        max_length=20,
+        choices=AIStatus.choices,
+        default=AIStatus.NOT_REQUESTED,
+    )
+    ai_provider = models.CharField(max_length=40, blank=True)
+    ai_model = models.CharField(max_length=80, blank=True)
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-generated_at",)
+
+    def __str__(self):
+        return (
+            f"{self.business.name} - {self.get_report_type_display()} "
             f"- {self.generated_at:%Y-%m-%d %H:%M}"
         )
