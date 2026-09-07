@@ -31,6 +31,7 @@ import IntelligenceRecommendationsPage from "./pages/intelligence/IntelligenceRe
 import IntelligenceInsightsPage from "./pages/intelligence/IntelligenceInsightsPage";
 import IntelligenceAskPage from "./pages/intelligence/IntelligenceAskPage";
 import IntelligenceReportsPage from "./pages/intelligence/IntelligenceReportsPage";
+import IntelligenceAutomationPage from "./pages/intelligence/IntelligenceAutomationPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import TeamPage from "./pages/team/TeamPage";
 import SettingsPage from "./pages/settings/SettingsPage";
@@ -96,6 +97,10 @@ export default function App() {
             <Route
               path="reports"
               element={<IntelligenceReportsPage />}
+            />
+            <Route
+              path="automation"
+              element={<IntelligenceAutomationPage />}
             />
           </Route>
         </Route>

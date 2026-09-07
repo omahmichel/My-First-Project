@@ -838,3 +838,138 @@ class IntelligenceGeneratedReportSerializer(serializers.Serializer):
         if not user:
             return None
         return user.full_name or user.email
+
+
+class IntelligenceAutomationRuleWriteSerializer(serializers.Serializer):
+    ruleType = serializers.ChoiceField(
+        source="rule_type",
+        choices=(
+            "risk_monitor",
+            "daily_closing",
+            "weekly_management",
+        ),
+        required=False,
+    )
+    isEnabled = serializers.BooleanField(
+        source="is_enabled",
+        required=False,
+    )
+    hourUtc = serializers.IntegerField(
+        source="hour_utc",
+        min_value=0,
+        max_value=23,
+        required=False,
+    )
+    weekday = serializers.IntegerField(
+        min_value=0,
+        max_value=6,
+        required=False,
+    )
+    includeAiSummary = serializers.BooleanField(
+        source="include_ai_summary",
+        required=False,
+    )
+    largeDiscountPercent = serializers.IntegerField(
+        source="large_discount_percent",
+        min_value=1,
+        max_value=100,
+        required=False,
+    )
+    stockAdjustmentPercent = serializers.IntegerField(
+        source="stock_adjustment_percent",
+        min_value=1,
+        max_value=1000,
+        required=False,
+    )
+    stockAdjustmentMinUnits = serializers.IntegerField(
+        source="stock_adjustment_min_units",
+        min_value=1,
+        max_value=1000000,
+        required=False,
+    )
+
+    def validate(self, attrs):
+        config = {}
+        for input_key in (
+            "large_discount_percent",
+            "stock_adjustment_percent",
+            "stock_adjustment_min_units",
+        ):
+            if input_key in attrs:
+                config[input_key] = attrs.pop(input_key)
+
+        if config:
+            attrs["config"] = config
+        return attrs
+
+
+class IntelligenceAutomationRuleSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    businessId = serializers.UUIDField(source="business_id")
+    ruleType = serializers.CharField(source="rule_type")
+    scheduleFrequency = serializers.CharField(
+        source="schedule_frequency"
+    )
+    isEnabled = serializers.BooleanField(source="is_enabled")
+    hourUtc = serializers.IntegerField(source="hour_utc")
+    weekday = serializers.IntegerField(allow_null=True)
+    includeAiSummary = serializers.BooleanField(
+        source="include_ai_summary"
+    )
+    config = serializers.DictField()
+    nextRunAt = serializers.DateTimeField(
+        source="next_run_at",
+        allow_null=True,
+    )
+    lastRunAt = serializers.DateTimeField(
+        source="last_run_at",
+        allow_null=True,
+    )
+    lastStatus = serializers.CharField(
+        source="last_status",
+        allow_blank=True,
+    )
+    lastError = serializers.CharField(
+        source="last_error",
+        allow_blank=True,
+    )
+    consecutiveFailures = serializers.IntegerField(
+        source="consecutive_failures"
+    )
+    createdAt = serializers.DateTimeField(source="created_at")
+    updatedAt = serializers.DateTimeField(source="updated_at")
+
+
+class IntelligenceAutomationEventSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    businessId = serializers.UUIDField(source="business_id")
+    ruleId = serializers.UUIDField(source="rule_id", allow_null=True)
+    eventType = serializers.CharField(source="event_type")
+    severity = serializers.CharField()
+    title = serializers.CharField()
+    summary = serializers.CharField()
+    evidence = serializers.DictField()
+    generatedAt = serializers.DateTimeField(source="generated_at")
+
+
+class IntelligenceAutomationRunSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    businessId = serializers.UUIDField(source="business_id")
+    ruleId = serializers.UUIDField(source="rule_id", allow_null=True)
+    triggerType = serializers.CharField(source="trigger_type")
+    status = serializers.CharField()
+    startedAt = serializers.DateTimeField(source="started_at")
+    finishedAt = serializers.DateTimeField(
+        source="finished_at",
+        allow_null=True,
+    )
+    eventCount = serializers.IntegerField(source="event_count")
+    result = serializers.DictField()
+    errorCode = serializers.CharField(
+        source="error_code",
+        allow_blank=True,
+    )
+    errorMessage = serializers.CharField(
+        source="error_message",
+        allow_blank=True,
+    )

@@ -46,10 +46,8 @@ const navigation = [
     label: "Intelligence Reports",
     icon: BrainCircuit,
   },
-];
-
-const comingSoon = [
   {
+    to: "/intelligence/automation",
     label: "Automation",
     icon: Sparkles,
   },
@@ -135,25 +133,6 @@ export default function IntelligenceSidebar({ open, onClose }) {
                 <span>{item.label}</span>
                 <ChevronRight size={15} />
               </NavLink>
-            );
-          })}
-
-          <span className="intelligence-sidebar-section-label intelligence-sidebar-future-label">
-            Coming later
-          </span>
-
-          {comingSoon.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <div
-                key={item.label}
-                className="intelligence-sidebar-link intelligence-sidebar-link-disabled"
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-                <small>Soon</small>
-              </div>
             );
           })}
         </nav>

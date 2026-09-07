@@ -527,3 +527,11 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["intelligence_reports"] = (
     ).strip()
     or "30/hour"
 )
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["intelligence_automation_run"] = (
+    os.getenv(
+        "THROTTLE_RATE_INTELLIGENCE_AUTOMATION_RUN",
+        "30/hour",
+    ).strip()
+    or "30/hour"
+)

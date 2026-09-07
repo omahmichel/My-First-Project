@@ -24,8 +24,21 @@ from .ai.analyst import (
     AIAnalystUnavailable,
     answer_business_question,
 )
+from .serializers import (
+    IntelligenceAutomationEventSerializer,
+    IntelligenceAutomationRuleSerializer,
+    IntelligenceAutomationRuleWriteSerializer,
+    IntelligenceAutomationRunSerializer,
+)
+from .services.automation import (
+    AutomationRuleConflict,
+    create_automation_rule,
+    execute_automation_rule,
+    update_automation_rule,
+)
 from .services.business_analysis import calculate_business_overview
 from .models import GeneratedReport
+from .models import AutomationEvent, AutomationRule, AutomationRun
 from .services.forecasting import generate_and_store_forecast
 from .services.reports import generate_and_store_report
 from .services.recommendations import (
@@ -283,3 +296,185 @@ class BusinessIntelligenceReportDetailAPIView(APIView):
             instance=report
         )
         return Response(serializer.data)
+
+
+class BusinessIntelligenceAutomationRuleCollectionAPIView(APIView):
+    """Lists and creates business-scoped Intelligence automation rules."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        rules = AutomationRule.objects.filter(business=business)
+        serializer = IntelligenceAutomationRuleSerializer(
+            instance=rules,
+            many=True,
+        )
+        return Response(serializer.data)
+
+    def post(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        serializer = IntelligenceAutomationRuleWriteSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        if "rule_type" not in serializer.validated_data:
+            return Response(
+                {"ruleType": "This field is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            rule = create_automation_rule(
+                business=business,
+                user=request.user,
+                data=serializer.validated_data,
+            )
+        except AutomationRuleConflict as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        output = IntelligenceAutomationRuleSerializer(instance=rule)
+        return Response(
+            output.data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class BusinessIntelligenceAutomationRuleDetailAPIView(APIView):
+    """Updates or removes one rule while preserving event/run history."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def _rule(self, request, business_id, rule_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        return get_object_or_404(
+            AutomationRule,
+            id=rule_id,
+            business=business,
+        )
+
+    def patch(self, request, business_id, rule_id):
+        rule = self._rule(request, business_id, rule_id)
+
+        if "ruleType" in request.data:
+            return Response(
+                {
+                    "ruleType": (
+                        "Rule type cannot be changed after creation. "
+                        "Create a different rule instead."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = IntelligenceAutomationRuleWriteSerializer(
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        rule = update_automation_rule(
+            rule=rule,
+            data=serializer.validated_data,
+        )
+        output = IntelligenceAutomationRuleSerializer(instance=rule)
+        return Response(output.data)
+
+    def delete(self, request, business_id, rule_id):
+        rule = self._rule(request, business_id, rule_id)
+        rule.delete()
+        return Response({"deleted": True})
+
+
+class BusinessIntelligenceAutomationEventAPIView(APIView):
+    """Returns recent immutable advisory automation events."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        try:
+            limit = int(request.query_params.get("limit", 50))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, 100))
+
+        events = AutomationEvent.objects.filter(
+            business=business
+        )[:limit]
+        serializer = IntelligenceAutomationEventSerializer(
+            instance=events,
+            many=True,
+        )
+        return Response(serializer.data)
+
+
+class BusinessIntelligenceAutomationRunAPIView(APIView):
+    """Returns recent automation execution history."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        runs = AutomationRun.objects.filter(
+            business=business
+        )[:50]
+        serializer = IntelligenceAutomationRunSerializer(
+            instance=runs,
+            many=True,
+        )
+        return Response(serializer.data)
+
+
+class BusinessIntelligenceAutomationRunNowAPIView(APIView):
+    """Explicitly runs one rule without transactional business mutations."""
+
+    permission_classes = (IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "intelligence_automation_run"
+
+    def post(self, request, business_id, rule_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        rule = get_object_or_404(
+            AutomationRule.objects.select_related("business"),
+            id=rule_id,
+            business=business,
+        )
+        run = execute_automation_rule(
+            rule,
+            trigger_type=AutomationRun.TriggerType.MANUAL,
+            requested_by=request.user,
+        )
+        serializer = IntelligenceAutomationRunSerializer(instance=run)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+        )

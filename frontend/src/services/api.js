@@ -3,6 +3,32 @@ const API_BASE_URL =
 
 let activeRefreshRequest = null;
 
+// Returns true only when a JWT access token is already expired (or about to expire).
+// Malformed/opaque tokens fall back to the existing server-side 401 refresh path.
+function isAccessTokenExpired(accessToken, clockSkewSeconds = 15) {
+  if (!accessToken || typeof accessToken !== "string") return false;
+
+  try {
+    const tokenParts = accessToken.split(".");
+    if (tokenParts.length !== 3) return false;
+
+    const normalizedPayload = tokenParts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+      "=",
+    );
+    const payload = JSON.parse(window.atob(paddedPayload));
+
+    if (typeof payload.exp !== "number") return false;
+
+    return payload.exp * 1000 <= Date.now() + clockSkewSeconds * 1000;
+  } catch {
+    return false;
+  }
+}
+
 // Extracts a useful DRF validation message from detail or field errors.
 function resolveApiErrorMessage(errorData) {
   if (typeof errorData === "string") return errorData;
@@ -123,16 +149,28 @@ export async function apiRequest(path, options = {}) {
   let accessToken = window.localStorage.getItem(
     "stockflow_access_token",
   );
-  let response = await sendRequest(accessToken);
 
-  const refreshAllowed =
+  const refreshAllowedForPath =
     !skipAuthRefresh &&
-    response.status === 401 &&
     path !== "/auth/login/" &&
     path !== "/auth/register/" &&
     path !== "/auth/refresh/";
 
-  if (refreshAllowed) {
+  // Avoid the routine first 401 in DevTools when the stored JWT has already
+  // expired. The existing server-401 retry below remains the authority/fallback.
+  if (
+    refreshAllowedForPath &&
+    isAccessTokenExpired(accessToken)
+  ) {
+    accessToken = await refreshAccessToken();
+  }
+
+  let response = await sendRequest(accessToken);
+
+  if (
+    refreshAllowedForPath &&
+    response.status === 401
+  ) {
     accessToken = await refreshAccessToken();
     response = await sendRequest(accessToken);
   }

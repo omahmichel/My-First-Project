@@ -2,6 +2,11 @@ from django.urls import path
 
 from .views import (
     BusinessIntelligenceAnalystAPIView,
+    BusinessIntelligenceAutomationEventAPIView,
+    BusinessIntelligenceAutomationRuleCollectionAPIView,
+    BusinessIntelligenceAutomationRuleDetailAPIView,
+    BusinessIntelligenceAutomationRunAPIView,
+    BusinessIntelligenceAutomationRunNowAPIView,
     BusinessIntelligenceForecastAPIView,
     BusinessIntelligenceOverviewAPIView,
     BusinessIntelligenceRecommendationAPIView,
@@ -41,5 +46,32 @@ urlpatterns = [
         "<uuid:report_id>/",
         BusinessIntelligenceReportDetailAPIView.as_view(),
         name="business-intelligence-report-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/automation/rules/",
+        BusinessIntelligenceAutomationRuleCollectionAPIView.as_view(),
+        name="business-intelligence-automation-rules",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/automation/rules/"
+        "<uuid:rule_id>/",
+        BusinessIntelligenceAutomationRuleDetailAPIView.as_view(),
+        name="business-intelligence-automation-rule-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/automation/rules/"
+        "<uuid:rule_id>/run/",
+        BusinessIntelligenceAutomationRunNowAPIView.as_view(),
+        name="business-intelligence-automation-run-now",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/automation/events/",
+        BusinessIntelligenceAutomationEventAPIView.as_view(),
+        name="business-intelligence-automation-events",
+    ),
+    path(
+        "businesses/<uuid:business_id>/intelligence/automation/runs/",
+        BusinessIntelligenceAutomationRunAPIView.as_view(),
+        name="business-intelligence-automation-runs",
     ),
 ]

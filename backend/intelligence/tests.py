@@ -1572,6 +1572,434 @@ class BusinessIntelligenceOverviewTests(APITestCase):
             (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
         )
 
+
+    def test_owner_can_create_and_list_automation_rule(self):
+        self.client.force_authenticate(user=self.owner)
+        url = reverse(
+            "business-intelligence-automation-rules",
+            kwargs={"business_id": self.business.id},
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "ruleType": "risk_monitor",
+                "isEnabled": True,
+                "largeDiscountPercent": 20,
+                "stockAdjustmentPercent": 25,
+                "stockAdjustmentMinUnits": 5,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(response.data["ruleType"], "risk_monitor")
+        self.assertEqual(
+            response.data["scheduleFrequency"],
+            "hourly",
+        )
+        self.assertIsNotNone(response.data["nextRunAt"])
+
+        list_response = self.client.get(url)
+        self.assertEqual(
+            list_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(len(list_response.data), 1)
+
+    def test_weekly_automation_rejects_null_weekday_on_create_and_update(self):
+        self.client.force_authenticate(user=self.owner)
+        collection_url = reverse(
+            "business-intelligence-automation-rules",
+            kwargs={"business_id": self.business.id},
+        )
+
+        invalid_create = self.client.post(
+            collection_url,
+            {
+                "ruleType": "weekly_management",
+                "hourUtc": 8,
+                "weekday": None,
+            },
+            format="json",
+        )
+        self.assertEqual(
+            invalid_create.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        valid_create = self.client.post(
+            collection_url,
+            {
+                "ruleType": "weekly_management",
+                "hourUtc": 8,
+                "weekday": 0,
+            },
+            format="json",
+        )
+        self.assertEqual(
+            valid_create.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        detail_url = reverse(
+            "business-intelligence-automation-rule-detail",
+            kwargs={
+                "business_id": self.business.id,
+                "rule_id": valid_create.data["id"],
+            },
+        )
+        invalid_update = self.client.patch(
+            detail_url,
+            {"weekday": None},
+            format="json",
+        )
+        self.assertEqual(
+            invalid_update.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_cashier_cannot_access_automation_rules(self):
+        self.client.force_authenticate(user=self.cashier)
+        response = self.client.get(
+            reverse(
+                "business-intelligence-automation-rules",
+                kwargs={"business_id": self.business.id},
+            )
+        )
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_transaction_event_window_includes_exact_scan_boundary(self):
+        from intelligence.models import AutomationRule
+        from intelligence.services.automation import _transaction_events
+
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.RISK_MONITOR,
+            schedule_frequency=AutomationRule.ScheduleFrequency.HOURLY,
+            is_enabled=True,
+            config={
+                "large_discount_percent": 20,
+                "stock_adjustment_percent": 25,
+                "stock_adjustment_min_units": 5,
+                "first_run_lookback_hours": 24,
+            },
+        )
+
+        movement = StockMovement.objects.create(
+            business=self.business,
+            product=self.product,
+            movement_type=StockMovement.MovementType.ADJUSTMENT,
+            quantity=5,
+            previous_stock=1,
+            new_stock=6,
+            reason="Exact automation boundary test",
+            created_by=self.owner,
+        )
+
+        events = _transaction_events(
+            rule=rule,
+            now=movement.created_at,
+        )
+
+        self.assertIn(
+            "suspicious_stock_adjustment",
+            {event.event_type for event in events},
+        )
+
+    @patch(
+        "intelligence.services.automation.generate_and_store_recommendations"
+    )
+    def test_risk_monitor_creates_advisory_events_without_business_mutation(
+        self,
+        mocked_recommendations,
+    ):
+        from intelligence.models import AutomationEvent, AutomationRule
+        from intelligence.services.automation import execute_automation_rule
+
+        mocked_recommendations.return_value = {
+            "recommendations": [],
+        }
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.RISK_MONITOR,
+            schedule_frequency=AutomationRule.ScheduleFrequency.HOURLY,
+            is_enabled=True,
+            config={
+                "large_discount_percent": 20,
+                "stock_adjustment_percent": 25,
+                "stock_adjustment_min_units": 5,
+                "first_run_lookback_hours": 24,
+            },
+        )
+
+        discounted_sale = Sale.objects.create(
+            business=self.business,
+            customer=None,
+            customer_name="Walk-in customer",
+            customer_phone="",
+            sale_number="INT-AUTO-DISCOUNT",
+            invoice_number="INT-AUTO-DISCOUNT-INV",
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.Status.COMPLETED,
+            subtotal=Decimal("100.00"),
+            discount=Decimal("30.00"),
+            total=Decimal("70.00"),
+            amount_paid=Decimal("70.00"),
+            outstanding_balance=Decimal("0.00"),
+            cashier=self.owner,
+            cashier_name=self.owner.full_name,
+            completed_at=timezone.now() - timedelta(minutes=10),
+        )
+
+        StockMovement.objects.create(
+            business=self.business,
+            product=self.product,
+            movement_type=StockMovement.MovementType.ADJUSTMENT,
+            quantity=5,
+            previous_stock=1,
+            new_stock=6,
+            reason="Automation review test",
+            created_by=self.owner,
+        )
+
+        original_stock = self.product.stock
+        original_sale_total = discounted_sale.total
+
+        run = execute_automation_rule(
+            rule,
+            trigger_type="manual",
+            requested_by=self.owner,
+        )
+
+        self.assertEqual(run.status, "completed")
+        rule.refresh_from_db()
+        self.assertIsNotNone(rule.last_run_at)
+        self.assertIsNotNone(run.finished_at)
+        self.assertLess(rule.last_run_at, run.finished_at)
+        event_types = set(
+            AutomationEvent.objects.filter(
+                business=self.business,
+            ).values_list("event_type", flat=True)
+        )
+        self.assertIn("low_stock", event_types)
+        self.assertIn("large_discount", event_types)
+        self.assertIn(
+            "suspicious_stock_adjustment",
+            event_types,
+        )
+
+        self.product.refresh_from_db()
+        discounted_sale.refresh_from_db()
+        self.assertEqual(self.product.stock, original_stock)
+        self.assertEqual(
+            discounted_sale.total,
+            original_sale_total,
+        )
+
+    @patch(
+        "intelligence.services.automation.generate_and_store_recommendations"
+    )
+    def test_risk_monitor_deduplicates_persistent_daily_events(
+        self,
+        mocked_recommendations,
+    ):
+        from intelligence.models import AutomationEvent, AutomationRule
+        from intelligence.services.automation import execute_automation_rule
+
+        mocked_recommendations.return_value = {
+            "recommendations": [],
+        }
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.RISK_MONITOR,
+            schedule_frequency=AutomationRule.ScheduleFrequency.HOURLY,
+            is_enabled=True,
+            config={},
+        )
+
+        execute_automation_rule(
+            rule,
+            trigger_type="manual",
+            requested_by=self.owner,
+        )
+        execute_automation_rule(
+            rule,
+            trigger_type="manual",
+            requested_by=self.owner,
+        )
+
+        self.assertEqual(
+            AutomationEvent.objects.filter(
+                business=self.business,
+                event_type="low_stock",
+                evidence__productId=str(self.product.id),
+            ).count(),
+            1,
+        )
+
+    def test_daily_automation_generates_persisted_report(self):
+        from intelligence.models import (
+            AutomationEvent,
+            AutomationRule,
+            GeneratedReport,
+        )
+        from intelligence.services.automation import execute_automation_rule
+
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.DAILY_CLOSING,
+            schedule_frequency=AutomationRule.ScheduleFrequency.DAILY,
+            is_enabled=True,
+            hour_utc=18,
+            include_ai_summary=False,
+        )
+
+        run = execute_automation_rule(
+            rule,
+            trigger_type="manual",
+            requested_by=self.owner,
+        )
+
+        self.assertEqual(run.status, "completed")
+        self.assertEqual(
+            GeneratedReport.objects.filter(
+                business=self.business,
+                report_type="daily_summary",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            AutomationEvent.objects.filter(
+                business=self.business,
+                event_type="report_generated",
+            ).count(),
+            1,
+        )
+
+    @patch(
+        "intelligence.services.automation.generate_and_store_report",
+        side_effect=RuntimeError("test failure"),
+    )
+    def test_failed_automation_records_safe_failure(self, mocked_report):
+        from intelligence.models import AutomationRule, AutomationRun
+        from intelligence.services.automation import execute_automation_rule
+
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.DAILY_CLOSING,
+            schedule_frequency=AutomationRule.ScheduleFrequency.DAILY,
+            is_enabled=True,
+            hour_utc=18,
+        )
+
+        run = execute_automation_rule(
+            rule,
+            trigger_type="manual",
+            requested_by=self.owner,
+        )
+
+        self.assertEqual(run.status, AutomationRun.Status.FAILED)
+        self.assertEqual(
+            run.error_message,
+            (
+                "Automation execution failed. StockFlow made no "
+                "transactional business changes."
+            ),
+        )
+        rule.refresh_from_db()
+        self.assertEqual(rule.last_status, "failed")
+        self.assertEqual(rule.consecutive_failures, 1)
+        mocked_report.assert_called_once()
+
+    def test_manager_can_run_rule_but_other_business_is_isolated(self):
+        from intelligence.models import AutomationRule
+
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.DAILY_CLOSING,
+            schedule_frequency=AutomationRule.ScheduleFrequency.DAILY,
+            is_enabled=False,
+            hour_utc=18,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.post(
+            reverse(
+                "business-intelligence-automation-run-now",
+                kwargs={
+                    "business_id": self.business.id,
+                    "rule_id": rule.id,
+                },
+            ),
+            {},
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(response.data["status"], "completed")
+
+        self.client.force_authenticate(user=self.outsider)
+        denied = self.client.post(
+            reverse(
+                "business-intelligence-automation-run-now",
+                kwargs={
+                    "business_id": self.business.id,
+                    "rule_id": rule.id,
+                },
+            ),
+            {},
+            format="json",
+        )
+        self.assertIn(
+            denied.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_due_automation_worker_advances_schedule_and_runs_rule(self):
+        from intelligence.models import AutomationRule, AutomationRun
+        from intelligence.services.automation import process_due_automations
+
+        rule = AutomationRule.objects.create(
+            business=self.business,
+            created_by=self.owner,
+            rule_type=AutomationRule.RuleType.DAILY_CLOSING,
+            schedule_frequency=AutomationRule.ScheduleFrequency.DAILY,
+            is_enabled=True,
+            hour_utc=18,
+            next_run_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        result = process_due_automations(limit=10)
+
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["completed"], 1)
+        rule.refresh_from_db()
+        self.assertGreater(rule.next_run_at, timezone.now())
+        self.assertEqual(
+            AutomationRun.objects.filter(
+                business=self.business,
+                rule=rule,
+                trigger_type="scheduled",
+                status="completed",
+            ).count(),
+            1,
+        )
+
     def test_manager_can_read_overview(self):
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(self.overview_url())
