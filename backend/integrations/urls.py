@@ -141,3 +141,64 @@ urlpatterns += [
     ),
 ]
 
+
+# E-commerce connector and supplier purchase-order integration foundation.
+from .commerce.views import (
+    CommerceCapabilitiesAPIView,
+    CommerceConnectionCollectionAPIView,
+    CommerceOrderCollectionAPIView,
+    CommerceOrderStageAPIView,
+    CommerceProductMappingAPIView,
+)
+from .supplier_orders import (
+    SupplierPurchaseOrderCollectionAPIView,
+    SupplierPurchaseOrderIssueAPIView,
+    SupplierPurchaseOrderReceiveAPIView,
+)
+
+urlpatterns += [
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/capabilities/",
+        CommerceCapabilitiesAPIView.as_view(),
+        name="commerce-capabilities",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/connections/",
+        CommerceConnectionCollectionAPIView.as_view(),
+        name="commerce-connections",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/connections/"
+        "<uuid:connection_id>/product-mappings/",
+        CommerceProductMappingAPIView.as_view(),
+        name="commerce-product-mappings",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/orders/",
+        CommerceOrderCollectionAPIView.as_view(),
+        name="commerce-orders",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/orders/stage/",
+        CommerceOrderStageAPIView.as_view(),
+        name="commerce-order-stage",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/supplier-orders/",
+        SupplierPurchaseOrderCollectionAPIView.as_view(),
+        name="supplier-order-list-create",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/supplier-orders/"
+        "<uuid:purchase_order_id>/issue/",
+        SupplierPurchaseOrderIssueAPIView.as_view(),
+        name="supplier-order-issue",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/supplier-orders/"
+        "<uuid:purchase_order_id>/receive/",
+        SupplierPurchaseOrderReceiveAPIView.as_view(),
+        name="supplier-order-receive",
+    ),
+]
+

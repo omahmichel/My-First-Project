@@ -418,3 +418,361 @@ class AccountingSyncRun(models.Model):
             )
         ]
 
+
+class CommerceConnection(models.Model):
+    """Provider-neutral e-commerce connection. No provider secrets are stored."""
+
+    class Provider(models.TextChoices):
+        SHOPIFY = "shopify", "Shopify"
+        WOOCOMMERCE = "woocommerce", "WooCommerce"
+
+    class Status(models.TextChoices):
+        DISCONNECTED = "disconnected", "Disconnected"
+        CONNECTED = "connected", "Connected"
+        ERROR = "error", "Error"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="commerce_connections",
+    )
+    provider = models.CharField(max_length=30, choices=Provider.choices)
+    name = models.CharField(max_length=120)
+    shop_url = models.URLField(max_length=500, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DISCONNECTED,
+    )
+    settings = models.JSONField(default=dict, blank=True)
+    last_synced_at = models.DateTimeField(blank=True, null=True)
+    last_error = models.CharField(max_length=500, blank=True)
+    created_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_commerce_connections",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("provider", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "provider", "name"),
+                name="uniq_integ_commerce_conn_name",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("business", "status"),
+                name="integ_com_bus_status_idx",
+            )
+        ]
+
+
+class CommerceExternalReference(models.Model):
+    """Maps StockFlow records to stable provider-side e-commerce identifiers."""
+
+    connection = models.ForeignKey(
+        CommerceConnection,
+        on_delete=models.CASCADE,
+        related_name="external_references",
+    )
+    entity_type = models.CharField(max_length=40)
+    stockflow_id = models.CharField(max_length=80)
+    external_id = models.CharField(max_length=180)
+    sync_hash = models.CharField(max_length=64, blank=True)
+    synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("connection", "entity_type", "stockflow_id"),
+                name="uniq_integ_com_stockflow_ref",
+            ),
+            models.UniqueConstraint(
+                fields=("connection", "entity_type", "external_id"),
+                name="uniq_integ_com_external_ref",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("connection", "entity_type"),
+                name="integ_com_ref_type_idx",
+            )
+        ]
+
+
+class CommerceSyncRun(models.Model):
+    """Audits one provider-neutral commerce synchronization attempt."""
+
+    class Direction(models.TextChoices):
+        OUTBOUND = "outbound", "StockFlow to commerce"
+        INBOUND = "inbound", "Commerce to StockFlow"
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "Running"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    connection = models.ForeignKey(
+        CommerceConnection,
+        on_delete=models.CASCADE,
+        related_name="sync_runs",
+    )
+    direction = models.CharField(max_length=20, choices=Direction.choices)
+    entity_type = models.CharField(max_length=40)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.RUNNING,
+    )
+    requested_count = models.PositiveIntegerField(default=0)
+    synced_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.CharField(max_length=500, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ("-started_at",)
+        indexes = [
+            models.Index(
+                fields=("connection", "started_at"),
+                name="integ_com_sync_start_idx",
+            )
+        ]
+
+
+class ExternalCommerceOrder(models.Model):
+    """Normalized external order staged for review without mutating StockFlow."""
+
+    class Status(models.TextChoices):
+        STAGED = "staged", "Staged"
+        READY = "ready", "Ready for review"
+        BLOCKED = "blocked", "Blocked by missing mappings"
+        REJECTED = "rejected", "Rejected"
+
+    class PaymentStatus(models.TextChoices):
+        UNKNOWN = "unknown", "Unknown"
+        UNPAID = "unpaid", "Unpaid"
+        PARTIAL = "partially_paid", "Partially paid"
+        PAID = "paid", "Paid"
+        REFUNDED = "refunded", "Refunded"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="external_commerce_orders",
+    )
+    connection = models.ForeignKey(
+        CommerceConnection,
+        on_delete=models.CASCADE,
+        related_name="external_orders",
+    )
+    external_order_id = models.CharField(max_length=180)
+    external_order_number = models.CharField(max_length=120, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.STAGED,
+    )
+    payment_status = models.CharField(
+        max_length=30,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.UNKNOWN,
+    )
+    currency = models.CharField(max_length=10, default="GHS")
+    customer_name = models.CharField(max_length=180, blank=True)
+    customer_email = models.EmailField(blank=True)
+    customer_phone = models.CharField(max_length=40, blank=True)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    shipping_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    source_hash = models.CharField(max_length=64)
+    source_summary = models.JSONField(default=dict, blank=True)
+    staged_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="staged_external_commerce_orders",
+        blank=True,
+        null=True,
+    )
+    staged_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-staged_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("connection", "external_order_id"),
+                name="uniq_integ_com_external_order",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("business", "status", "staged_at"),
+                name="integ_com_order_status_idx",
+            )
+        ]
+
+
+class ExternalCommerceOrderItem(models.Model):
+    """Normalized commerce line with optional StockFlow product mapping."""
+
+    order = models.ForeignKey(
+        ExternalCommerceOrder,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    external_item_id = models.CharField(max_length=180)
+    external_product_id = models.CharField(max_length=180, blank=True)
+    name = models.CharField(max_length=220)
+    sku = models.CharField(max_length=120, blank=True)
+    quantity = models.PositiveIntegerField()
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2)
+    product = models.ForeignKey(
+        "inventory.Product",
+        on_delete=models.PROTECT,
+        related_name="external_commerce_order_items",
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        ordering = ("id",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("order", "external_item_id"),
+                name="uniq_integ_com_order_item",
+            )
+        ]
+
+
+class SupplierPurchaseOrder(models.Model):
+    """Pre-receipt supplier order that becomes stock only through restocking."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ISSUED = "issued", "Issued"
+        PARTIALLY_RECEIVED = "partially_received", "Partially received"
+        RECEIVED = "received", "Received"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="supplier_purchase_orders",
+    )
+    branch = models.ForeignKey(
+        "businesses.Branch",
+        on_delete=models.PROTECT,
+        related_name="supplier_purchase_orders",
+    )
+    supplier = models.ForeignKey(
+        "inventory.Supplier",
+        on_delete=models.PROTECT,
+        related_name="purchase_orders",
+    )
+    po_number = models.CharField(max_length=40, unique=True)
+    supplier_reference = models.CharField(max_length=120, blank=True)
+    order_date = models.DateField()
+    expected_date = models.DateField(blank=True, null=True)
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
+    notes = models.CharField(max_length=500, blank=True)
+    issued_at = models.DateTimeField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_supplier_purchase_orders",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-order_date", "-created_at")
+        indexes = [
+            models.Index(
+                fields=("business", "status", "order_date"),
+                name="integ_spo_bus_status_idx",
+            ),
+            models.Index(
+                fields=("supplier", "order_date"),
+                name="integ_spo_supplier_idx",
+            ),
+        ]
+
+
+class SupplierPurchaseOrderItem(models.Model):
+    purchase_order = models.ForeignKey(
+        SupplierPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    product = models.ForeignKey(
+        "inventory.Product",
+        on_delete=models.PROTECT,
+        related_name="supplier_purchase_order_items",
+    )
+    product_name = models.CharField(max_length=220)
+    sku = models.CharField(max_length=120, blank=True)
+    unit = models.CharField(max_length=40, blank=True)
+    quantity_ordered = models.PositiveIntegerField()
+    quantity_received = models.PositiveIntegerField(default=0)
+    unit_cost = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ("id",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("purchase_order", "product"),
+                name="uniq_integ_spo_product",
+            )
+        ]
+
+
+class SupplierPurchaseOrderReceipt(models.Model):
+    """Idempotent link between a PO receipt action and a RestockPurchase."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    purchase_order = models.ForeignKey(
+        SupplierPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name="receipts",
+    )
+    idempotency_key = models.CharField(max_length=128)
+    restock_purchase_id = models.CharField(max_length=80)
+    received_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="received_supplier_purchase_orders",
+        blank=True,
+        null=True,
+    )
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("received_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("purchase_order", "idempotency_key"),
+                name="uniq_integ_spo_receipt_key",
+            )
+        ]
+
