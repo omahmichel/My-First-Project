@@ -74,3 +74,70 @@ urlpatterns += [
         name="messaging-test-sms",
     ),
 ]
+
+
+# Public API, outbound webhooks and accounting connector foundation.
+from .admin_views import (
+    AccountingCapabilityAPIView,
+    AccountingConnectionCollectionAPIView,
+    ApiCredentialCollectionAPIView,
+    ApiCredentialRevokeAPIView,
+    WebhookEndpointCollectionAPIView,
+    WebhookEndpointDetailAPIView,
+    WebhookEndpointTestAPIView,
+)
+from .public_api import PublicApiDatasetAPIView, PublicApiManifestAPIView
+
+urlpatterns += [
+    path(
+        "businesses/<uuid:business_id>/integrations/api-keys/",
+        ApiCredentialCollectionAPIView.as_view(),
+        name="api-key-list",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/api-keys/"
+        "<uuid:credential_id>/revoke/",
+        ApiCredentialRevokeAPIView.as_view(),
+        name="api-key-revoke",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/webhooks/endpoints/",
+        WebhookEndpointCollectionAPIView.as_view(),
+        name="webhook-endpoint-list",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/webhooks/endpoints/"
+        "<uuid:endpoint_id>/",
+        WebhookEndpointDetailAPIView.as_view(),
+        name="webhook-endpoint-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/webhooks/endpoints/"
+        "<uuid:endpoint_id>/test/",
+        WebhookEndpointTestAPIView.as_view(),
+        name="webhook-endpoint-test",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/accounting/"
+        "connectors/capabilities/",
+        AccountingCapabilityAPIView.as_view(),
+        name="accounting-connector-capabilities",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/accounting/"
+        "connectors/connections/",
+        AccountingConnectionCollectionAPIView.as_view(),
+        name="accounting-connector-connections",
+    ),
+    path(
+        "public/v1/",
+        PublicApiManifestAPIView.as_view(),
+        name="public-api-manifest",
+    ),
+    path(
+        "public/v1/<slug:dataset>/",
+        PublicApiDatasetAPIView.as_view(),
+        name="public-api-dataset",
+    ),
+]
+

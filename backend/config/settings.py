@@ -410,6 +410,14 @@ REST_FRAMEWORK = {
             "THROTTLE_RATE_PAYSTACK_WEBHOOK",
             "300/min",
         ),
+        "public_api": os.getenv(
+            "THROTTLE_RATE_PUBLIC_API",
+            "600/hour",
+        ),
+        "integration_admin": os.getenv(
+            "THROTTLE_RATE_INTEGRATION_ADMIN",
+            "120/hour",
+        ),
     },
 }
 
