@@ -84,6 +84,24 @@ function normalizeBusiness(record) {
 }
 
 
+// Maps one authorized physical branch into the shared workspace shape.
+function normalizeBranch(record) {
+  return {
+    ...record,
+    id: String(record.id),
+    businessId: String(record.businessId),
+    name: record.name ?? "",
+    code: record.code ?? "",
+    location: record.location ?? "",
+    phone: record.phone ?? "",
+    isMain: Boolean(record.isMain),
+    isActive: record.isActive !== false,
+    assignedMemberIds: Array.isArray(record.assignedMemberIds)
+      ? record.assignedMemberIds.map(String)
+      : [],
+  };
+}
+
 
 // Maps one Django team membership into the existing React team shape.
 function normalizeTeamMember(record, business) {
@@ -122,14 +140,25 @@ function normalizeOptionalNumber(value) {
 // Maps a Django product response into the existing frontend product shape.
 function normalizeProduct(record) {
   const isActive = record.isActive !== false;
+  const quantitySold = Number(record.quantitySold ?? 0);
+  const branchScoped = Boolean(record.branchId);
+  const physicalStock = branchScoped
+    ? Math.max(0, Number(record.totalStock ?? 0) - quantitySold)
+    : Number(record.stock ?? 0);
+  const availableStock = Number(record.availableStock ?? physicalStock);
+  const reservedStock = branchScoped
+    ? Math.max(0, physicalStock - availableStock)
+    : Number(record.reservedStock ?? 0);
 
   return {
     ...record,
     id: String(record.id),
     businessId: String(record.businessId),
-    stock: Number(record.stock ?? 0),
-    reservedStock: Number(record.reservedStock ?? 0),
-    availableStock: Number(record.availableStock ?? record.stock ?? 0),
+    branchId: record.branchId ? String(record.branchId) : null,
+    stock: physicalStock,
+    reservedStock,
+    availableStock,
+    quantitySold,
     lowStockLevel: Number(record.lowStockLevel ?? 0),
     costPrice: normalizeOptionalNumber(record.costPrice),
     sellingPrice: Number(record.sellingPrice ?? 0),
@@ -321,6 +350,10 @@ export function StoreProvider({ children }) {
   const [activeBusinessId, setActiveBusinessId] = useState(() =>
     loadStoredValue("active_business_id", ""),
   );
+  const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState("");
+  const [activeBranchId, setActiveBranchId] = useState("");
   const [products, setProducts] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
@@ -346,6 +379,15 @@ export function StoreProvider({ children }) {
       businesses[0] ??
       EMPTY_BUSINESS,
     [activeBusinessId, businesses],
+  );
+
+  const branch = useMemo(
+    () =>
+      branches.find((item) => item.id === activeBranchId) ??
+      branches.find((item) => item.isMain) ??
+      branches[0] ??
+      null,
+    [activeBranchId, branches],
   );
 
 
@@ -396,8 +438,57 @@ export function StoreProvider({ children }) {
   }, []);
 
 
-  // Loads real products and stock movements for one selected business.
-  const loadInventory = useCallback(async (businessId) => {
+  // Loads only branches the current user is authorized to work in.
+  const loadBranches = useCallback(async (businessId, preferredBranchId = null) => {
+    if (!businessId) {
+      setBranches([]);
+      setActiveBranchId("");
+      setBranchesLoading(false);
+      setBranchesError("");
+      return [];
+    }
+
+    setBranchesLoading(true);
+    setBranchesError("");
+
+    try {
+      const response = await apiRequest(`/businesses/${businessId}/branches/`);
+      const nextBranches = normalizeApiCollection(response).map(normalizeBranch);
+
+      setBranches(nextBranches);
+      setActiveBranchId((currentBranchId) => {
+        if (
+          preferredBranchId &&
+          nextBranches.some((item) => item.id === String(preferredBranchId))
+        ) {
+          return String(preferredBranchId);
+        }
+
+        if (nextBranches.some((item) => item.id === currentBranchId)) {
+          return currentBranchId;
+        }
+
+        return (
+          nextBranches.find((item) => item.isMain)?.id ??
+          nextBranches[0]?.id ??
+          ""
+        );
+      });
+
+      return nextBranches;
+    } catch (error) {
+      setBranches([]);
+      setActiveBranchId("");
+      setBranchesError(error.message);
+      throw error;
+    } finally {
+      setBranchesLoading(false);
+    }
+  }, []);
+
+
+  // Loads real products and stock movements for one selected branch.
+  const loadInventory = useCallback(async (businessId, branchId = "") => {
     if (!businessId) {
       setInventoryLoading(false);
       setInventoryError("");
@@ -408,9 +499,12 @@ export function StoreProvider({ children }) {
     setInventoryError("");
 
     try {
+      const branchQuery = branchId
+        ? `?branchId=${encodeURIComponent(branchId)}`
+        : "";
       const [productResponse, movementResponse] = await Promise.all([
-        apiRequest(`/businesses/${businessId}/products/`),
-        apiRequest(`/businesses/${businessId}/stock-movements/`),
+        apiRequest(`/businesses/${businessId}/products/${branchQuery}`),
+        apiRequest(`/businesses/${businessId}/stock-movements/${branchQuery}`),
       ]);
 
       const nextProducts = normalizeApiCollection(productResponse).map(
@@ -478,7 +572,7 @@ export function StoreProvider({ children }) {
 
 
   // Loads real invoices and their issued payments for one business.
-  const loadSales = useCallback(async (businessId) => {
+  const loadSales = useCallback(async (businessId, branchId = "") => {
     if (!businessId) {
       setSalesLoading(false);
       setSalesError("");
@@ -489,8 +583,11 @@ export function StoreProvider({ children }) {
     setSalesError("");
 
     try {
+      const branchQuery = branchId
+        ? `?branchId=${encodeURIComponent(branchId)}`
+        : "";
       const response = await apiRequest(
-        `/businesses/${businessId}/sales/`,
+        `/businesses/${businessId}/sales/${branchQuery}`,
       );
       const nextSales = normalizeApiCollection(response).map(
         normalizeSale,
@@ -684,6 +781,10 @@ export function StoreProvider({ children }) {
     if (!user) {
       setBusinesses([]);
       setActiveBusinessId("");
+      setBranches([]);
+      setActiveBranchId("");
+      setBranchesLoading(false);
+      setBranchesError("");
       setProducts([]);
       setCustomers([]);
       setSales([]);
@@ -702,9 +803,35 @@ export function StoreProvider({ children }) {
   }, [authInitializing, loadBusinesses, user]);
 
 
-  // Refreshes real inventory whenever the authenticated workspace changes.
+  // Refreshes authorized branches whenever the active business changes.
   useEffect(() => {
     if (authInitializing || businessesLoading) return;
+
+    if (!user || !business?.id || !business.hasSystemAccess) {
+      setBranches([]);
+      setActiveBranchId("");
+      setBranchesLoading(false);
+      setBranchesError("");
+      return;
+    }
+
+    setActiveBranchId("");
+    loadBranches(business.id).catch(() => {
+      // Branch-aware pages display the exposed branch loading error.
+    });
+  }, [
+    authInitializing,
+    business.id,
+    business.hasSystemAccess,
+    businessesLoading,
+    loadBranches,
+    user,
+  ]);
+
+
+  // Refreshes real inventory whenever the authenticated branch changes.
+  useEffect(() => {
+    if (authInitializing || businessesLoading || branchesLoading) return;
 
     if (!user) {
       setInventoryLoading(false);
@@ -716,7 +843,7 @@ export function StoreProvider({ children }) {
       (item) => String(item.id) === String(activeBusinessId),
     );
 
-    if (!activeBusinessId || !businessExists) return;
+    if (!activeBusinessId || !businessExists || !activeBranchId) return;
 
     const activeBusiness = businesses.find(
       (item) => String(item.id) === String(activeBusinessId),
@@ -741,12 +868,14 @@ export function StoreProvider({ children }) {
       return;
     }
 
-    loadInventory(activeBusinessId).catch(() => {
+    loadInventory(activeBusinessId, activeBranchId).catch(() => {
       // The exposed error state lets inventory pages report the failure.
     });
   }, [
     activeBusinessId,
+    activeBranchId,
     authInitializing,
+    branchesLoading,
     businesses,
     businessesLoading,
     loadInventory,
@@ -800,9 +929,9 @@ export function StoreProvider({ children }) {
   ]);
 
 
-  // Refreshes real invoices whenever the authenticated workspace changes.
+  // Refreshes real invoices whenever the authenticated branch changes.
   useEffect(() => {
-    if (authInitializing || businessesLoading) return;
+    if (authInitializing || businessesLoading || branchesLoading) return;
 
     if (!user) {
       setSalesLoading(false);
@@ -814,7 +943,7 @@ export function StoreProvider({ children }) {
       (item) => String(item.id) === String(activeBusinessId),
     );
 
-    if (!activeBusinessId || !businessExists) return;
+    if (!activeBusinessId || !businessExists || !activeBranchId) return;
 
     const activeBusiness = businesses.find(
       (item) => String(item.id) === String(activeBusinessId),
@@ -839,12 +968,14 @@ export function StoreProvider({ children }) {
       return;
     }
 
-    loadSales(activeBusinessId).catch(() => {
+    loadSales(activeBusinessId, activeBranchId).catch(() => {
       // The exposed error state lets sales pages report the failure.
     });
   }, [
     activeBusinessId,
+    activeBranchId,
     authInitializing,
+    branchesLoading,
     businesses,
     businessesLoading,
     loadSales,
@@ -1065,8 +1196,29 @@ export function StoreProvider({ children }) {
       throw new Error("The selected business is not available.");
     }
 
+    setActiveBranchId("");
+    setBranches([]);
     setActiveBusinessId(nextBusiness.id);
     return nextBusiness;
+  }
+
+  function switchBranch(branchId) {
+    const nextBranch = branches.find(
+      (item) => String(item.id) === String(branchId),
+    );
+
+    if (!nextBranch || !nextBranch.isActive) {
+      throw new Error("The selected branch is not available.");
+    }
+
+    setActiveBranchId(nextBranch.id);
+    return nextBranch;
+  }
+
+  function activeBranchQuery() {
+    return activeBranchId
+      ? `?branchId=${encodeURIComponent(activeBranchId)}`
+      : "";
   }
 
   function findCurrentProduct(productId) {
@@ -1076,7 +1228,7 @@ export function StoreProvider({ children }) {
   async function addProduct(product) {
     const businessId = business.id;
     const response = await apiRequest(
-      `/businesses/${businessId}/products/`,
+      `/businesses/${businessId}/products/${activeBranchQuery()}`,
       {
         method: "POST",
         body: JSON.stringify(
@@ -1125,7 +1277,7 @@ export function StoreProvider({ children }) {
     }
 
     const response = await apiRequest(
-      `/businesses/${business.id}/products/${productId}/`,
+      `/businesses/${business.id}/products/${productId}/${activeBranchQuery()}`,
       {
         method: "PATCH",
         body: JSON.stringify(buildProductPayload(changes)),
@@ -1150,7 +1302,7 @@ export function StoreProvider({ children }) {
     }
 
     const response = await apiRequest(
-      `/businesses/${business.id}/products/${productId}/status/`,
+      `/businesses/${business.id}/products/${productId}/status/${activeBranchQuery()}`,
       {
         method: "PATCH",
         body: JSON.stringify({
@@ -1178,7 +1330,7 @@ export function StoreProvider({ children }) {
     }
 
     await apiRequest(
-      `/businesses/${business.id}/products/${productId}/`,
+      `/businesses/${business.id}/products/${productId}/${activeBranchQuery()}`,
       { method: "DELETE" },
     );
 
@@ -1205,10 +1357,11 @@ export function StoreProvider({ children }) {
     }
 
     const response = await apiRequest(
-      `/businesses/${business.id}/products/${productId}/adjust-stock/`,
+      `/businesses/${business.id}/products/${productId}/adjust-stock/${activeBranchQuery()}`,
       {
         method: "POST",
         body: JSON.stringify({
+          branchId: activeBranchId || undefined,
           quantity: Number(quantity),
           type,
           reason: String(reason ?? "").trim(),
@@ -1312,6 +1465,7 @@ export function StoreProvider({ children }) {
           "Idempotency-Key": requestKey,
         },
         body: JSON.stringify({
+          branchId: activeBranchId || undefined,
           amount: paymentAmount,
           saleId: selectedSale.id,
           paymentMethod: details.paymentMethod || "cash",
@@ -1416,7 +1570,7 @@ export function StoreProvider({ children }) {
     }
 
     const waybill = await apiRequest(
-      `/businesses/${business.id}/sales/${saleId}/waybill/`,
+      `/businesses/${business.id}/sales/${saleId}/waybill/${activeBranchQuery()}`,
       {
         method: selectedSale.waybill ? "PUT" : "POST",
         body: JSON.stringify(payload),
@@ -1575,6 +1729,7 @@ export function StoreProvider({ children }) {
           "Idempotency-Key": requestKey,
         },
         body: JSON.stringify({
+          branchId: activeBranchId || undefined,
           items: cartItems.map((item) => ({
             productId: item.productId,
             quantity: Number(item.quantity),
@@ -1625,7 +1780,7 @@ export function StoreProvider({ children }) {
 
     if (nextSale.status === "pending_payment") {
       // Refreshes reserved stock without pretending payment has completed.
-      loadInventory(business.id).catch(() => {});
+      loadInventory(business.id, activeBranchId).catch(() => {});
       return nextSale;
     }
 
@@ -1658,6 +1813,7 @@ export function StoreProvider({ children }) {
       productName: item.name,
       businessType: nextSale.businessType,
       businessId: nextSale.businessId,
+      branchId: nextSale.branchId ?? activeBranchId,
       type: "sale",
       quantity: -item.quantity,
       unit: item.unit,
@@ -1694,7 +1850,7 @@ export function StoreProvider({ children }) {
     }
 
     // Reconciles the optimistic screen values with authoritative API data.
-    loadInventory(business.id).catch(() => {});
+    loadInventory(business.id, activeBranchId).catch(() => {});
     loadCustomers(business.id).catch(() => {});
 
     return nextSale;
@@ -1731,7 +1887,7 @@ export function StoreProvider({ children }) {
 
     // Uses backend-authoritative stock, movement and customer balances.
     await Promise.allSettled([
-      loadInventory(business.id),
+      loadInventory(business.id, activeBranchId),
       loadCustomers(business.id),
     ]);
 
@@ -1856,6 +2012,13 @@ export function StoreProvider({ children }) {
       businessesLoading,
       businessesError,
       loadBusinesses,
+      branch,
+      branches,
+      activeBranchId,
+      branchesLoading,
+      branchesError,
+      loadBranches,
+      switchBranch,
       inventoryLoading,
       inventoryError,
       loadInventory,
@@ -1901,6 +2064,11 @@ export function StoreProvider({ children }) {
     }),
     [
       activeBusinessId,
+      activeBranchId,
+      branch,
+      branches,
+      branchesError,
+      branchesLoading,
       business,
       businesses,
       businessesError,

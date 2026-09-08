@@ -1,5 +1,7 @@
 from django.urls import path
 
+from .branch_views import BranchInventoryAPIView, BranchTransferListCreateAPIView
+
 from .restock_views import (
     BusinessRestockListCreateAPIView,
     BusinessRestockPaymentAPIView,
@@ -17,6 +19,16 @@ from .views import (
 app_name = "inventory"
 
 urlpatterns = [
+    path(
+        "businesses/<uuid:business_id>/branch-inventory/",
+        BranchInventoryAPIView.as_view(),
+        name="business-branch-inventory",
+    ),
+    path(
+        "businesses/<uuid:business_id>/branch-transfers/",
+        BranchTransferListCreateAPIView.as_view(),
+        name="business-branch-transfer-list-create",
+    ),
     path(
         "businesses/<uuid:business_id>/products/",
         BusinessProductListCreateAPIView.as_view(),

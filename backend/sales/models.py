@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from businesses.models import Business
+from businesses.models import Branch, Business
 from customers.models import Customer
 from inventory.models import Product
 
@@ -52,6 +52,13 @@ class Sale(models.Model):
         Business,
         on_delete=models.CASCADE,
         related_name="sales",
+    )
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name="sales",
+        blank=True,
+        null=True,
     )
     customer = models.ForeignKey(
         Customer,
@@ -205,6 +212,7 @@ class Sale(models.Model):
         ]
         indexes = [
             models.Index(fields=("business", "created_at")),
+            models.Index(fields=("business", "branch", "completed_at")),
             models.Index(fields=("business", "status")),
             models.Index(fields=("business", "payment_method")),
             models.Index(fields=("business", "reservation_expires_at")),
@@ -223,6 +231,15 @@ class Sale(models.Model):
         ):
             errors["customer"] = (
                 "The selected customer does not belong to this business."
+            )
+
+        if (
+            self.branch_id
+            and self.business_id
+            and self.branch.business_id != self.business_id
+        ):
+            errors["branch"] = (
+                "The selected branch does not belong to this business."
             )
 
         expected_total = self.subtotal - self.discount

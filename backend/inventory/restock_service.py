@@ -3,7 +3,10 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import Product, StockMovement
+from businesses.branch_access import ensure_main_branch
+
+from .branch_service import apply_locked_branch_change, locked_branch_inventory_map
+from .models import BranchStockMovement, Product, StockMovement
 from .restock_models import (
     RestockItem,
     RestockPayment,
@@ -27,7 +30,8 @@ def status_for(total, paid):
 
 
 @transaction.atomic
-def create_restock(*, business, user, data):
+def create_restock(*, business, user, data, branch=None):
+    branch = branch or ensure_main_branch(business=business, created_by=user)
     supplier = (
         Supplier.objects.select_for_update()
         .filter(pk=data["supplierId"], business=business, is_active=True)
@@ -50,6 +54,11 @@ def create_restock(*, business, user, data):
             {"items": "One or more products do not belong to this business."}
         )
 
+    branch_inventory = locked_branch_inventory_map(
+        branch=branch,
+        products={product.id: product for product in products.values()},
+    )
+
     total = money(sum(
         (
             money(item["unitCost"]) * item["quantity"]
@@ -65,6 +74,7 @@ def create_restock(*, business, user, data):
 
     purchase = RestockPurchase.objects.create(
         business=business,
+        branch=branch,
         supplier=supplier,
         supplier_reference=data.get("supplierReference", "").strip(),
         purchase_date=data["purchaseDate"],
@@ -92,9 +102,20 @@ def create_restock(*, business, user, data):
         else:
             next_cost = unit_cost
 
-        product.stock = new_stock
+        apply_locked_branch_change(
+            business=business,
+            branch=branch,
+            product=product,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=quantity,
+            reserved_delta=0,
+            movement_type=BranchStockMovement.MovementType.STOCK_IN,
+            reason=f"Restock {purchase.purchase_number} from {supplier.name}",
+            user=user,
+            business_movement_type=StockMovement.MovementType.STOCK_IN,
+        )
         product.cost_price = next_cost
-        product.save(update_fields=("stock", "cost_price", "updated_at"))
+        product.save(update_fields=("cost_price", "updated_at"))
 
         RestockItem.objects.create(
             purchase=purchase,
@@ -102,16 +123,6 @@ def create_restock(*, business, user, data):
             quantity=quantity,
             unit_cost=unit_cost,
             line_total=money(unit_cost * quantity),
-        )
-        StockMovement.objects.create(
-            business=business,
-            product=product,
-            movement_type=StockMovement.MovementType.STOCK_IN,
-            quantity=quantity,
-            previous_stock=previous_stock,
-            new_stock=new_stock,
-            reason=f"Restock {purchase.purchase_number} from {supplier.name}",
-            created_by=user,
         )
 
     if paid > 0:

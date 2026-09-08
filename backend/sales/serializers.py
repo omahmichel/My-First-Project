@@ -22,6 +22,7 @@ class CheckoutItemSerializer(serializers.Serializer):
 class CreateSaleSerializer(serializers.Serializer):
     # Validates the checkout payload before the transactional service runs.
 
+    branchId = serializers.UUIDField(required=False)
     items = CheckoutItemSerializer(many=True, allow_empty=False)
     customerId = serializers.UUIDField(
         required=False,
@@ -225,6 +226,7 @@ class CreateSaleSerializer(serializers.Serializer):
 class DebtPaymentSerializer(serializers.Serializer):
     # Validates a later payment against one unpaid customer invoice.
 
+    branchId = serializers.UUIDField(required=False)
     amount = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,
@@ -731,6 +733,12 @@ class SaleSerializer(serializers.ModelSerializer):
         source="business.business_type",
         read_only=True,
     )
+    branchId = serializers.UUIDField(
+        source="branch_id", read_only=True, allow_null=True
+    )
+    branchName = serializers.CharField(
+        source="branch.name", read_only=True, allow_null=True
+    )
     customerId = serializers.UUIDField(
         source="customer_id",
         read_only=True,
@@ -842,6 +850,8 @@ class SaleSerializer(serializers.ModelSerializer):
             "id",
             "businessId",
             "businessType",
+            "branchId",
+            "branchName",
             "customerId",
             "customerName",
             "customerPhone",

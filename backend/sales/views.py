@@ -1,4 +1,5 @@
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -6,6 +7,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from businesses.access import get_business_and_role_for_user
+from businesses.branch_access import (
+    branch_queryset_for_user,
+    resolve_branch_for_user,
+)
 from businesses.models import BusinessMembership
 from businesses.paystack_client import (
     PaystackConfigurationError,
@@ -110,6 +115,32 @@ class BusinessSaleAccessMixin:
         )
         return self._business_and_role
 
+    def get_branch(self, branch_id=None):
+        business, role = self.get_business_and_role()
+        requested_id = (
+            branch_id
+            or self.request.query_params.get("branchId")
+            or self.request.data.get("branchId")
+        )
+        return resolve_branch_for_user(
+            business=business,
+            user=self.request.user,
+            role=role,
+            branch_id=requested_id,
+        )
+
+    def branch_scoped_sales(self, queryset):
+        business, role = self.get_business_and_role()
+        branches = branch_queryset_for_user(
+            business=business,
+            user=self.request.user,
+            role=role,
+        )
+        scope = Q(branch__in=branches)
+        if branches.filter(is_main=True).exists():
+            scope |= Q(branch__isnull=True)
+        return queryset.filter(business=business).filter(scope)
+
     def require_sales_access(self):
         business, role = self.get_business_and_role()
 
@@ -132,6 +163,7 @@ class BusinessSaleAccessMixin:
             "request": self.request,
             "business": business,
             "current_role": role,
+            "branch": self.get_branch(),
         }
 
     def get_sale(self):
@@ -141,13 +173,15 @@ class BusinessSaleAccessMixin:
             return None, denied_response
 
         sale = get_object_or_404(
-            Sale.objects.select_related(
-                "business",
-                "customer",
-                "cashier",
-            ).prefetch_related("items", "payments", "waybill"),
+            self.branch_scoped_sales(
+                Sale.objects.select_related(
+                    "business",
+                    "branch",
+                    "customer",
+                    "cashier",
+                ).prefetch_related("items", "payments", "waybill")
+            ),
             pk=self.kwargs["sale_id"],
-            business=business,
         )
 
         return sale, None
@@ -176,10 +210,21 @@ class BusinessSaleListCreateAPIView(
         if denied_response:
             return denied_response
 
+        branch = self.get_branch()
+        branch_filter = {"branch": branch}
+        sales_queryset = Sale.objects.filter(business=business)
+        if branch.is_main:
+            sales_queryset = sales_queryset.filter(
+                Q(branch=branch) | Q(branch__isnull=True)
+            )
+        else:
+            sales_queryset = sales_queryset.filter(**branch_filter)
+
         sales = (
-            Sale.objects.filter(business=business)
+            sales_queryset
             .select_related(
                 "business",
+                "branch",
                 "customer",
                 "cashier",
             )
@@ -227,12 +272,12 @@ class BusinessSaleListCreateAPIView(
             )
 
         existing_sale = (
-            Sale.objects.filter(
-                business=business,
-                idempotency_key=idempotency_key,
+            self.branch_scoped_sales(
+                Sale.objects.filter(idempotency_key=idempotency_key)
             )
             .select_related(
                 "business",
+                "branch",
                 "customer",
                 "cashier",
             )
@@ -253,6 +298,7 @@ class BusinessSaleListCreateAPIView(
 
         serializer = CreateSaleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        branch = self.get_branch(serializer.validated_data.get("branchId"))
 
         uses_mobile_money = (
             serializer.validated_data["paymentMethod"]
@@ -273,6 +319,7 @@ class BusinessSaleListCreateAPIView(
                     user=request.user,
                     data=serializer.validated_data,
                     idempotency_key=idempotency_key,
+                    branch=branch,
                 )
             else:
                 sale, replayed = create_completed_sale(
@@ -280,6 +327,7 @@ class BusinessSaleListCreateAPIView(
                     user=request.user,
                     data=serializer.validated_data,
                     idempotency_key=idempotency_key,
+                    branch=branch,
                 )
         except (
             PaystackConfigurationError,
@@ -290,12 +338,14 @@ class BusinessSaleListCreateAPIView(
             return _mobile_money_service_error_response(exc)
         except IntegrityError:
             sale = get_object_or_404(
-                Sale.objects.select_related(
-                    "business",
-                    "customer",
-                    "cashier",
-                ).prefetch_related("items", "payments", "waybill"),
-                business=business,
+                self.branch_scoped_sales(
+                    Sale.objects.select_related(
+                        "business",
+                        "branch",
+                        "customer",
+                        "cashier",
+                    ).prefetch_related("items", "payments", "waybill")
+                ),
                 idempotency_key=idempotency_key,
             )
             replayed = True
@@ -341,7 +391,7 @@ class BusinessMobileMoneySaleVerifyAPIView(
             gateway_reference=reference,
             method=Payment.Method.MOBILE_MONEY,
             payment_type=Payment.PaymentType.SALE_PAYMENT,
-            sale__isnull=False,
+            sale__in=self.branch_scoped_sales(Sale.objects.all()),
         )
 
         try:
@@ -396,7 +446,7 @@ class BusinessMobileMoneyDebtPaymentVerifyAPIView(
             gateway_reference=reference,
             method=Payment.Method.MOBILE_MONEY,
             payment_type=Payment.PaymentType.DEBT_PAYMENT,
-            sale__isnull=False,
+            sale__in=self.branch_scoped_sales(Sale.objects.all()),
         )
         try:
             payment, _, _, finalized = (
@@ -470,9 +520,10 @@ class BusinessSaleWaybillAPIView(
 
         with transaction.atomic():
             sale = get_object_or_404(
-                Sale.objects.select_for_update(),
+                self.branch_scoped_sales(
+                    Sale.objects.select_for_update()
+                ),
                 pk=sale_id,
-                business=business,
             )
             waybill = (
                 Waybill.objects.select_for_update()
@@ -592,6 +643,7 @@ class BusinessCustomerDebtPaymentAPIView(
             Payment.objects.filter(
                 business=business,
                 idempotency_key=idempotency_key,
+                sale__in=self.branch_scoped_sales(Sale.objects.all()),
             )
             .select_related(
                 "business",
@@ -612,7 +664,7 @@ class BusinessCustomerDebtPaymentAPIView(
 
         serializer = DebtPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
+        branch = self.get_branch(serializer.validated_data.get("branchId"))
 
         if (
             serializer.validated_data["paymentMethod"]
@@ -625,6 +677,7 @@ class BusinessCustomerDebtPaymentAPIView(
                     user=request.user,
                     data=serializer.validated_data,
                     idempotency_key=idempotency_key,
+                    branch=branch,
                 )
             except (PaystackConfigurationError, PaystackRequestError) as exc:
                 return _mobile_money_gateway_error_response(exc)
@@ -659,6 +712,7 @@ class BusinessCustomerDebtPaymentAPIView(
                 user=request.user,
                 data=serializer.validated_data,
                 idempotency_key=idempotency_key,
+                branch=branch,
             )
         except IntegrityError:
             payment = get_object_or_404(

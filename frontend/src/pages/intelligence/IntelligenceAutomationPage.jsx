@@ -85,6 +85,7 @@ export default function IntelligenceAutomationPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deleteRuleTarget, setDeleteRuleTarget] = useState(null);
   const [form, setForm] = useState({
     ruleType: "risk_monitor",
     isEnabled: true,
@@ -250,10 +251,7 @@ export default function IntelligenceAutomationPage() {
   }
 
   async function deleteRule(rule) {
-    const confirmed = window.confirm(
-      "Remove this automation rule? Existing event and run history will be preserved.",
-    );
-    if (!confirmed) return;
+    if (!rule || workingId) return;
 
     setWorkingId(rule.id);
     setError("");
@@ -264,6 +262,7 @@ export default function IntelligenceAutomationPage() {
         `/businesses/${business.id}/intelligence/automation/rules/${rule.id}/`,
         { method: "DELETE" },
       );
+      setDeleteRuleTarget(null);
       setNotice(
         "Automation rule removed. Existing event and run history was preserved.",
       );
@@ -589,7 +588,7 @@ export default function IntelligenceAutomationPage() {
                     <button
                       type="button"
                       className="intelligence-automation-delete"
-                      onClick={() => deleteRule(rule)}
+                      onClick={() => setDeleteRuleTarget(rule)}
                       disabled={workingId === rule.id}
                       aria-label="Remove automation rule"
                     >
@@ -690,6 +689,78 @@ export default function IntelligenceAutomationPage() {
           </p>
         </div>
       </section>
+
+      {deleteRuleTarget ? (
+        <div className="intelligence-automation-confirm-backdrop">
+          <section
+            className="intelligence-automation-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="automation-delete-title"
+          >
+            <header>
+              <div>
+                <span>CONFIRM ACTION</span>
+                <h3 id="automation-delete-title">Remove automation rule?</h3>
+              </div>
+              <button
+                type="button"
+                className="intelligence-automation-confirm-close"
+                onClick={() => setDeleteRuleTarget(null)}
+                disabled={workingId === deleteRuleTarget.id}
+                aria-label="Close confirmation"
+              >
+                &times;
+              </button>
+            </header>
+
+            <div className="intelligence-automation-confirm-body">
+              <div className="intelligence-automation-confirm-warning">
+                <AlertTriangle size={21} />
+                <div>
+                  <strong>
+                    {RULES.find(
+                      (item) => item.value === deleteRuleTarget.ruleType,
+                    )?.label || titleCase(deleteRuleTarget.ruleType)}
+                  </strong>
+                  <p>
+                    StockFlow will remove this automation rule. Existing event
+                    and execution history will be preserved for audit purposes.
+                  </p>
+                </div>
+              </div>
+
+              <div className="intelligence-automation-confirm-note">
+                <ShieldCheck size={18} />
+                <span>
+                  Removing this rule does not change inventory, sales, prices,
+                  payments, customer debt or supplier balances.
+                </span>
+              </div>
+            </div>
+
+            <footer>
+              <button
+                type="button"
+                className="intelligence-automation-confirm-cancel"
+                onClick={() => setDeleteRuleTarget(null)}
+                disabled={workingId === deleteRuleTarget.id}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="intelligence-automation-confirm-delete"
+                onClick={() => deleteRule(deleteRuleTarget)}
+                disabled={workingId === deleteRuleTarget.id}
+              >
+                <Trash2 size={15} />
+                {workingId === deleteRuleTarget.id ? "Removing..." : "Remove rule"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

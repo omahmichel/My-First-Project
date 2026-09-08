@@ -10,6 +10,7 @@ import { useStore } from "../../context/StoreContext";
 
 const pageTitles = {
   "/intelligence/overview": "Overview",
+  "/intelligence/branches": "Multi-Branch Intelligence",
   "/intelligence/forecasts": "Forecasts",
   "/intelligence/recommendations": "Stock Recommendations",
   "/intelligence/insights": "Insights",

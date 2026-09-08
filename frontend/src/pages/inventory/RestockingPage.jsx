@@ -52,7 +52,7 @@ function RestockModalPortal({ children }) {
 }
 
 export default function RestockingPage() {
-  const { business, products, loadInventory } = useStore();
+  const { business, branch, activeBranchId, products, loadInventory } = useStore();
   const [suppliers, setSuppliers] = useState([]);
   const [restocks, setRestocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,9 @@ export default function RestockingPage() {
     try {
       const [supplierData, restockData] = await Promise.all([
         apiRequest(`/businesses/${business.id}/suppliers/`),
-        apiRequest(`/businesses/${business.id}/restocks/`),
+        apiRequest(
+          `/businesses/${business.id}/restocks/?branchId=${encodeURIComponent(activeBranchId)}`,
+        ),
       ]);
       setSuppliers(Array.isArray(supplierData) ? supplierData : []);
       setRestocks(Array.isArray(restockData) ? restockData : []);
@@ -92,9 +94,9 @@ export default function RestockingPage() {
   }
 
   useEffect(() => {
-    if (business.id && business.hasSystemAccess) loadData();
+    if (business.id && activeBranchId && business.hasSystemAccess) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [business.id, business.hasSystemAccess]);
+  }, [business.id, activeBranchId, business.hasSystemAccess]);
 
   const totals = useMemo(() => {
     const purchased = restocks.reduce(
@@ -211,6 +213,7 @@ export default function RestockingPage() {
           method: "POST",
           body: JSON.stringify({
             ...restockForm,
+            branchId: activeBranchId,
             initialPayment: Number(restockForm.initialPayment || 0),
             items: restockForm.items.map((line) => ({
               productId: line.productId,
@@ -239,7 +242,7 @@ export default function RestockingPage() {
     setPaymentSaving(true);
     try {
       await apiRequest(
-        `/businesses/${business.id}/restocks/${paymentPurchase.id}/payments/`,
+        `/businesses/${business.id}/restocks/${paymentPurchase.id}/payments/?branchId=${encodeURIComponent(activeBranchId)}`,
         {
           method: "POST",
           body: JSON.stringify({
@@ -264,7 +267,7 @@ export default function RestockingPage() {
       <PageHeader
         eyebrow="Supply & inventory"
         title="Suppliers & restocking"
-        description="Record stock received, supplier purchases and outstanding balances."
+        description={`Record stock received for ${branch?.name || "the active branch"}, supplier purchases and outstanding balances.`}
       />
 
       <div className="restock-actions">

@@ -37,6 +37,7 @@ from .services.automation import (
     update_automation_rule,
 )
 from .services.business_analysis import calculate_business_overview
+from .services.branches import calculate_multibranch_intelligence
 from .models import GeneratedReport
 from .models import AutomationEvent, AutomationRule, AutomationRun
 from .services.forecasting import generate_and_store_forecast
@@ -53,6 +54,20 @@ INTELLIGENCE_ROLES = (
     BusinessMembership.Role.OWNER,
     BusinessMembership.Role.MANAGER,
 )
+
+
+class BusinessIntelligenceBranchesAPIView(APIView):
+    """Returns deterministic comparison intelligence across real branches."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, business_id):
+        business, _ = get_business_and_role_for_user(
+            user=request.user,
+            business_id=business_id,
+            membership_roles=INTELLIGENCE_ROLES,
+        )
+        return Response(calculate_multibranch_intelligence(business))
 
 
 class BusinessIntelligenceOverviewAPIView(APIView):

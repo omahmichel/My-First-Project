@@ -17,6 +17,11 @@ from .payment_account_views import (
     BusinessPaymentAccountPayoutSyncAPIView,
 )
 
+from .branch_views import (
+    BusinessBranchDetailAPIView,
+    BusinessBranchListCreateAPIView,
+    BusinessBranchMemberAccessAPIView,
+)
 from .views import BusinessViewSet
 
 # Registers standard list, create, retrieve and update API routes.
@@ -49,6 +54,21 @@ urlpatterns = [
         ),
         SubscriptionPaymentVerifyAPIView.as_view(),
         name="subscription-payment-verify",
+    ),
+    path(
+        "businesses/<uuid:business_id>/branches/",
+        BusinessBranchListCreateAPIView.as_view(),
+        name="business-branch-list-create",
+    ),
+    path(
+        "businesses/<uuid:business_id>/branches/<uuid:branch_id>/",
+        BusinessBranchDetailAPIView.as_view(),
+        name="business-branch-detail",
+    ),
+    path(
+        "businesses/<uuid:business_id>/branches/<uuid:branch_id>/members/",
+        BusinessBranchMemberAccessAPIView.as_view(),
+        name="business-branch-member-access",
     ),
     path(
         "businesses/<uuid:business_id>/team/",

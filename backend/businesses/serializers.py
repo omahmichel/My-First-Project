@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import serializers
 
-from .models import Business, BusinessMembership
+from .models import Branch, BranchAccess, Business, BusinessMembership
 
 
 class BusinessSerializer(serializers.ModelSerializer):
@@ -258,10 +258,24 @@ class BusinessSerializer(serializers.ModelSerializer):
             **validated_data,
         )
 
-        BusinessMembership.objects.create(
+        membership = BusinessMembership.objects.create(
             business=business,
             user=request.user,
             role=BusinessMembership.Role.OWNER,
+            is_active=True,
+        )
+        main_branch = Branch.objects.create(
+            business=business,
+            name="Main Branch",
+            code="MAIN",
+            location=business.location,
+            phone=business.phone,
+            is_main=True,
+            created_by=request.user,
+        )
+        BranchAccess.objects.create(
+            branch=main_branch,
+            membership=membership,
             is_active=True,
         )
 

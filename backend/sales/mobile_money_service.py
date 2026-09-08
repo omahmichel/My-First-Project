@@ -4,6 +4,7 @@ import uuid
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from businesses.paystack_client import (
@@ -12,8 +13,13 @@ from businesses.paystack_client import (
     PaystackError,
     PaystackRequestError,
 )
+from businesses.branch_access import ensure_main_branch
 from customers.models import Customer
-from inventory.models import Product, StockMovement
+from inventory.branch_service import (
+    apply_locked_branch_change,
+    locked_branch_inventory_map,
+)
+from inventory.models import BranchStockMovement, Product, StockMovement
 
 from .models import Payment, Sale, SaleItem
 from .services import (
@@ -77,6 +83,7 @@ def _reload_sale_and_payment(*, sale_id, payment_id):
     sale = (
         Sale.objects.select_related(
             "business",
+            "branch",
             "customer",
             "cashier",
         )
@@ -101,6 +108,7 @@ def _existing_mobile_money_attempt(*, business, idempotency_key):
         )
         .select_related(
             "business",
+            "branch",
             "customer",
             "cashier",
         )
@@ -131,14 +139,21 @@ def _create_pending_mobile_money_records(
     user,
     data,
     idempotency_key,
+    branch=None,
 ):
     # Creates the audit records and reserves stock before calling Paystack.
+    branch = branch or ensure_main_branch(business=business, created_by=user)
     customer = _load_customer(
         business,
         data.get("customerId"),
     )
     products = _load_products(business, data["items"])
-    lines, subtotal = _prepare_lines(products, data["items"])
+    branch_inventory = locked_branch_inventory_map(
+        branch=branch, products=products
+    )
+    lines, subtotal = _prepare_lines(
+        products, data["items"], branch_inventory=branch_inventory
+    )
 
     discount = data.get("discount", Decimal("0.00"))
 
@@ -206,6 +221,7 @@ def _create_pending_mobile_money_records(
 
     sale = Sale.objects.create(
         business=business,
+        branch=branch,
         customer=customer,
         sale_number=sale_number,
         invoice_number=invoice_number,
@@ -226,9 +242,16 @@ def _create_pending_mobile_money_records(
 
     for line in lines:
         product = line["product"]
-        product.reserved_stock += line["quantity"]
-        product.save(
-            update_fields=("reserved_stock", "updated_at")
+        apply_locked_branch_change(
+            business=business,
+            branch=branch,
+            product=product,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=0,
+            reserved_delta=line["quantity"],
+            movement_type=BranchStockMovement.MovementType.RESERVE,
+            reason=f"Pending Mobile Money sale {sale.sale_number}",
+            user=user,
         )
 
         SaleItem.objects.create(
@@ -272,7 +295,7 @@ def _release_failed_mobile_money_sale(
         .select_related("sale")
         .get(pk=payment_id)
     )
-    sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
+    sale = Sale.objects.select_for_update().select_related("branch").get(pk=payment.sale_id)
 
     if sale.status != Sale.Status.PENDING_PAYMENT:
         return payment, sale
@@ -290,15 +313,23 @@ def _release_failed_mobile_money_sale(
             id__in=product_ids
         )
     }
+    branch = sale.branch or ensure_main_branch(business=sale.business)
+    branch_inventory = locked_branch_inventory_map(
+        branch=branch, products=products
+    )
 
     for item in items:
         product = products[item["product_id"]]
-        product.reserved_stock = max(
-            0,
-            product.reserved_stock - item["quantity"],
-        )
-        product.save(
-            update_fields=("reserved_stock", "updated_at")
+        apply_locked_branch_change(
+            business=sale.business,
+            branch=branch,
+            product=product,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=0,
+            reserved_delta=-item["quantity"],
+            movement_type=BranchStockMovement.MovementType.RELEASE,
+            reason=f"Released failed Mobile Money sale {sale.sale_number}",
+            user=sale.cashier,
         )
 
     sale.status = Sale.Status.FAILED
@@ -367,6 +398,7 @@ def initialize_mobile_money_sale(
     data,
     idempotency_key,
     client=None,
+    branch=None,
 ):
     # Creates one pending sale and sends exactly one Paystack phone prompt.
     existing_attempt = _existing_mobile_money_attempt(
@@ -383,6 +415,7 @@ def initialize_mobile_money_sale(
         user=user,
         data=data,
         idempotency_key=idempotency_key,
+        branch=branch,
     )
     gateway_client = client or PaystackClient()
     email = _payment_email(
@@ -519,7 +552,11 @@ def _locked_sale_inventory(sale):
             code="mobile_money_reserved_product_missing",
         )
 
-    return items, products
+    branch = sale.branch or ensure_main_branch(business=sale.business)
+    branch_inventory = locked_branch_inventory_map(
+        branch=branch, products=products
+    )
+    return items, products, branch, branch_inventory
 
 
 def _release_verified_failure_locked(
@@ -530,16 +567,20 @@ def _release_verified_failure_locked(
     reason,
 ):
     # Releases reserved stock after a definite failure or mismatch.
-    items, products = _locked_sale_inventory(sale)
+    items, products, branch, branch_inventory = _locked_sale_inventory(sale)
 
     for item in items:
         product = products[item.product_id]
-        product.reserved_stock = max(
-            0,
-            product.reserved_stock - item.quantity,
-        )
-        product.save(
-            update_fields=("reserved_stock", "updated_at")
+        apply_locked_branch_change(
+            business=sale.business,
+            branch=branch,
+            product=product,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=0,
+            reserved_delta=-item.quantity,
+            movement_type=BranchStockMovement.MovementType.RELEASE,
+            reason=f"Released Mobile Money sale {sale.sale_number}",
+            user=sale.cashier,
         )
 
     sale.status = (
@@ -688,14 +729,15 @@ def _finalize_mobile_money_sale_locked(
             code="mobile_money_customer_required",
         )
 
-    items, products = _locked_sale_inventory(sale)
+    items, products, branch, branch_inventory = _locked_sale_inventory(sale)
 
     for item in items:
         product = products[item.product_id]
 
+        inventory = branch_inventory[product.id]
         if (
-            product.stock < item.quantity
-            or product.reserved_stock < item.quantity
+            inventory.stock < item.quantity
+            or inventory.reserved_stock < item.quantity
         ):
             raise MobileMoneyPaymentError(
                 "The reserved stock is no longer available for this sale.",
@@ -707,28 +749,17 @@ def _finalize_mobile_money_sale_locked(
 
     for item in items:
         product = products[item.product_id]
-        previous_stock = product.stock
-        new_stock = previous_stock - item.quantity
-
-        product.stock = new_stock
-        product.reserved_stock -= item.quantity
-        product.save(
-            update_fields=(
-                "stock",
-                "reserved_stock",
-                "updated_at",
-            )
-        )
-
-        StockMovement.objects.create(
+        apply_locked_branch_change(
             business=sale.business,
+            branch=branch,
             product=product,
-            movement_type=StockMovement.MovementType.SALE,
-            quantity=-item.quantity,
-            previous_stock=previous_stock,
-            new_stock=new_stock,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=-item.quantity,
+            reserved_delta=-item.quantity,
+            movement_type=BranchStockMovement.MovementType.SALE,
             reason=f"Sale {sale.sale_number}",
-            created_by=sale.cashier,
+            user=sale.cashier,
+            business_movement_type=StockMovement.MovementType.SALE,
         )
 
     if sale.customer_id:
@@ -987,7 +1018,7 @@ def _existing_mobile_money_debt_attempt(*, business, idempotency_key):
 
 @transaction.atomic
 def _create_pending_mobile_money_debt_payment(
-    *, business, customer_id, user, data, idempotency_key
+    *, business, customer_id, user, data, idempotency_key, branch=None
 ):
     # Validates the unpaid invoice before creating a pending payment.
     customer = Customer.objects.select_for_update().filter(
@@ -1007,7 +1038,13 @@ def _create_pending_mobile_money_debt_payment(
         business=business,
         customer=customer,
         outstanding_balance__gt=Decimal("0.00"),
-    ).order_by("created_at")
+    )
+    if branch is not None:
+        branch_scope = Q(branch=branch)
+        if branch.is_main:
+            branch_scope |= Q(branch__isnull=True)
+        unpaid_sales = unpaid_sales.filter(branch_scope)
+    unpaid_sales = unpaid_sales.order_by("created_at")
     if data.get("saleId"):
         unpaid_sales = unpaid_sales.filter(pk=data["saleId"])
     sale = unpaid_sales.first()
@@ -1078,7 +1115,7 @@ def _record_uncertain_debt_gateway_error(*, payment_id, message):
 
 
 def initialize_mobile_money_debt_payment(
-    *, business, customer_id, user, data, idempotency_key, client=None
+    *, business, customer_id, user, data, idempotency_key, client=None, branch=None
 ):
     # Creates one pending debt payment and sends exactly one phone prompt.
     existing = _existing_mobile_money_debt_attempt(
@@ -1094,6 +1131,7 @@ def initialize_mobile_money_debt_payment(
         user=user,
         data=data,
         idempotency_key=idempotency_key,
+        branch=branch,
     )
     gateway_client = client or PaystackClient()
     metadata = {
@@ -1266,7 +1304,7 @@ def verify_and_finalize_mobile_money_debt_payment(*, reference, client=None):
         payment = Payment.objects.select_for_update().select_related(
             "business", "sale", "customer", "initiated_by"
         ).get(pk=existing.pk)
-        sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
+        sale = Sale.objects.select_for_update().select_related("branch").get(pk=payment.sale_id)
         customer = Customer.objects.select_for_update().get(pk=payment.customer_id)
 
         if payment.status == Payment.Status.SUCCESSFUL:
@@ -1364,7 +1402,7 @@ def _expire_stale_mobile_money_sale(
         .select_related("sale")
         .get(pk=payment_id)
     )
-    sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
+    sale = Sale.objects.select_for_update().select_related("branch").get(pk=payment.sale_id)
 
     if (
         payment.status != Payment.Status.PENDING
@@ -1393,14 +1431,22 @@ def _expire_stale_mobile_money_sale(
             code="mobile_money_reserved_product_missing",
         )
 
+    branch = sale.branch or ensure_main_branch(business=sale.business)
+    branch_inventory = locked_branch_inventory_map(
+        branch=branch, products=products
+    )
     for item in items:
         product = products[item["product_id"]]
-        product.reserved_stock = max(
-            0,
-            product.reserved_stock - item["quantity"],
-        )
-        product.save(
-            update_fields=("reserved_stock", "updated_at")
+        apply_locked_branch_change(
+            business=sale.business,
+            branch=branch,
+            product=product,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=0,
+            reserved_delta=-item["quantity"],
+            movement_type=BranchStockMovement.MovementType.RELEASE,
+            reason=f"Expired Mobile Money sale {sale.sale_number}",
+            user=sale.cashier,
         )
 
     sale.status = Sale.Status.FAILED

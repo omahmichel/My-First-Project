@@ -1,15 +1,20 @@
 from django.db import transaction
-from django.db.models import IntegerField, Q, Sum, Value
+from django.db.models import IntegerField, Prefetch, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from businesses.access import get_business_and_role_for_user
+from businesses.branch_access import resolve_branch_for_user
 from businesses.models import BusinessMembership
-from .models import Product, StockMovement
+from .branch_service import (
+    apply_locked_branch_change,
+    locked_branch_inventory_map,
+)
+from .models import BranchInventory, BranchStockMovement, Product, StockMovement
 from .serializers import (
     ProductSerializer,
     ProductStatusSerializer,
@@ -18,18 +23,23 @@ from .serializers import (
 )
 
 
-def product_inventory_summary_queryset(queryset):
-    # Adds completed-sale totals once in SQL so every inventory screen shares them.
+def product_inventory_summary_queryset(queryset, *, branch=None):
+    movement_filter = Q(
+        stock_movements__movement_type=StockMovement.MovementType.SALE
+    )
+    if branch is not None:
+        movement_filter &= Q(stock_movements__branch=branch)
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                "branch_inventories",
+                queryset=BranchInventory.objects.filter(branch=branch),
+                to_attr="selected_branch_inventory",
+            )
+        )
+
     return queryset.annotate(
         quantity_sold=-1 * Coalesce(
-            Sum(
-                "stock_movements__quantity",
-                filter=Q(
-                    stock_movements__movement_type=(
-                        StockMovement.MovementType.SALE
-                    )
-                ),
-            ),
+            Sum("stock_movements__quantity", filter=movement_filter),
             Value(0),
             output_field=IntegerField(),
         )
@@ -48,6 +58,22 @@ class BusinessProductAccessMixin:
             business_id=self.kwargs["business_id"],
         )
         return self._business_and_role
+
+    def get_branch(self):
+        if hasattr(self, "_selected_branch"):
+            return self._selected_branch
+        business, role = self.get_business_and_role()
+        branch_id = (
+            self.request.query_params.get("branchId")
+            or self.request.data.get("branchId")
+        )
+        self._selected_branch = resolve_branch_for_user(
+            business=business,
+            user=self.request.user,
+            role=role,
+            branch_id=branch_id,
+        )
+        return self._selected_branch
 
     def require_inventory_write_access(self):
         # Owners, managers and inventory clerks can change inventory.
@@ -76,6 +102,7 @@ class BusinessProductAccessMixin:
             "request": self.request,
             "business": business,
             "current_role": role,
+            "branch": self.get_branch(),
         }
 
     def get_product(self):
@@ -84,7 +111,8 @@ class BusinessProductAccessMixin:
 
         return get_object_or_404(
             product_inventory_summary_queryset(
-                Product.objects.select_related("business")
+                Product.objects.select_related("business"),
+                branch=self.get_branch(),
             ),
             pk=self.kwargs["product_id"],
             business=business,
@@ -105,7 +133,8 @@ class BusinessProductListCreateAPIView(
         products = product_inventory_summary_queryset(
             Product.objects.filter(
                 business=business,
-            ).select_related("business")
+            ).select_related("business"),
+            branch=self.get_branch(),
         ).order_by("-is_active", "name", "sku")
 
         serializer = ProductSerializer(
@@ -271,9 +300,13 @@ class BusinessStockMovementListAPIView(
         business, _ = self.get_business_and_role()
 
         movements = (
-            StockMovement.objects.filter(business=business)
+            StockMovement.objects.filter(
+                business=business,
+                branch=self.get_branch(),
+            )
             .select_related(
                 "business",
+                "branch",
                 "product",
                 "created_by",
             )
@@ -318,44 +351,32 @@ class ProductStockAdjustmentAPIView(
             is_active=True,
         )
 
-        previous_stock = product.stock
-        new_stock = previous_stock + data["quantity"]
+        branch = self.get_branch()
+        branch_inventory = locked_branch_inventory_map(
+            branch=branch, products=[product]
+        )[product.id]
 
-        if new_stock < 0:
-            return Response(
-                {
-                    "quantity": (
-                        "This adjustment would reduce stock below zero."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+        movement_map = {
+            StockMovement.MovementType.STOCK_IN: BranchStockMovement.MovementType.STOCK_IN,
+            StockMovement.MovementType.ADJUSTMENT: BranchStockMovement.MovementType.ADJUSTMENT,
+            StockMovement.MovementType.DAMAGE: BranchStockMovement.MovementType.DAMAGE,
+            StockMovement.MovementType.RETURN: BranchStockMovement.MovementType.RETURN,
+        }
+        try:
+            movement, _ = apply_locked_branch_change(
+                business=business,
+                branch=branch,
+                product=product,
+                branch_inventory=branch_inventory,
+                stock_delta=data["quantity"],
+                reserved_delta=0,
+                movement_type=movement_map[data["type"]],
+                reason=data["reason"],
+                user=request.user,
+                business_movement_type=data["type"],
             )
-
-        if new_stock < product.reserved_stock:
-            return Response(
-                {
-                    "quantity": (
-                        "This adjustment would reduce stock below "
-                        f"{product.reserved_stock} unit(s) reserved "
-                        "for pending payments."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        product.stock = new_stock
-        product.save(update_fields=("stock", "updated_at"))
-
-        movement = StockMovement.objects.create(
-            business=business,
-            product=product,
-            movement_type=data["type"],
-            quantity=data["quantity"],
-            previous_stock=previous_stock,
-            new_stock=new_stock,
-            reason=data["reason"],
-            created_by=request.user,
-        )
+        except serializers.ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             {

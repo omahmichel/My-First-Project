@@ -80,6 +80,8 @@ class RestockItemReadSerializer(serializers.ModelSerializer):
 
 
 class RestockPurchaseSerializer(serializers.ModelSerializer):
+    branchId = serializers.UUIDField(source="branch_id", read_only=True, allow_null=True)
+    branchName = serializers.CharField(source="branch.name", read_only=True, allow_null=True)
     supplierId = serializers.UUIDField(source="supplier_id", read_only=True)
     supplierName = serializers.CharField(source="supplier.name", read_only=True)
     purchaseNumber = serializers.CharField(
@@ -107,7 +109,7 @@ class RestockPurchaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = RestockPurchase
         fields = (
-            "id", "supplierId", "supplierName", "purchaseNumber",
+            "id", "branchId", "branchName", "supplierId", "supplierName", "purchaseNumber",
             "supplierReference", "purchaseDate", "totalAmount",
             "amountPaid", "outstandingBalance", "paymentStatus",
             "createdBy", "items",
@@ -126,6 +128,7 @@ class RestockItemInputSerializer(serializers.Serializer):
 
 
 class RestockCreateSerializer(serializers.Serializer):
+    branchId = serializers.UUIDField(required=False)
     supplierId = serializers.UUIDField()
     supplierReference = serializers.CharField(
         max_length=120, required=False, allow_blank=True

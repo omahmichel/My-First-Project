@@ -63,6 +63,11 @@ export default function Sidebar({ open, onClose }) {
     businesses,
     activeBusinessId,
     switchBusiness,
+    branch,
+    branches,
+    activeBranchId,
+    branchesLoading,
+    switchBranch,
   } = useStore();
   const navigate = useNavigate();
 
@@ -77,6 +82,11 @@ export default function Sidebar({ open, onClose }) {
   function handleBusinessSwitch(event) {
     switchBusiness(event.target.value);
     navigate("/app/dashboard", { replace: true });
+    onClose();
+  }
+
+  function handleBranchSwitch(event) {
+    switchBranch(event.target.value);
     onClose();
   }
 
@@ -151,8 +161,25 @@ export default function Sidebar({ open, onClose }) {
             </select>
           </label>
 
+          <label className="sidebar-business-select-label">
+            <span className="sr-only">Switch branch</span>
+            <select
+              value={activeBranchId}
+              onChange={handleBranchSwitch}
+              aria-label="Switch active branch"
+              disabled={branchesLoading || !branches.length}
+            >
+              {branches.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name}{item.isMain ? " · Main" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <p>
-            Showing records for <strong>{business.name}</strong>
+            Showing <strong>{branch?.name || "branch"}</strong> records for{" "}
+            <strong>{business.name}</strong>
           </p>
         </div>
 

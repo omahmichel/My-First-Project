@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     BusinessIntelligenceAnalystAPIView,
+    BusinessIntelligenceBranchesAPIView,
     BusinessIntelligenceAutomationEventAPIView,
     BusinessIntelligenceAutomationRuleCollectionAPIView,
     BusinessIntelligenceAutomationRuleDetailAPIView,
@@ -16,6 +17,11 @@ from .views import (
 
 
 urlpatterns = [
+    path(
+        "businesses/<uuid:business_id>/intelligence/branches/",
+        BusinessIntelligenceBranchesAPIView.as_view(),
+        name="business-intelligence-branches",
+    ),
     path(
         "businesses/<uuid:business_id>/intelligence/overview/",
         BusinessIntelligenceOverviewAPIView.as_view(),

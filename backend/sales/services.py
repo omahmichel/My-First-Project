@@ -1,14 +1,20 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers
 
+from businesses.branch_access import ensure_main_branch
 from businesses.models import BusinessPaymentAccount
 
 from customers.models import Customer
-from inventory.models import Product, StockMovement
+from inventory.branch_service import (
+    apply_locked_branch_change,
+    locked_branch_inventory_map,
+)
+from inventory.models import BranchStockMovement, Product, StockMovement
 from .models import (
     DebtOverdueCharge,
     DebtPaymentAllocation,
@@ -58,8 +64,8 @@ def _load_products(business, checkout_items):
     return products
 
 
-def _prepare_lines(products, checkout_items):
-    # Validates available stock and calculates server-side line totals.
+def _prepare_lines(products, checkout_items, branch_inventory=None):
+    # Validates branch-available stock and calculates server-side line totals.
     prepared_lines = []
     subtotal = Decimal("0.00")
 
@@ -67,7 +73,12 @@ def _prepare_lines(products, checkout_items):
         product = products[item["productId"]]
         quantity = item["quantity"]
         unit_price = item["unitPrice"]
-        available_stock = product.stock - product.reserved_stock
+        inventory = branch_inventory.get(product.id) if branch_inventory else None
+        available_stock = (
+            inventory.available_stock
+            if inventory is not None
+            else product.stock - product.reserved_stock
+        )
 
         if quantity > available_stock:
             raise serializers.ValidationError(
@@ -217,6 +228,7 @@ def create_completed_sale(
     user,
     data,
     idempotency_key,
+    branch=None,
 ):
     # Creates a finalized cash, bank-transfer, or credit sale atomically.
     existing_sale = (
@@ -242,12 +254,18 @@ def create_completed_sale(
             }
         )
 
+    branch = branch or ensure_main_branch(business=business, created_by=user)
     customer = _load_customer(
         business,
         data.get("customerId"),
     )
     products = _load_products(business, data["items"])
-    lines, subtotal = _prepare_lines(products, data["items"])
+    branch_inventory = locked_branch_inventory_map(
+        branch=branch, products=products
+    )
+    lines, subtotal = _prepare_lines(
+        products, data["items"], branch_inventory=branch_inventory
+    )
 
     discount = data.get("discount", Decimal("0.00"))
 
@@ -342,6 +360,7 @@ def create_completed_sale(
 
     sale = Sale.objects.create(
         business=business,
+        branch=branch,
         customer=customer,
         sale_number=sale_number,
         invoice_number=invoice_number,
@@ -361,12 +380,17 @@ def create_completed_sale(
 
     for line in lines:
         product = line["product"]
-        previous_stock = product.stock
-        new_stock = previous_stock - line["quantity"]
-
-        product.stock = new_stock
-        product.save(
-            update_fields=("stock", "updated_at")
+        apply_locked_branch_change(
+            business=business,
+            branch=branch,
+            product=product,
+            branch_inventory=branch_inventory[product.id],
+            stock_delta=-line["quantity"],
+            reserved_delta=0,
+            movement_type=BranchStockMovement.MovementType.SALE,
+            reason=f"Sale {sale_number}",
+            user=user,
+            business_movement_type=StockMovement.MovementType.SALE,
         )
 
         SaleItem.objects.create(
@@ -376,17 +400,6 @@ def create_completed_sale(
             unit_price=line["unit_price"],
             cost_price=product.cost_price,
             line_total=line["line_total"],
-        )
-
-        StockMovement.objects.create(
-            business=business,
-            product=product,
-            movement_type=StockMovement.MovementType.SALE,
-            quantity=-line["quantity"],
-            previous_stock=previous_stock,
-            new_stock=new_stock,
-            reason=f"Sale {sale_number}",
-            created_by=user,
         )
 
     if customer:
@@ -443,6 +456,7 @@ def create_completed_sale(
     sale = (
         Sale.objects.select_related(
             "business",
+            "branch",
             "customer",
             "cashier",
         )
@@ -674,6 +688,7 @@ def record_customer_debt_payment(
     user,
     data,
     idempotency_key,
+    branch=None,
 ):
     # Applies one verified payment to one unpaid invoice atomically.
     existing_payment = (
@@ -712,15 +727,17 @@ def record_customer_debt_payment(
 
     amount = data["amount"]
 
-    unpaid_sales = (
-        Sale.objects.select_for_update()
-        .filter(
-            business=business,
-            customer=customer,
-            outstanding_balance__gt=Decimal("0.00"),
-        )
-        .order_by("created_at")
+    unpaid_sales = Sale.objects.select_for_update().filter(
+        business=business,
+        customer=customer,
+        outstanding_balance__gt=Decimal("0.00"),
     )
+    if branch is not None:
+        branch_scope = Q(branch=branch)
+        if branch.is_main:
+            branch_scope |= Q(branch__isnull=True)
+        unpaid_sales = unpaid_sales.filter(branch_scope)
+    unpaid_sales = unpaid_sales.order_by("created_at")
 
     sale_id = data.get("saleId")
 

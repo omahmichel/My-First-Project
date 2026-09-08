@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-from businesses.models import Business
+from businesses.models import Branch, Business
 from .models import Product
 
 
@@ -53,6 +53,13 @@ class RestockPurchase(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.ForeignKey(
         Business, on_delete=models.CASCADE, related_name="restock_purchases"
+    )
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name="restock_purchases",
+        blank=True,
+        null=True,
     )
     supplier = models.ForeignKey(
         Supplier, on_delete=models.PROTECT, related_name="restock_purchases"

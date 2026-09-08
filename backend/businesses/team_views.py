@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .access import get_business_and_role_for_user
-from .models import BusinessMembership
+from .models import BranchAccess, BusinessMembership
 from .team_serializers import (
     TeamMemberCreateSerializer,
     TeamMemberSerializer,
@@ -167,6 +167,17 @@ class BusinessTeamListCreateAPIView(
                 is_active=True,
             )
             response_status = status.HTTP_201_CREATED
+
+        main_branch = business.branches.filter(
+            is_main=True,
+            is_active=True,
+        ).first()
+        if main_branch:
+            BranchAccess.objects.update_or_create(
+                branch=main_branch,
+                membership=membership,
+                defaults={"is_active": True},
+            )
 
         response_data = TeamMemberSerializer(membership).data
         response_data["isNewUser"] = created_user

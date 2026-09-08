@@ -152,6 +152,134 @@ class Business(models.Model):
         return self.name
 
 
+class Branch(models.Model):
+    """Represents one physical operating location inside a business."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="branches",
+    )
+    name = models.CharField(max_length=150)
+    code = models.CharField(max_length=40)
+    location = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    is_main = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_stockflow_branches",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-is_main", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "code"),
+                name="unique_branch_code_per_business",
+            ),
+            models.UniqueConstraint(
+                fields=("business",),
+                condition=models.Q(is_main=True),
+                name="unique_main_branch_per_business",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("business", "is_active")),
+            models.Index(fields=("business", "name")),
+        ]
+
+    def clean(self):
+        errors = {}
+        if not self.name.strip():
+            errors["name"] = "A branch name is required."
+        if not self.code.strip():
+            errors["code"] = "A branch code is required."
+        if self.is_main and not self.is_active:
+            errors["is_active"] = "The main branch must remain active."
+        if errors:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.name = " ".join(self.name.split()).strip()
+        self.code = self.code.strip().upper()
+        self.location = " ".join(self.location.split()).strip()
+        self.phone = self.phone.strip()
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.business.name} - {self.name}"
+
+
+class BranchAccess(models.Model):
+    """Assigns one business membership to an allowed branch."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.CASCADE,
+        related_name="access_assignments",
+    )
+    membership = models.ForeignKey(
+        "BusinessMembership",
+        on_delete=models.CASCADE,
+        related_name="branch_accesses",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("branch__name", "membership__user__email")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("branch", "membership"),
+                name="unique_membership_branch_access",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("branch", "is_active")),
+            models.Index(fields=("membership", "is_active")),
+        ]
+
+    def clean(self):
+        if (
+            self.branch_id
+            and self.membership_id
+            and self.branch.business_id != self.membership.business_id
+        ):
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                {
+                    "membership": (
+                        "The membership and branch must belong to the same business."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.membership} - {self.branch.name}"
+
 
 class BusinessPaymentAccount(models.Model):
     # Stores one encrypted receiving account for a business workspace.

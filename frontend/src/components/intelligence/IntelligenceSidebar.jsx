@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   BarChart3,
   Bot,
+  Building2,
   BrainCircuit,
   ChevronRight,
   Gauge,
@@ -20,6 +21,11 @@ const navigation = [
     to: "/intelligence/overview",
     label: "Overview",
     icon: Gauge,
+  },
+  {
+    to: "/intelligence/branches",
+    label: "Multi-Branch",
+    icon: Building2,
   },
   {
     to: "/intelligence/forecasts",

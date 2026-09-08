@@ -1,8 +1,15 @@
 from django.db import transaction
 from rest_framework import serializers
 
+from businesses.branch_access import ensure_main_branch
 from businesses.models import Business
-from .models import Product, StockMovement
+from .branch_service import seed_product_inventory
+from .models import (
+    BranchInventory,
+    BranchStockMovement,
+    Product,
+    StockMovement,
+)
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -16,6 +23,7 @@ class ProductSerializer(serializers.ModelSerializer):
         source="business.business_type",
         read_only=True,
     )
+    branchId = serializers.SerializerMethodField()
     productType = serializers.ChoiceField(
         source="product_type",
         choices=Product.ProductType.choices,
@@ -94,17 +102,37 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    def _selected_branch_inventory(self, obj):
+        rows = getattr(obj, "selected_branch_inventory", None)
+        if rows is not None:
+            return rows[0] if rows else None
+
+        branch = self.context.get("branch")
+        if not branch:
+            return None
+        return BranchInventory.objects.filter(
+            branch=branch, product=obj
+        ).first()
+
+    def get_branchId(self, obj):
+        branch = self.context.get("branch")
+        return str(branch.id) if branch else None
+
     def get_availableStock(self, obj):
-        # Reports stock that is not held by pending external payments.
+        branch_inventory = self._selected_branch_inventory(obj)
+        if branch_inventory is not None:
+            return branch_inventory.available_stock
         return max(0, obj.stock - obj.reserved_stock)
 
     def get_quantitySold(self, obj):
-        # Uses the business-scoped SALE aggregate supplied by inventory views.
         return max(0, int(getattr(obj, "quantity_sold", 0) or 0))
 
     def get_totalStock(self, obj):
-        # Shows stock before completed-sale deductions while preserving current stock.
-        return obj.stock + self.get_quantitySold(obj)
+        branch_inventory = self._selected_branch_inventory(obj)
+        current_stock = (
+            branch_inventory.stock if branch_inventory is not None else obj.stock
+        )
+        return current_stock + self.get_quantitySold(obj)
 
     class Meta:
         model = Product
@@ -112,6 +140,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "id",
             "businessId",
             "businessType",
+            "branchId",
             "productType",
             "name",
             "sku",
@@ -143,6 +172,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "id",
             "businessId",
             "businessType",
+            "branchId",
             "reservedStock",
             "availableStock",
             "quantitySold",
@@ -294,25 +324,56 @@ class ProductSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        # Creates the product only inside the business resolved by the URL.
+        # Creates one business-wide product and assigns opening stock to the selected branch.
+        opening_stock = int(validated_data.pop("stock", 0) or 0)
         product = Product(
             business=self.context["business"],
+            stock=0,
+            reserved_stock=0,
             **validated_data,
         )
         product.full_clean()
         product.save()
 
-        # Records opening stock so the first quantity has an audit trail.
-        if product.stock > 0:
-            request = self.context["request"]
+        branch = self.context.get("branch") or ensure_main_branch(
+            business=product.business,
+            created_by=self.context.get("request").user
+            if self.context.get("request")
+            else None,
+        )
+        seed_product_inventory(
+            product=product,
+            selected_branch=branch,
+            opening_stock=opening_stock,
+        )
 
-            StockMovement.objects.create(
+        if opening_stock > 0:
+            request = self.context["request"]
+            product.stock = opening_stock
+            product.save(update_fields=("stock", "updated_at"))
+            stock_movement = StockMovement.objects.create(
                 business=product.business,
+                branch=branch,
                 product=product,
                 movement_type=StockMovement.MovementType.STOCK_IN,
-                quantity=product.stock,
+                quantity=opening_stock,
                 previous_stock=0,
-                new_stock=product.stock,
+                new_stock=opening_stock,
+                reason="Opening stock",
+                created_by=request.user,
+            )
+            BranchStockMovement.objects.create(
+                business=product.business,
+                branch=branch,
+                product=product,
+                stock_movement=stock_movement,
+                movement_type=BranchStockMovement.MovementType.OPENING_STOCK,
+                quantity=opening_stock,
+                reserved_quantity=0,
+                previous_stock=0,
+                new_stock=opening_stock,
+                previous_reserved_stock=0,
+                new_reserved_stock=0,
                 reason="Opening stock",
                 created_by=request.user,
             )
@@ -320,17 +381,27 @@ class ProductSerializer(serializers.ModelSerializer):
         return product
 
     def update(self, instance, validated_data):
-        # Validates the complete product before saving any change.
+        # Product identity/pricing stay business-wide; low-stock level applies to all branches.
+        low_stock_changed = "low_stock_level" in validated_data
         for field_name, value in validated_data.items():
             setattr(instance, field_name, value)
 
         instance.full_clean()
         instance.save()
+        if low_stock_changed:
+            instance.branch_inventories.update(
+                low_stock_level=instance.low_stock_level
+            )
         return instance
 
     def to_representation(self, instance):
-        # Cashiers and inventory clerks can work with stock without viewing confidential cost prices.
         data = super().to_representation(instance)
+        branch_inventory = self._selected_branch_inventory(instance)
+        if branch_inventory is not None:
+            data["stock"] = branch_inventory.stock
+            data["reservedStock"] = branch_inventory.reserved_stock
+            data["availableStock"] = branch_inventory.available_stock
+            data["lowStockLevel"] = branch_inventory.low_stock_level
 
         if self.context.get("current_role") in {"cashier", "inventory_clerk"}:
             data.pop("costPrice", None)
@@ -347,6 +418,7 @@ class ProductStatusSerializer(serializers.Serializer):
 class StockAdjustmentSerializer(serializers.Serializer):
     # Validates signed stock changes submitted by the inventory pages.
 
+    branchId = serializers.UUIDField(required=False)
     quantity = serializers.IntegerField()
     type = serializers.ChoiceField(
         choices=(
@@ -417,6 +489,12 @@ class StockMovementSerializer(serializers.ModelSerializer):
         source="business.business_type",
         read_only=True,
     )
+    branchId = serializers.UUIDField(
+        source="branch_id", read_only=True, allow_null=True
+    )
+    branchName = serializers.CharField(
+        source="branch.name", read_only=True, allow_null=True
+    )
     productId = serializers.UUIDField(
         source="product_id",
         read_only=True,
@@ -452,6 +530,8 @@ class StockMovementSerializer(serializers.ModelSerializer):
             "id",
             "businessId",
             "businessType",
+            "branchId",
+            "branchName",
             "productId",
             "productName",
             "type",
