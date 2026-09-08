@@ -615,6 +615,20 @@ def execute_automation_rule(
                 "updated_at",
             )
         )
+        # External messaging is intentionally downstream of a successful
+        # Intelligence run. Messaging failures must never change the verified
+        # analytics/automation result or mutate transactional business data.
+        try:
+            from integrations.messaging.service import dispatch_intelligence_events
+
+            dispatch_intelligence_events(
+                business=rule.business,
+                rule=rule,
+                since=now,
+            )
+        except Exception:
+            pass
+
         return run
     except Exception as exc:
         finished_at = timezone.now()
