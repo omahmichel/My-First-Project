@@ -205,8 +205,8 @@ class MessagingCapabilitiesAPIView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, business_id):
-        _import_owner_business(request=request, business_id=business_id)
-        return Response(messaging_capabilities())
+        business = _import_owner_business(request=request, business_id=business_id)
+        return Response(messaging_capabilities(business=business))
 
 
 class MessagingPreferenceAPIView(APIView):

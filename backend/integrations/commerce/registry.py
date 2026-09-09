@@ -1,3 +1,4 @@
+from .live import provider_configuration_available
 from .shopify import ShopifyCommerceProvider
 from .woocommerce import WooCommerceProvider
 
@@ -22,8 +23,11 @@ def commerce_capabilities():
         "inventoryDirection": "stockflow_to_commerce",
         "orderImportMode": "staged_review",
         "providers": [
-            provider_class().capabilities()
-            for provider_class in PROVIDERS.values()
+            {
+                **provider_class().capabilities(),
+                "liveConnectionAvailable": provider_configuration_available(name),
+            }
+            for name, provider_class in PROVIDERS.items()
         ],
         "safety": {
             "externalPlatformMayOverwriteStockFlowInventory": False,

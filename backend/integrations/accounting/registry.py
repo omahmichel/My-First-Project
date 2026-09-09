@@ -1,3 +1,4 @@
+from .live import provider_configuration_available
 from .quickbooks import QuickBooksAccountingProvider
 from .xero import XeroAccountingProvider
 
@@ -19,7 +20,13 @@ def accounting_capabilities():
     return {
         "authoritativeSource": "stockflow",
         "direction": "stockflow_to_accounting",
-        "providers": [provider().capabilities() for provider in PROVIDERS.values()],
+        "providers": [
+            {
+                **provider_class().capabilities(),
+                "liveConnectionAvailable": provider_configuration_available(name),
+            }
+            for name, provider_class in PROVIDERS.items()
+        ],
         "safety": {
             "accountingPlatformMayOverwriteStockFlow": False,
             "financialWritesIntoStockFlow": False,

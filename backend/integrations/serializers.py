@@ -81,29 +81,33 @@ class MessagingPreferenceSerializer(serializers.ModelSerializer):
         read_only_fields = ("updated_at",)
 
     def validate(self, attrs):
-        sms_enabled = attrs.get(
-            "sms_enabled",
-            getattr(self.instance, "sms_enabled", False),
-        )
         recipient = attrs.get(
             "recipient_phone",
             getattr(self.instance, "recipient_phone", ""),
+        )
+        sms_enabled = attrs.get(
+            "sms_enabled",
+            getattr(self.instance, "sms_enabled", False),
         )
         whatsapp_enabled = attrs.get(
             "whatsapp_enabled",
             getattr(self.instance, "whatsapp_enabled", False),
         )
-        if sms_enabled and not str(recipient or "").strip():
-            raise serializers.ValidationError(
-                {"recipientPhone": "Set a recipient phone number before enabling SMS alerts."}
-            )
         if whatsapp_enabled:
+            from .messaging.whatsapp_live import whatsapp_configured
+
+            business = getattr(self.instance, "business", None)
+            if business is None or not whatsapp_configured(business):
+                raise serializers.ValidationError(
+                    {
+                        "whatsappEnabled": (
+                            "Configure this business's encrypted WhatsApp provider "
+                            "credentials before enabling WhatsApp alerts."
+                        )
+                    }
+                )
+        if (sms_enabled or whatsapp_enabled) and not str(recipient or "").strip():
             raise serializers.ValidationError(
-                {
-                    "whatsappEnabled": (
-                        "WhatsApp delivery is not available yet. The provider interface is ready, "
-                        "but no live WhatsApp provider is configured in this version."
-                    )
-                }
+                {"recipientPhone": "Set a recipient phone number before enabling messaging."}
             )
         return attrs

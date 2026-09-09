@@ -470,6 +470,32 @@ CSRF_TRUSTED_ORIGINS = get_env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 if get_env_bool("DJANGO_TRUST_PROXY_SSL_HEADER", default=False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+
+# Live provider application credentials. Per-business tokens and API credentials
+# are encrypted separately in the integrations app and are never stored here.
+STOCKFLOW_INTEGRATION_DATA_KEY = os.getenv(
+    "STOCKFLOW_INTEGRATION_DATA_KEY", ""
+).strip()
+
+QUICKBOOKS_CLIENT_ID = os.getenv("QUICKBOOKS_CLIENT_ID", "").strip()
+QUICKBOOKS_CLIENT_SECRET = os.getenv("QUICKBOOKS_CLIENT_SECRET", "").strip()
+QUICKBOOKS_ENVIRONMENT = (
+    os.getenv("QUICKBOOKS_ENVIRONMENT", "sandbox").strip().lower() or "sandbox"
+)
+if QUICKBOOKS_ENVIRONMENT not in {"sandbox", "production"}:
+    raise ImproperlyConfigured(
+        "QUICKBOOKS_ENVIRONMENT must be either sandbox or production."
+    )
+
+XERO_CLIENT_ID = os.getenv("XERO_CLIENT_ID", "").strip()
+XERO_CLIENT_SECRET = os.getenv("XERO_CLIENT_SECRET", "").strip()
+
+SHOPIFY_CLIENT_ID = os.getenv("SHOPIFY_CLIENT_ID", "").strip()
+SHOPIFY_CLIENT_SECRET = os.getenv("SHOPIFY_CLIENT_SECRET", "").strip()
+SHOPIFY_ADMIN_API_VERSION = (
+    os.getenv("SHOPIFY_ADMIN_API_VERSION", "2026-07").strip() or "2026-07"
+)
+
 # Configures audited customer debt reminders through mNotify.
 MNOTIFY_API_URL = (
     os.getenv(

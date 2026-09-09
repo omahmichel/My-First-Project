@@ -2,13 +2,21 @@ from .provider import BaseMessageProvider, MessagingProviderError
 
 
 class WhatsAppProvider(BaseMessageProvider):
-    """Provider contract only. Live WhatsApp delivery is intentionally disabled."""
+    """Business-scoped WhatsApp Cloud API provider."""
 
     channel = "whatsapp"
-    provider_name = "unconfigured"
-    available = False
+    provider_name = "whatsapp_cloud_api"
+    available = True
 
-    def send(self, *, recipient, message):
-        raise MessagingProviderError(
-            "WhatsApp delivery is not configured for this StockFlow deployment."
+    def send(self, *, recipient, message, business=None):
+        if business is None:
+            raise MessagingProviderError(
+                "A business is required for WhatsApp delivery."
+            )
+        from .whatsapp_live import send_whatsapp_text
+
+        return send_whatsapp_text(
+            business=business,
+            recipient=recipient,
+            message=message,
         )

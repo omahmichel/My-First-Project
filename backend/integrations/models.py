@@ -419,6 +419,58 @@ class AccountingSyncRun(models.Model):
         ]
 
 
+
+
+class ProviderCredential(models.Model):
+    """Encrypted, business-scoped credentials for live external providers."""
+
+    class Category(models.TextChoices):
+        ACCOUNTING = "accounting", "Accounting"
+        COMMERCE = "commerce", "Commerce"
+        MESSAGING = "messaging", "Messaging"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="provider_credentials",
+    )
+    category = models.CharField(max_length=20, choices=Category.choices)
+    provider = models.CharField(max_length=40)
+    connection_key = models.CharField(max_length=80)
+    encrypted_payload = models.TextField()
+    access_expires_at = models.DateTimeField(blank=True, null=True)
+    refresh_expires_at = models.DateTimeField(blank=True, null=True)
+    last_used_at = models.DateTimeField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_provider_credentials",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("category", "provider", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "category", "provider", "connection_key"),
+                name="uniq_integ_provider_credential",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("business", "category", "provider"),
+                name="integ_provider_cred_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.business.name} - {self.category} - {self.provider}"
+
+
 class CommerceConnection(models.Model):
     """Provider-neutral e-commerce connection. No provider secrets are stored."""
 

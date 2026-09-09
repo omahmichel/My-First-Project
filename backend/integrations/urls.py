@@ -202,3 +202,91 @@ urlpatterns += [
     ),
 ]
 
+# StockFlow live provider activation v2.
+from .live_provider_views import (
+    AccountingAuthorizeAPIView,
+    AccountingConnectionDisconnectAPIView,
+    AccountingConnectionTestAPIView,
+    AccountingOAuthCallbackAPIView,
+    AccountingTenantSelectAPIView,
+    CommerceAuthorizeAPIView,
+    CommerceConnectionDisconnectAPIView,
+    CommerceConnectionTestAPIView,
+    ShopifyOAuthCallbackAPIView,
+    WhatsAppCredentialAPIView,
+    WhatsAppTestAPIView,
+    WooCommerceCredentialAPIView,
+)
+
+urlpatterns += [
+    path(
+        "businesses/<uuid:business_id>/integrations/accounting/"
+        "connectors/connections/<uuid:connection_id>/authorize/",
+        AccountingAuthorizeAPIView.as_view(),
+        name="accounting-connection-authorize",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/accounting/"
+        "connectors/connections/<uuid:connection_id>/select-tenant/",
+        AccountingTenantSelectAPIView.as_view(),
+        name="accounting-connection-select-tenant",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/accounting/"
+        "connectors/connections/<uuid:connection_id>/test/",
+        AccountingConnectionTestAPIView.as_view(),
+        name="accounting-connection-test",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/accounting/"
+        "connectors/connections/<uuid:connection_id>/disconnect/",
+        AccountingConnectionDisconnectAPIView.as_view(),
+        name="accounting-connection-disconnect",
+    ),
+    path(
+        "integrations/oauth/accounting/<slug:provider>/callback/",
+        AccountingOAuthCallbackAPIView.as_view(),
+        name="accounting-oauth-callback",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/connections/"
+        "<uuid:connection_id>/authorize/",
+        CommerceAuthorizeAPIView.as_view(),
+        name="commerce-connection-authorize",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/connections/"
+        "<uuid:connection_id>/credentials/",
+        WooCommerceCredentialAPIView.as_view(),
+        name="woocommerce-connection-credentials",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/connections/"
+        "<uuid:connection_id>/test/",
+        CommerceConnectionTestAPIView.as_view(),
+        name="commerce-connection-test",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/commerce/connections/"
+        "<uuid:connection_id>/disconnect/",
+        CommerceConnectionDisconnectAPIView.as_view(),
+        name="commerce-connection-disconnect",
+    ),
+    path(
+        "integrations/oauth/commerce/shopify/callback/",
+        ShopifyOAuthCallbackAPIView.as_view(),
+        name="shopify-oauth-callback",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/messaging/"
+        "whatsapp/credentials/",
+        WhatsAppCredentialAPIView.as_view(),
+        name="whatsapp-live-credentials",
+    ),
+    path(
+        "businesses/<uuid:business_id>/integrations/messaging/whatsapp/test/",
+        WhatsAppTestAPIView.as_view(),
+        name="whatsapp-live-test",
+    ),
+]
+
