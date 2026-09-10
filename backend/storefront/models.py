@@ -256,3 +256,5 @@ class StorefrontActivity(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+from .social_models import SocialChannel, SocialPublishingJob  # noqa: E402,F401

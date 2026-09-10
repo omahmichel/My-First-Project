@@ -73,6 +73,8 @@ class ShopListingAPIView(APIView):
                 setattr(listing, field, serializer.validated_data[key])
         try:
             listing.save()
+            from .social import sync_social_listing
+            sync_social_listing(listing)
         except ModelValidationError as exc:
             raise ValidationError(exc.message_dict if hasattr(exc, 'message_dict') else exc.messages) from exc
         response = Response(listing_data(listing), status=201 if created else 200)

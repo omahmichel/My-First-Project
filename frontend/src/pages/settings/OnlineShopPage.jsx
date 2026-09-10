@@ -1,3 +1,4 @@
+import ShopSocialPanel from './ShopSocialPanel';
 import ShopOrdersPanel from './ShopOrdersPanel';
 import ShopProductsPanel from './ShopProductsPanel';
 import { useEffect, useState } from 'react';
@@ -86,6 +87,7 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
         {settings.configured && <div className='sf-shop-cart'><h2>Your shop link</h2><input aria-label='Shop link' readOnly value={shopUrl} onFocus={event => event.target.select()} /><div className='sf-shop-admin-actions'><button type='button' onClick={copyLink}>Copy link</button><a href={shopUrl} target='_blank' rel='noopener noreferrer'>Open shop</a></div><p>{settings.isPublished ? 'Share this link with customers when your catalogue is ready.' : 'The public page remains unavailable until you publish the shop.'}</p><p>Localhost links work on this computer. A public deployment is needed before customers can open the link on their own devices.</p></div>}
       </>}
     </>}
+    {settings?.configured && !loading && <ShopSocialPanel key={business.id} businessId={business.id} />}
     {settings?.configured && !loading && <ShopProductsPanel businessId={business.id} />}
     {settings?.configured && !loading && <ShopOrdersPanel businessId={business.id} branches={branches} />}
     {message && <p role='status'>{message}</p>}

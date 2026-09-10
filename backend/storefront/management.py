@@ -75,6 +75,8 @@ class ShopSettingsAPIView(APIView):
                 setattr(shop, field, data[key])
         try:
             shop.save()
+            from .social import sync_social_shop
+            sync_social_shop(shop)
         except ModelValidationError as exc:
             raise ValidationError(exc.message_dict if hasattr(exc, 'message_dict') else exc.messages) from exc
         return settings_response(business, shop)

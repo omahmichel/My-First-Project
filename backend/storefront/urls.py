@@ -14,7 +14,12 @@ from .orders import ShopOrdersAPIView, ShopOrderAPIView, ShopOrderCancelAPIView
 
 from .completion import ShopOrderCompleteAPIView
 
+from .social import SocialChannelsAPIView, SocialChannelAPIView, SocialJobsAPIView
+
 urlpatterns = [
+    path('businesses/<uuid:business_id>/storefront/social/channels/', SocialChannelsAPIView.as_view(), name='social-channels'),
+    path('businesses/<uuid:business_id>/storefront/social/channels/<str:platform>/', SocialChannelAPIView.as_view(), name='social-channel'),
+    path('businesses/<uuid:business_id>/storefront/social/jobs/', SocialJobsAPIView.as_view(), name='social-jobs'),
     path('businesses/<uuid:business_id>/storefront/orders/<uuid:order_id>/complete/', ShopOrderCompleteAPIView.as_view(), name='shop-order-complete'),
     path('businesses/<uuid:business_id>/storefront/orders/', ShopOrdersAPIView.as_view(), name='shop-orders'),
     path('businesses/<uuid:business_id>/storefront/orders/<uuid:order_id>/', ShopOrderAPIView.as_view(), name='shop-order'),
