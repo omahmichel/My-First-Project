@@ -182,3 +182,40 @@ class LiveProviderCredentialTests(APITestCase):
         )
         self.assertIsNotNone(row)
         self.assertEqual(payload["access_token"], "secret-token-value")
+
+from django.http import QueryDict
+from django.test import SimpleTestCase
+from rest_framework.exceptions import ValidationError
+from integrations.commerce.live import _verify_shopify_hmac
+import hashlib
+import hmac
+
+
+@override_settings(SHOPIFY_CLIENT_SECRET='dummy-shopify-secret')
+class ShopifyCallbackSignatureTests(SimpleTestCase):
+    def callback_query(self):
+        query = QueryDict('timestamp=1234567890&state=payload%3Asignature%2Btest&shop=test-store.myshopify.com&code=test-code', mutable=True)
+        message = b'code=test-code&shop=test-store.myshopify.com&state=payload:signature+test&timestamp=1234567890'
+        query['hmac'] = hmac.new(b'dummy-shopify-secret', message, hashlib.sha256).hexdigest()
+        return query
+
+    def test_accepts_signed_callback_with_encoded_state(self):
+        _verify_shopify_hmac(self.callback_query())
+
+    def test_rejects_tampered_callback(self):
+        query = self.callback_query()
+        query['shop'] = 'different-store.myshopify.com'
+        with self.assertRaises(ValidationError):
+            _verify_shopify_hmac(query)
+
+    def test_rejects_missing_signature(self):
+        query = self.callback_query()
+        del query['hmac']
+        with self.assertRaises(ValidationError):
+            _verify_shopify_hmac(query)
+
+    def test_rejects_wrong_secret(self):
+        query = self.callback_query()
+        with self.settings(SHOPIFY_CLIENT_SECRET='wrong-secret'):
+            with self.assertRaises(ValidationError):
+                _verify_shopify_hmac(query)

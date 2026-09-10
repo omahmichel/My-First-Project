@@ -144,7 +144,7 @@ def _verify_shopify_hmac(query_params):
         for value in query_params.getlist(key):
             pairs.append((key, value))
     pairs.sort(key=lambda item: (item[0], item[1]))
-    message = urlencode(pairs)
+    message = '&'.join(key + '=' + value for key, value in pairs)
     expected = hmac.new(
         settings.SHOPIFY_CLIENT_SECRET.encode("utf-8"),
         message.encode("utf-8"),

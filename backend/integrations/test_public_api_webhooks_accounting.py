@@ -3,7 +3,7 @@ import hmac
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -86,6 +86,7 @@ class IntegrationBackboneApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    @override_settings(QUICKBOOKS_CLIENT_ID='', QUICKBOOKS_CLIENT_SECRET='', XERO_CLIENT_ID='', XERO_CLIENT_SECRET='')
     def test_accounting_connectors_are_provider_neutral_and_export_only(self):
         self.client.force_authenticate(self.owner)
         base = f"/api/businesses/{self.business.id}/integrations/accounting/connectors"

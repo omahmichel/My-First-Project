@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from businesses.models import Branch, Business, BusinessMembership
@@ -87,6 +88,7 @@ class EcommerceSupplierOrderIntegrationTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         return response.data
 
+    @override_settings(SHOPIFY_CLIENT_ID='', SHOPIFY_CLIENT_SECRET='')
     def test_commerce_capabilities_are_safe_and_provider_neutral(self):
         self.client.force_authenticate(self.owner)
         response = self.client.get(self.commerce_base() + "/capabilities/")
