@@ -1,3 +1,5 @@
+import OnlineShopPage from './pages/settings/OnlineShopPage';
+import ShopPage from './pages/public/ShopPage';
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import AppLayout from "./components/layout/AppLayout";
@@ -43,6 +45,7 @@ import NotFoundPage from "./pages/NotFoundPage";
 export default function App() {
   return (
     <Routes>
+      <Route path="/shops/:slug" element={<ShopPage />} />
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/verify-login" element={<LoginOTPPage />} />
@@ -168,6 +171,10 @@ export default function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="team" element={<TeamPage />} />
             <Route path="settings" element={<SettingsPage />} />
+          </Route>
+
+          <Route element={<RoleRoute allowedRoles={["owner"]} areaLabel="online shop" />}>
+            <Route path="online-shop" element={<OnlineShopPage />} />
           </Route>
 
           <Route path="report-issue" element={<ReportIssuePage />} />

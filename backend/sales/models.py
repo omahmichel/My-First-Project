@@ -271,7 +271,11 @@ class Sale(models.Model):
 
     def save(self, *args, **kwargs):
         # Stores readable customer and cashier snapshots automatically.
-        if self.customer_id:
+        online_order = None if self._state.adding else getattr(self, 'storefront_order', None)
+        if online_order is not None:
+            self.customer_name = online_order.customer_name
+            self.customer_phone = online_order.customer_phone
+        elif self.customer_id:
             self.customer_name = self.customer.name
             self.customer_phone = self.customer.phone
         else:

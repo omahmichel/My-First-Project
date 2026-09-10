@@ -210,6 +210,12 @@ export default function Sidebar({ open, onClose }) {
             </NavLink>
           ))}
 
+          {business.hasSystemAccess && business.currentUserRole === "owner" ? (
+            <NavLink to="/app/online-shop" onClick={onClose} className={({ isActive }) => isActive ? "sidebar-link sidebar-link-active" : "sidebar-link"}>
+              <ShoppingCart size={19} /><span>Online shop</span>
+            </NavLink>
+          ) : null}
+
           {business.hasSystemAccess &&
           ["owner", "manager"].includes(business.currentUserRole) ? (
             <NavLink
