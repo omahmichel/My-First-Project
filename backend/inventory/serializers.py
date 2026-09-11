@@ -23,6 +23,12 @@ class ProductSerializer(serializers.ModelSerializer):
         source="business.business_type",
         read_only=True,
     )
+    imageUrl = serializers.SerializerMethodField()
+
+    def get_imageUrl(self, obj):
+        from .photo_urls import product_photo_url
+        return product_photo_url(obj, self.context.get("request"), private=True)
+
     branchId = serializers.SerializerMethodField()
     productType = serializers.ChoiceField(
         source="product_type",
@@ -141,6 +147,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "businessId",
             "businessType",
             "branchId",
+            "imageUrl",
             "productType",
             "name",
             "sku",

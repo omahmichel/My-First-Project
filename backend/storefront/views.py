@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
+from inventory.photo_urls import product_photo_url
 from inventory.models import BranchInventory
 from .models import Storefront, StorefrontListing
 from .services import create_pending_order, require_public_storefront
@@ -44,7 +45,7 @@ class PublicShopAPIView(APIView):
         listings = StorefrontListing.objects.filter(
             storefront=shop, is_published=True,
             product__business=shop.business, product__is_active=True,
-        ).select_related('product').order_by('product__name', 'id')
+        ).select_related('product', 'product__uploaded_photo').order_by('product__name', 'id')
         if query:
             listings = listings.filter(
                 Q(product__name__icontains=query)
@@ -76,7 +77,7 @@ class PublicShopAPIView(APIView):
                 'designCode': product.design_code,
                 'styleCode': product.style_code,
                 'description': listing.description,
-                'imageUrl': listing.image_url,
+                'imageUrl': product_photo_url(product, request) or listing.image_url,
                 'availableQuantity': available,
                 'inStock': available > 0,
             })

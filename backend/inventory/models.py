@@ -523,3 +523,5 @@ from .restock_models import (  # noqa: E402,F401
     RestockPurchase,
     Supplier,
 )
+
+from .photo_models import ProductPhoto  # noqa: E402,F401

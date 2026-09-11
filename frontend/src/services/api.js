@@ -120,7 +120,7 @@ async function refreshAccessToken() {
 function buildRequestHeaders(options, accessToken) {
   const headers = new Headers(options.headers ?? {});
 
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -136,6 +136,7 @@ function buildRequestHeaders(options, accessToken) {
 // Sends an authenticated request and retries once after token refresh.
 export async function apiRequest(path, options = {}) {
   const {
+    responseType = "json",
     skipAuthRefresh = false,
     ...fetchOptions
   } = options;
@@ -184,5 +185,6 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (response.status === 204) return null;
+  if (responseType === "blob") return response.blob();
   return response.json();
 }

@@ -18,7 +18,12 @@ from .views import (
 
 app_name = "inventory"
 
+from .photo_views import ProductPhotoUploadAPIView, ProductPhotoContentAPIView
+
 urlpatterns = [
+    path('businesses/<uuid:business_id>/products/<uuid:product_id>/photo/', ProductPhotoUploadAPIView.as_view(), name='product-photo-upload'),
+    path('businesses/<uuid:business_id>/products/<uuid:product_id>/photo/prepare/', ProductPhotoUploadAPIView.as_view(), {'prepare': True}, name='product-photo-prepare'),
+    path('product-photos/<uuid:photo_id>/<uuid:version>/', ProductPhotoContentAPIView.as_view(), name='product-photo-content'),
     path(
         "businesses/<uuid:business_id>/branch-inventory/",
         BranchInventoryAPIView.as_view(),

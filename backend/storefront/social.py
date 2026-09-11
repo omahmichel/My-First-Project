@@ -1,4 +1,5 @@
 """Social publishing preparation; this module makes no external requests."""
+from inventory.photo_urls import product_photo_url
 import hashlib
 import json
 from django.db import transaction
@@ -41,7 +42,7 @@ def sync_social_listing(listing):
         'listingId': str(listing.pk), 'productId': str(listing.product_id),
         'name': listing.product.name, 'sku': listing.product.sku,
         'price': str(listing.product.selling_price), 'currency': 'GHS',
-        'description': listing.description, 'imageUrl': listing.image_url,
+        'description': listing.description, 'imageUrl': product_photo_url(listing.product) or listing.image_url,
         'shopPath': '/shops/' + shop.business.slug,
     }
     fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()

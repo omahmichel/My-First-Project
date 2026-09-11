@@ -11,6 +11,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import ProductPhotoThumbnail from "../../components/products/ProductPhotoThumbnail";
+import ProductPhotoCapture from "../../components/products/ProductPhotoCapture";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
@@ -745,6 +747,7 @@ export default function NewSalePage() {
                             productVariantSummary(product);
 
                           return (
+                            <div className="sf-photo-product" key={product.id}>
                             <button
                               type="button"
                               className="pos-product-card"
@@ -758,6 +761,7 @@ export default function NewSalePage() {
                                   "product-generic"
                                 }`}
                               >
+                                {product.imageUrl ? <ProductPhotoThumbnail key={product.id + product.imageUrl} product={product} /> : null}
                                 {product.designCode ? (
                                   <b>{product.designCode}</b>
                                 ) : null}
@@ -779,6 +783,8 @@ export default function NewSalePage() {
                                 {formatCurrency(product.sellingPrice)}
                               </b>
                             </button>
+                            <ProductPhotoCapture product={product} disabled={saleSaving} />
+                            </div>
                           );
                         })}
                       </div>
