@@ -1,5 +1,41 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { publicShopRequest, shopMoney } from '../../services/storefront';
+
+
+function CartQuantity({ item, onQuantity }) {
+  const [draft, setDraft] = useState(String(item.quantity));
+  const editing = useRef(false);
+  const maximum = Math.min(item.availableQuantity, 10000);
+
+  useEffect(() => {
+    if (!editing.current) setDraft(String(item.quantity));
+  }, [item.quantity]);
+
+  function change(value) {
+    setDraft(value);
+    const number = Number(value);
+    if (value.trim() && Number.isInteger(number) && number >= 1 && number <= maximum) {
+      onQuantity(item.productId, number);
+    }
+  }
+
+  function finish() {
+    editing.current = false;
+    const number = Number(draft);
+    const next = draft.trim() && Number.isInteger(number) && number >= 1
+      ? Math.min(number, maximum)
+      : item.quantity;
+    setDraft(String(next));
+    onQuantity(item.productId, next);
+  }
+
+  return <label>Quantity<input type='number' inputMode='numeric' required
+    aria-label={'Quantity for ' + item.name}
+    min='1' max={maximum} step='1' value={draft}
+    onFocus={() => { editing.current = true; }}
+    onChange={event => change(event.target.value)}
+    onBlur={finish} /></label>;
+}
 
 export default function ShopCart({ slug, cart, setCart, locked, setLocked }) {
   const [name, setName] = useState('');
@@ -65,8 +101,10 @@ export default function ShopCart({ slug, cart, setCart, locked, setLocked }) {
       <fieldset disabled={locked || busy}>
         {cart.map(item => <div className='sf-shop-cart-line' key={item.productId}>
           <div><strong>{item.name}</strong><p>{shopMoney(item.price)} / {item.unit}</p></div>
-          <label>Quantity<input type='number' min='1' max={Math.min(item.availableQuantity, 10000)} step='1' value={item.quantity} onChange={event => quantity(item.productId, event.target.value)} /></label>
-          <button type='button' onClick={() => setCart(rows => rows.filter(row => row.productId !== item.productId))}>Remove</button>
+          <div className='sf-shop-cart-actions'>
+            <CartQuantity item={item} onQuantity={quantity} />
+            <button type='button' onClick={() => setCart(rows => rows.filter(row => row.productId !== item.productId))}>Remove</button>
+          </div>
         </div>)}
         <p><strong>Estimated total: {shopMoney(total)}</strong></p>
         <p>The shop confirms availability. The final order total uses current shop prices.</p>

@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ProductPhotoThumbnail from "../../components/products/ProductPhotoThumbnail";
-import ProductPhotoCapture from "../../components/products/ProductPhotoCapture";
+import ProductPhotoCapture, { ProductPhotoSessionProvider } from "../../components/products/ProductPhotoCapture";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
@@ -632,6 +632,7 @@ export default function NewSalePage() {
   }
 
   return (
+    <ProductPhotoSessionProvider>
     <div className="page-stack sale-page-stack">
       <PageHeader
         eyebrow="Point of sale"
@@ -1348,5 +1349,6 @@ export default function NewSalePage() {
         ) : null}
       </Modal>
     </div>
+    </ProductPhotoSessionProvider>
   );
 }

@@ -1,7 +1,7 @@
 import ShopSocialPanel from './ShopSocialPanel';
 import ShopOrdersPanel from './ShopOrdersPanel';
 import ShopProductsPanel from './ShopProductsPanel';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { apiRequest } from '../../services/api';
 import '../../styles/storefront.css';
@@ -21,6 +21,8 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [retry, setRetry] = useState(0);
+  const shopLinkRef = useRef(null);
+  const [copyMessage, setCopyMessage] = useState('');
   const path = '/businesses/' + business.id + '/storefront/settings/';
   useEffect(() => {
     let active = true;
@@ -57,8 +59,20 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
 
   const shopUrl = settings ? new URL(settings.shopPath, window.location.origin).href : '';
   async function copyLink() {
-    try { await navigator.clipboard.writeText(shopUrl); setMessage('Shop link copied.'); }
-    catch { setMessage('Select the shop link below and copy it.'); }
+    if (!shopUrl) return;
+    setCopyMessage('');
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      try { await navigator.clipboard.writeText(shopUrl); setCopyMessage('Shop link copied.'); return; }
+      catch { /* Fall back to selecting the visible link. */ }
+    }
+    const input = shopLinkRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+    input.setSelectionRange(0, input.value.length);
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch {}
+    setCopyMessage(copied ? 'Shop link copied.' : 'Link selected. Press Ctrl+C on your laptop, or touch and hold the link and choose Copy on your phone.');
   }
 
   return <section className='sf-shop sf-shop-admin'>
@@ -84,7 +98,7 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
             <button type='submit'>{saving ? 'Saving...' : 'Save shop settings'}</button>
           </fieldset>
         </form>
-        {settings.configured && <div className='sf-shop-cart'><h2>Your shop link</h2><input aria-label='Shop link' readOnly value={shopUrl} onFocus={event => event.target.select()} /><div className='sf-shop-admin-actions'><button type='button' onClick={copyLink}>Copy link</button><a href={shopUrl} target='_blank' rel='noopener noreferrer'>Open shop</a></div><p>{settings.isPublished ? 'Share this link with customers when your catalogue is ready.' : 'The public page remains unavailable until you publish the shop.'}</p><p>Localhost links work on this computer. A public deployment is needed before customers can open the link on their own devices.</p></div>}
+        {settings.configured && <div className='sf-shop-cart'><h2>Your shop link</h2><input aria-label='Shop link' ref={shopLinkRef} readOnly value={shopUrl} onFocus={event => event.target.select()} /><div className='sf-shop-admin-actions'><button type='button' onClick={copyLink}>Copy link</button><span role='status'>{copyMessage}</span><a href={shopUrl} target='_blank' rel='noopener noreferrer'>Open shop</a></div><p>{settings.isPublished ? 'Share this link with customers when your catalogue is ready.' : 'The public page remains unavailable until you publish the shop.'}</p><p>Localhost links work on this computer. A public deployment is needed before customers can open the link on their own devices.</p></div>}
       </>}
     </>}
     {settings?.configured && !loading && <ShopSocialPanel key={business.id} businessId={business.id} />}

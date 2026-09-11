@@ -7,3 +7,10 @@
 .sf-shop-order{border-top:1px solid #dce4de;padding:24px 0;overflow-wrap:anywhere}.sf-shop-order h3{font-size:20px}.sf-shop-order ul{padding-left:22px;line-height:1.8}.sf-shop-order-note{white-space:pre-wrap}
 
 .sf-shop-complete{margin-top:24px;padding:20px;background:#f3f7f2;border:1px solid #dce4de;border-radius:12px}.sf-shop-complete h4{font-size:18px;margin:0 0 12px}.sf-shop-complete>button{margin-top:16px}
+
+/* Align quantity and removal controls without changing product cards. */
+.sf-shop-cart-line>.sf-shop-cart-actions{display:flex;align-items:flex-end;gap:16px;flex:0 0 auto}
+.sf-shop-cart-actions>label{margin:0}
+.sf-shop-cart-actions input{width:90px;height:48px;margin-top:8px}
+.sf-shop-cart-actions>button{height:48px;margin:0;white-space:nowrap}
+@media(max-width:520px){.sf-shop-cart-line>.sf-shop-cart-actions{flex:0 0 100%;max-width:100%}}
