@@ -4,6 +4,24 @@ import { Link, useParams } from 'react-router-dom';
 import { publicShopRequest, shopMoney } from '../../services/storefront';
 import '../../styles/storefront.css';
 
+// StockFlow business-controlled WhatsApp enquiries v1.
+function whatsappPhone(value) {
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.length === 10 && digits.startsWith('0')) {
+    digits = '233' + digits.slice(1);
+  } else if (digits.length === 9) {
+    digits = '233' + digits;
+  }
+  if (digits.length < 8 || digits.length > 15 || digits.startsWith('0')) return '';
+  return digits;
+}
+
+function whatsappHref(phone, message) {
+  const digits = whatsappPhone(phone);
+  return digits ? 'https://wa.me/' + digits + '?text=' + encodeURIComponent(message) : '';
+}
+
 export default function ShopPage() {
   const { slug } = useParams();
   return <ShopCatalogue key={slug} slug={slug} />;
@@ -47,6 +65,15 @@ function ShopCatalogue({ slug }) {
     setQuery(draft.trim());
   }
 
+  const shopName = data?.shop.name || 'this shop';
+  const whatsappEnabled = Boolean(data?.shop.whatsappEnabled && whatsappPhone(data?.shop.whatsappPhone));
+  const shopWhatsappHref = whatsappEnabled
+    ? whatsappHref(
+        data.shop.whatsappPhone,
+        'Hello ' + shopName + ', I am viewing your StockFlow online shop and would like to make an enquiry. ' + window.location.href,
+      )
+    : '';
+
   return <main className='sf-shop'>
     <nav className='sf-shop-nav'><Link to='/'>Stock<strong>Flow</strong></Link><span>Discover your local shop</span></nav>
     <header className='sf-shop-hero'>
@@ -54,6 +81,7 @@ function ShopCatalogue({ slug }) {
       <h1>{data?.shop.name || 'Welcome to the shop'}</h1>
       <p>{data?.shop.introduction || 'Browse products and find what you need.'}</p>
       {data?.shop.contactPhone && <p>Contact: {data.shop.contactPhone}</p>}
+      {shopWhatsappHref && <a className='sf-shop-whatsapp' href={shopWhatsappHref} target='_blank' rel='noopener noreferrer'>Chat on WhatsApp</a>}
     </header>
     <section className='sf-shop-catalogue' aria-label='Product catalogue'>
       <form className='sf-shop-search' onSubmit={search}>
@@ -68,6 +96,17 @@ function ShopCatalogue({ slug }) {
           <div className='sf-shop-card-body'><small>{product.category}</small><h2>{product.name}</h2>
           {(product.designCode || product.size || product.color) && <p>{[product.designCode, product.size, product.color].filter(Boolean).join(' / ')}</p>}
           <button type='button' disabled={cartLocked || !product.inStock} onClick={() => addToCart(product)}>Add to cart</button>
+          {whatsappEnabled && <a
+            className='sf-shop-whatsapp sf-shop-whatsapp-product'
+            href={whatsappHref(
+              data.shop.whatsappPhone,
+              'Hello ' + shopName + ', I am interested in ' + product.name
+                + (product.designCode ? ' (Design ' + product.designCode + ')' : '')
+                + ' listed at ' + shopMoney(product.price) + ' on your StockFlow shop. ' + window.location.href,
+            )}
+            target='_blank'
+            rel='noopener noreferrer'
+          >Ask on WhatsApp</a>}
           <strong className='sf-shop-price'>{shopMoney(product.price)} <small>/ {product.unit}</small></strong>
           <p className={product.inStock ? 'sf-shop-available' : 'sf-shop-unavailable'}>{product.inStock ? 'In stock' : 'Currently unavailable'}</p>
           {product.description && <p className='sf-shop-description'>{product.description}</p>}

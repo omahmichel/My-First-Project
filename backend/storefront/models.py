@@ -18,6 +18,8 @@ class Storefront(models.Model):
     is_published = models.BooleanField(default=False)
     introduction = models.CharField(max_length=500, blank=True)
     contact_phone = models.CharField(max_length=30, blank=True)
+    whatsapp_enabled = models.BooleanField(default=False)
+    whatsapp_phone = models.CharField(max_length=30, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -28,6 +30,8 @@ class Storefront(models.Model):
                 errors['branch'] = 'The fulfilment branch must belong to this business.'
             elif self.is_published and not self.branch.is_active:
                 errors['branch'] = 'Choose an active fulfilment branch before publishing.'
+        if self.whatsapp_enabled and not self.whatsapp_phone.strip():
+            errors['whatsapp_phone'] = 'Set a WhatsApp phone number before enabling WhatsApp enquiries.'
         if errors:
             raise ValidationError(errors)
 

@@ -15,7 +15,7 @@ export default function OnlineShopPage() {
 
 function ShopSettings({ business, branches, branchesLoading, branchesError, reloadBranches }) {
   const [settings, setSettings] = useState(null);
-  const [form, setForm] = useState({ branchId: '', introduction: '', contactPhone: '', isPublished: false });
+  const [form, setForm] = useState({ branchId: '', introduction: '', contactPhone: '', whatsappEnabled: false, whatsappPhone: '', isPublished: false });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -31,7 +31,7 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
     apiRequest(path).then(result => {
       if (!active) return;
       setSettings(result);
-      setForm({ branchId: result.branchId || '', introduction: result.introduction, contactPhone: result.contactPhone, isPublished: result.isPublished });
+      setForm({ branchId: result.branchId || '', introduction: result.introduction, contactPhone: result.contactPhone, whatsappEnabled: result.whatsappEnabled, whatsappPhone: result.whatsappPhone, isPublished: result.isPublished });
     }).catch(problem => { if (active) setError(problem.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -51,7 +51,7 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
     try {
       const result = await apiRequest(path, { method: 'PATCH', body: JSON.stringify(form) });
       setSettings(result);
-      setForm({ branchId: result.branchId, introduction: result.introduction, contactPhone: result.contactPhone, isPublished: result.isPublished });
+      setForm({ branchId: result.branchId, introduction: result.introduction, contactPhone: result.contactPhone, whatsappEnabled: result.whatsappEnabled, whatsappPhone: result.whatsappPhone, isPublished: result.isPublished });
       setMessage(result.isPublished ? 'Shop published. Only individually published products appear in the catalogue.' : 'Settings saved. Your shop is unpublished.');
     } catch (problem) { setError(problem.message); }
     finally { setSaving(false); }
@@ -93,6 +93,12 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
             <p>New orders use this branch. Existing orders retain their original branch.</p>
             <label>Shop introduction<textarea rows={3} maxLength={500} value={form.introduction} onChange={event => change('introduction', event.target.value)} /></label>
             <label>Public contact phone<input type='tel' maxLength={30} value={form.contactPhone} onChange={event => change('contactPhone', event.target.value)} /></label>
+            <div className='sf-shop-whatsapp-settings'>
+              <h3>WhatsApp enquiries</h3>
+              <label>WhatsApp number<input type='tel' maxLength={30} value={form.whatsappPhone} onChange={event => change('whatsappPhone', event.target.value)} placeholder='e.g. 0542777495' /></label>
+              <label className='sf-shop-toggle'><input type='checkbox' checked={form.whatsappEnabled} onChange={event => change('whatsappEnabled', event.target.checked)} />Enable WhatsApp enquiries on my online shop</label>
+              <p>This is off by default. When enabled, customers can open a WhatsApp chat with this number from your public shop. This does not enable automated WhatsApp alerts or require Meta API credentials.</p>
+            </div>
             <label className='sf-shop-toggle'><input type='checkbox' checked={form.isPublished} onChange={event => change('isPublished', event.target.checked)} />Publish this shop</label>
             <p>Publishing makes your shop introduction, contact phone and published listings publicly accessible.</p>
             <button type='submit'>{saving ? 'Saving...' : 'Save shop settings'}</button>

@@ -39,7 +39,12 @@ class PublicStorefrontApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response['Cache-Control'], 'no-store')
-        self.assertEqual(set(response.data['shop']), {'name', 'slug', 'introduction', 'contactPhone', 'currency'})
+        self.assertEqual(set(response.data['shop']), {
+            'name', 'slug', 'introduction', 'contactPhone',
+            'whatsappEnabled', 'whatsappPhone', 'currency',
+        })
+        self.assertFalse(response.data['shop']['whatsappEnabled'])
+        self.assertEqual(response.data['shop']['whatsappPhone'], '')
         product = response.data['results'][0]
         self.assertEqual(set(product), {
             'listingId', 'productId', 'name', 'category', 'brand', 'unit',

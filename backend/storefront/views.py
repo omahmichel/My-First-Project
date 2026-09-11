@@ -87,6 +87,8 @@ class PublicShopAPIView(APIView):
             'slug': shop.business.slug,
             'introduction': shop.introduction,
             'contactPhone': shop.contact_phone,
+            'whatsappEnabled': bool(shop.whatsapp_enabled and shop.whatsapp_phone),
+            'whatsappPhone': shop.whatsapp_phone if shop.whatsapp_enabled and shop.whatsapp_phone else '',
             'currency': 'GHS',
         }
         response['Cache-Control'] = 'no-store'

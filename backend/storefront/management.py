@@ -19,8 +19,13 @@ class ShopSettingsInput(StrictInputSerializer):
     isPublished = serializers.BooleanField(required=False)
     introduction = serializers.CharField(max_length=500, required=False, allow_blank=True)
     contactPhone = serializers.RegexField(regex=r'^\+?[0-9][0-9 -]{7,23}$', max_length=30, required=False, allow_blank=True)
+    whatsappEnabled = serializers.BooleanField(required=False)
+    whatsappPhone = serializers.RegexField(regex=r'^\+?[0-9][0-9 -]{7,23}$', max_length=30, required=False, allow_blank=True)
 
     def validate_contactPhone(self, value):
+        return value.replace(' ', '').replace('-', '')
+
+    def validate_whatsappPhone(self, value):
         return value.replace(' ', '').replace('-', '')
 
 
@@ -42,6 +47,8 @@ def settings_response(business, shop):
         'isPublished': shop.is_published if shop else False,
         'introduction': shop.introduction if shop else '',
         'contactPhone': shop.contact_phone if shop else '',
+        'whatsappEnabled': shop.whatsapp_enabled if shop else False,
+        'whatsappPhone': shop.whatsapp_phone if shop else '',
     })
     response['Cache-Control'] = 'no-store'
     return response
@@ -70,7 +77,7 @@ class ShopSettingsAPIView(APIView):
             shop = Storefront(business=business)
         if 'branchId' in data:
             shop.branch = get_object_or_404(Branch, pk=data['branchId'], business=business, is_active=True)
-        for key, field in (('isPublished', 'is_published'), ('introduction', 'introduction'), ('contactPhone', 'contact_phone')):
+        for key, field in (('isPublished', 'is_published'), ('introduction', 'introduction'), ('contactPhone', 'contact_phone'), ('whatsappEnabled', 'whatsapp_enabled'), ('whatsappPhone', 'whatsapp_phone')):
             if key in data:
                 setattr(shop, field, data[key])
         try:
