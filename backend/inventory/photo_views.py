@@ -82,9 +82,15 @@ class ProductPhotoUploadAPIView(BusinessProductAccessMixin, APIView):
         return response
 
 
+class PhotoReadThrottle(UserRateThrottle):
+    scope = 'product_photo_read'
+    rate = '240/min'
+
+
 class ProductPhotoContentAPIView(APIView):
     authentication_classes = ()
     permission_classes = (AllowAny,)
+    throttle_classes = (PhotoReadThrottle,)
 
     def get(self, request, photo_id, version):
         photo = get_object_or_404(ProductPhoto.objects.select_related('product'), pk=photo_id, version=version)
