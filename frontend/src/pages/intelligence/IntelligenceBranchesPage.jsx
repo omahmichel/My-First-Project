@@ -1,3 +1,4 @@
+import "../../styles/welcome-actions.css";
 import {
   ArrowRightLeft,
   Boxes,
@@ -308,6 +309,9 @@ export default function IntelligenceBranchesPage() {
             <span>Django-calculated</span>
           </div>
         </div>
+      </section>
+
+      <div className="sf-welcome-actions">
         <button
           type="button"
           className="intelligence-primary-action"
@@ -316,7 +320,7 @@ export default function IntelligenceBranchesPage() {
         >
           <RefreshCw size={16} /> Refresh
         </button>
-      </section>
+      </div>
 
       {notice ? (
         <div className={`intelligence-branch-notice ${notice.tone}`}>

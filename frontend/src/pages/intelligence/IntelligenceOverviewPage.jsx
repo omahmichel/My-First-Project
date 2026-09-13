@@ -1,3 +1,4 @@
+import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -205,7 +206,9 @@ export default function IntelligenceOverviewPage() {
             </span>
           </div>
         </div>
+      </section>
 
+      <div className="sf-welcome-actions">
         <button
           type="button"
           className="intelligence-primary-action"
@@ -218,7 +221,7 @@ export default function IntelligenceOverviewPage() {
           />
           {refreshing ? "Refreshing..." : "Refresh overview"}
         </button>
-      </section>
+      </div>
 
       <section
         className={

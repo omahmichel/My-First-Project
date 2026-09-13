@@ -283,6 +283,11 @@ const finishes = useMemo(() => {
           >
             <PackagePlus size={18} />
 
+ Add tile record
+          </Button>
+        }
+      />
+
       {inventoryLoading ? (
         <div className="form-alert">Loading real tile inventory...</div>
       ) : null}
@@ -291,10 +296,7 @@ const finishes = useMemo(() => {
         <div className="form-alert form-alert-error">
           {inventoryActionError || inventoryError}
         </div>
-      ) : null} Add tile record
-          </Button>
-        }
-      />
+      ) : null}
 
       <section className="tile-records-summary" aria-label="Tile inventory summary">
         <article>

@@ -15,6 +15,7 @@ import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 import { useStore } from "../../context/StoreContext";
+import { documentDeliveryMessage } from "../../utils/documentDelivery";
 import { formatCurrency } from "../../utils/formatters";
 import {
   exportBusinessReportCsv,
@@ -205,7 +206,9 @@ export default function ReportsPage() {
       let filename = "";
 
       if (format === "pdf") {
-        filename = exportBusinessReportPdf(payload);
+        const result = exportBusinessReportPdf(payload);
+        setActionMessage(documentDeliveryMessage(result));
+        return;
       } else if (format === "excel") {
         filename = await exportBusinessReportExcel(payload);
       } else {

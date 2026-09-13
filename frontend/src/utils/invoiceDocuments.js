@@ -1,5 +1,10 @@
 import { jsPDF } from "jspdf";
 import { autoTable } from "jspdf-autotable";
+import {
+  deliverPdfDocument,
+  preparePdfShare,
+  sharePreparedPdfDocument,
+} from "./documentDelivery";
 
 function safeText(value, fallback = "Not recorded") {
   const text = String(value ?? "").trim();
@@ -470,8 +475,7 @@ export function downloadInvoicePdf(invoice, business) {
   const pdf = createInvoicePdf(invoice, business);
   const filename = `${safeFilename(invoice.invoiceNumber)}.pdf`;
 
-  pdf.save(filename);
-  return filename;
+  return deliverPdfDocument(pdf, filename);
 }
 
 function buildInvoiceShareText(invoice, business) {
@@ -496,66 +500,34 @@ function buildInvoiceShareText(invoice, business) {
   ].join("\\n");
 }
 
-async function copyText(text) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.style.position = "fixed";
-  textArea.style.opacity = "0";
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-
-  const copied = document.execCommand("copy");
-  textArea.remove();
-
-  if (!copied) {
-    throw new Error("The invoice details could not be copied.");
-  }
-}
-
-export async function shareInvoice(invoice, business) {
+export function prepareInvoiceShare(invoice, business) {
   if (!invoice) {
     throw new Error("Select an invoice before sharing.");
   }
 
+  const pdf = createInvoicePdf(invoice, business);
+  const filename = `${safeFilename(invoice.invoiceNumber)}.pdf`;
   const title = `${safeText(invoice.invoiceNumber)} - ${safeText(
     business?.name,
     "Invoice",
   )}`;
-  const text = buildInvoiceShareText(invoice, business);
 
-  if (navigator.share) {
-    const pdf = createInvoicePdf(invoice, business);
-    const pdfBlob = pdf.output("blob");
-    const pdfFile = new File(
-      [pdfBlob],
-      `${safeFilename(invoice.invoiceNumber)}.pdf`,
-      { type: "application/pdf" },
-    );
+  return preparePdfShare({
+    pdf,
+    filename,
+    title,
+    label: "Invoice",
+  });
+}
 
-    const shareData = {
-      title,
-      text,
-    };
-
-    if (navigator.canShare?.({ files: [pdfFile] })) {
-      shareData.files = [pdfFile];
-    }
-
-    await navigator.share(shareData);
-
-    return shareData.files
-      ? "Invoice PDF shared successfully."
-      : "Invoice details shared successfully.";
-  }
-
-  await copyText(text);
-  return "Sharing is unavailable on this device, so the invoice details were copied.";
+export async function shareInvoice(
+  invoice,
+  business,
+  preparedShare = null,
+) {
+  return sharePreparedPdfDocument(
+    preparedShare || prepareInvoiceShare(invoice, business),
+  );
 }
 
 
@@ -763,8 +735,38 @@ export function downloadReceiptPdf(receipt, sale, business) {
   const pdf = createReceiptPdf(receipt, sale, business);
   const filename = `${safeFilename(receipt.receiptNumber)}.pdf`;
 
-  pdf.save(filename);
-  return filename;
+  return deliverPdfDocument(pdf, filename);
+}
+
+export function prepareReceiptShare(receipt, sale, business) {
+  if (!receipt) {
+    throw new Error("Select a receipt before sharing.");
+  }
+
+  const pdf = createReceiptPdf(receipt, sale, business);
+  const filename = `${safeFilename(receipt.receiptNumber)}.pdf`;
+  const title = `${safeText(receipt.receiptNumber)} - ${safeText(
+    business?.name,
+    "Receipt",
+  )}`;
+
+  return preparePdfShare({
+    pdf,
+    filename,
+    title,
+    label: "Receipt",
+  });
+}
+
+export async function shareReceipt(
+  receipt,
+  sale,
+  business,
+  preparedShare = null,
+) {
+  return sharePreparedPdfDocument(
+    preparedShare || prepareReceiptShare(receipt, sale, business),
+  );
 }
 
 // Creates one waybill containing every item in the selected sale.
@@ -1010,8 +1012,7 @@ export function downloadWaybillPdf(sale, business) {
   const pdf = createWaybillPdf(sale, business);
   const filename = `${safeFilename(sale.waybill.waybillNumber)}.pdf`;
 
-  pdf.save(filename);
-  return filename;
+  return deliverPdfDocument(pdf, filename);
 }
 
 
@@ -1490,13 +1491,12 @@ export function exportCustomerStatementPdf(
     business,
   );
 
-  document.save(filename);
-  return filename;
+  return deliverPdfDocument(document, filename);
 }
 
 
 // Shares the consolidated statement PDF through the device share menu.
-export async function shareCustomerStatement(
+export function prepareCustomerStatementShare(
   customer,
   sales,
   payments,
@@ -1517,43 +1517,32 @@ export async function shareCustomerStatement(
     "Business",
   )}`;
 
-  const text =
-    `Consolidated customer statement for ${safeText(
-      customer?.name,
-      "Customer",
-    )} from ${safeText(business?.name, "Business")}.`;
+  return preparePdfShare({
+    pdf: document,
+    filename,
+    title,
+    label: "Customer statement",
+  });
+}
 
-  if (navigator.share) {
-    const pdfBlob = document.output("blob");
-    const pdfFile = new File(
-      [pdfBlob],
-      filename,
-      { type: "application/pdf" },
-    );
-
-    const shareData = {
-      title,
-      text,
-    };
-
-    if (navigator.canShare?.({ files: [pdfFile] })) {
-      shareData.files = [pdfFile];
-    }
-
-    await navigator.share(shareData);
-
-    return shareData.files
-      ? "Customer statement PDF shared successfully."
-      : "Customer statement details shared successfully.";
-  }
-
-  document.save(filename);
-
-  return (
-    "Sharing is unavailable on this device, so the statement "
-    + "PDF was downloaded instead."
+export async function shareCustomerStatement(
+  customer,
+  sales,
+  payments,
+  business,
+  preparedShare = null,
+) {
+  return sharePreparedPdfDocument(
+    preparedShare ||
+      prepareCustomerStatementShare(
+        customer,
+        sales,
+        payments,
+        business,
+      ),
   );
 }
+
 
 // Downloads the visible Sales History records as a CSV file.
 export function exportSalesHistoryCsv(sales, business) {
@@ -1793,6 +1782,5 @@ export function exportSalesHistoryPdf(sales, business) {
   const filename =
     `${safeFilename(business?.name)}-sales-history-${dateStamp}.pdf`;
 
-  document.save(filename);
-  return filename;
+  return deliverPdfDocument(document, filename);
 }

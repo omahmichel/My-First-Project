@@ -1,10 +1,17 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+
+from integrations.messaging.provider import MessagingProviderError
+from integrations.messaging.whatsapp_live import (
+    send_whatsapp_document,
+    whatsapp_configured,
+)
 
 from businesses.access import get_business_and_role_for_user
 from businesses.branch_access import (
@@ -740,3 +747,171 @@ class BusinessCustomerDebtPaymentAPIView(
             response["Idempotent-Replay"] = "true"
 
         return response
+
+class WhatsAppSaleDocumentSerializer(serializers.Serializer):
+    document = serializers.FileField()
+    documentType = serializers.ChoiceField(
+        choices=("invoice", "receipt"),
+    )
+    paymentId = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+
+    def validate_document(self, value):
+        if value.size <= 0:
+            raise serializers.ValidationError(
+                "The PDF document is empty."
+            )
+
+        if value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError(
+                "The PDF document cannot be larger than 10 MB."
+            )
+
+        if value.content_type != "application/pdf":
+            raise serializers.ValidationError(
+                "Only PDF documents can be sent to customers."
+            )
+
+        try:
+            signature = value.read(5)
+            value.seek(0)
+        except (AttributeError, OSError) as exc:
+            raise serializers.ValidationError(
+                "The PDF document could not be read."
+            ) from exc
+
+        if signature != b"%PDF-":
+            raise serializers.ValidationError(
+                "The uploaded file is not a valid PDF document."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        if (
+            attrs.get("documentType") == "receipt"
+            and not attrs.get("paymentId")
+        ):
+            raise serializers.ValidationError(
+                {
+                    "paymentId": (
+                        "Select the receipt payment before sending it."
+                    )
+                }
+            )
+        return attrs
+
+
+class BusinessSaleWhatsAppDocumentAPIView(
+    BusinessSaleAccessMixin,
+    APIView,
+):
+    permission_classes = (IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "integration_admin"
+
+    def post(self, request, business_id, sale_id):
+        business, _, denied_response = self.require_sales_access()
+
+        if denied_response:
+            return denied_response
+
+        sale, denied_response = self.get_sale()
+
+        if denied_response:
+            return denied_response
+
+        if not str(sale.customer_phone or "").strip():
+            return Response(
+                {
+                    "detail": (
+                        "This sale has no customer phone number. "
+                        "Add a customer phone before sending documents."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not whatsapp_configured(business):
+            return Response(
+                {
+                    "detail": (
+                        "Connect this business to WhatsApp before "
+                        "sending invoice or receipt PDFs."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = WhatsAppSaleDocumentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        document_type = serializer.validated_data["documentType"]
+        document = serializer.validated_data["document"]
+
+        if document_type == "invoice":
+            filename = f"{sale.invoice_number}.pdf"
+            caption = (
+                f"{business.name} invoice {sale.invoice_number} "
+                f"for {sale.customer_name}."
+            )
+            document_number = sale.invoice_number
+        else:
+            payment = get_object_or_404(
+                Payment.objects.filter(
+                    business=business,
+                    sale=sale,
+                    status=Payment.Status.SUCCESSFUL,
+                ),
+                pk=serializer.validated_data["paymentId"],
+            )
+
+            if not payment.receipt_number:
+                return Response(
+                    {
+                        "detail": (
+                            "The selected payment does not have "
+                            "a receipt number."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            filename = f"{payment.receipt_number}.pdf"
+            caption = (
+                f"{business.name} payment receipt "
+                f"{payment.receipt_number} for {sale.customer_name}."
+            )
+            document_number = payment.receipt_number
+
+        try:
+            delivery = send_whatsapp_document(
+                business=business,
+                recipient=sale.customer_phone,
+                document=document,
+                filename=filename,
+                caption=caption,
+            )
+        except MessagingProviderError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                    "code": "whatsapp_document_send_failed",
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {
+                "status": "sent",
+                "provider": delivery["provider"],
+                "providerReference": delivery["provider_reference"],
+                "documentType": document_type,
+                "documentNumber": document_number,
+                "filename": filename,
+                "recipient": sale.customer_phone,
+            },
+            status=status.HTTP_201_CREATED,
+        )

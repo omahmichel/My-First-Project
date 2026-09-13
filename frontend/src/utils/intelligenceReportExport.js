@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { autoTable } from "jspdf-autotable";
+import { deliverPdfDocument } from "./documentDelivery";
 
 
 function safeText(value, fallback = "Not recorded") {
@@ -262,6 +263,5 @@ export function exportIntelligenceReportPdf({ business, report }) {
     new Date(report.generatedAt).toISOString().slice(0, 10)
   }.pdf`;
 
-  pdf.save(filename);
-  return filename;
+  return deliverPdfDocument(pdf, filename);
 }

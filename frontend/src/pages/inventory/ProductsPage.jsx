@@ -169,6 +169,9 @@ export default function ProductsPage() {
         description="Manage every product, price, unit and stock level from one controlled list."
         actions={<Button onClick={() => { setEditingProduct(null); setProductModalOpen(true); }}><PackagePlus size={18} />
 
+ Add product</Button>}
+      />
+
       {inventoryLoading ? (
         <div className="form-alert">Loading real inventory...</div>
       ) : null}
@@ -177,8 +180,7 @@ export default function ProductsPage() {
         <div className="form-alert form-alert-error">
           {inventoryActionError || inventoryError}
         </div>
-      ) : null} Add product</Button>}
-      />
+      ) : null}
 
       <section className="inventory-summary-row">
         <article><span><Boxes size={20} /></span><div><strong>{products.length}</strong><small>Total products</small></div></article>

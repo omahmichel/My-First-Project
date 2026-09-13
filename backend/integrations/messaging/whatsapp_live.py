@@ -152,3 +152,152 @@ def send_whatsapp_text(*, business, recipient, message):
         "provider_reference": str(message_id)[:120],
         "provider_response_summary": summary,
     }
+
+def send_whatsapp_document(
+    *,
+    business,
+    recipient,
+    document,
+    filename,
+    caption="",
+):
+    row, payload = get_provider_credential(
+        business=business,
+        category="messaging",
+        provider="whatsapp",
+        required=True,
+    )
+
+    try:
+        recipient = normalize_whatsapp_recipient(recipient)
+    except ValueError as exc:
+        raise MessagingProviderError(str(exc)) from exc
+
+    filename = str(filename or "stockflow-document.pdf").strip()
+    caption = str(caption or "").strip()[:1024]
+
+    try:
+        document.seek(0)
+    except (AttributeError, OSError):
+        pass
+
+    headers = {
+        "Authorization": f"Bearer {payload['access_token']}",
+    }
+    graph_base = (
+        f"https://graph.facebook.com/{payload['api_version']}/"
+        f"{payload['phone_number_id']}"
+    )
+
+    try:
+        upload_response = requests.post(
+            f"{graph_base}/media",
+            headers=headers,
+            data={
+                "messaging_product": "whatsapp",
+                "type": "application/pdf",
+            },
+            files={
+                "file": (
+                    filename,
+                    document,
+                    "application/pdf",
+                )
+            },
+            timeout=30,
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        raise MessagingProviderError(
+            "The WhatsApp provider could not be reached while uploading the PDF."
+        ) from exc
+
+    try:
+        upload_data = upload_response.json()
+    except ValueError:
+        upload_data = {}
+
+    upload_summary = _safe_summary(upload_data)
+
+    if not 200 <= upload_response.status_code < 300:
+        raise MessagingProviderError(
+            "WhatsApp Cloud API rejected the PDF upload.",
+            response_summary=upload_summary,
+        )
+
+    media_id = (
+        str(upload_data.get("id", "")).strip()
+        if isinstance(upload_data, dict)
+        else ""
+    )
+
+    if not media_id:
+        raise MessagingProviderError(
+            "WhatsApp Cloud API did not return a media ID for the PDF.",
+            response_summary=upload_summary,
+        )
+
+    message_payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient,
+        "type": "document",
+        "document": {
+            "id": media_id,
+            "filename": filename,
+        },
+    }
+
+    if caption:
+        message_payload["document"]["caption"] = caption
+
+    try:
+        message_response = requests.post(
+            f"{graph_base}/messages",
+            headers={
+                **headers,
+                "Content-Type": "application/json",
+            },
+            json=message_payload,
+            timeout=20,
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        raise MessagingProviderError(
+            "The WhatsApp provider could not be reached while sending the PDF."
+        ) from exc
+
+    try:
+        message_data = message_response.json()
+    except ValueError:
+        message_data = {}
+
+    message_summary = _safe_summary(message_data)
+
+    if not 200 <= message_response.status_code < 300:
+        raise MessagingProviderError(
+            "WhatsApp Cloud API rejected the PDF message.",
+            response_summary=message_summary,
+        )
+
+    touch_provider_credential(row)
+
+    messages = (
+        message_data.get("messages")
+        if isinstance(message_data, dict)
+        else None
+    )
+    message_id = (
+        messages[0].get("id", "")
+        if isinstance(messages, list)
+        and messages
+        and isinstance(messages[0], dict)
+        else ""
+    )
+
+    return {
+        "provider": PROVIDER_NAME,
+        "provider_reference": str(message_id)[:120],
+        "provider_response_summary": message_summary,
+        "media_id": media_id,
+    }

@@ -13,12 +13,14 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
+import { sendSaleWhatsAppDocument } from "../../services/api";
 import {
   downloadInvoicePdf,
   exportInvoiceList,
   formatPaymentMethod,
-  shareInvoice,
+  prepareInvoiceShare,
 } from "../../utils/invoiceDocuments";
+import { documentDeliveryMessage } from "../../utils/documentDelivery";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
 import "../../styles/invoice-document-actions.css";
@@ -101,8 +103,8 @@ export default function InvoicesPage() {
     clearActionFeedback();
 
     try {
-      const filename = downloadInvoicePdf(invoice, business);
-      setActionMessage(`${filename} downloaded successfully.`);
+      const result = downloadInvoicePdf(invoice, business);
+      setActionMessage(documentDeliveryMessage(result));
     } catch (error) {
       setActionError(error.message || "The invoice PDF could not be created.");
     }
@@ -113,14 +115,25 @@ export default function InvoicesPage() {
     setSharingInvoiceId(invoice.id);
 
     try {
-      const message = await shareInvoice(invoice, business);
-      setActionMessage(message);
+      const prepared = prepareInvoiceShare(invoice, business);
+
+      const result = await sendSaleWhatsAppDocument(
+        business?.id,
+        invoice.id,
+        {
+          documentType: "invoice",
+          file: prepared.file,
+        },
+      );
+
+      setActionMessage(
+        `${result.filename || prepared.filename} sent to `
+          + `${invoice.customerName || "the customer"} on WhatsApp.`,
+      );
     } catch (error) {
-      if (error?.name === "AbortError") {
-        setActionMessage("Sharing was cancelled.");
-      } else {
-        setActionError(error.message || "The invoice could not be shared.");
-      }
+      setActionError(
+        error.message || "The invoice could not be sent on WhatsApp.",
+      );
     } finally {
       setSharingInvoiceId(null);
     }

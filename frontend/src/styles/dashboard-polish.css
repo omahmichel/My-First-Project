@@ -489,3 +489,7 @@
   justify-content: center;
   min-width: 68px;
 }
+
+/* StockFlow: inventory health below stock list. */
+.dashboard-page .dashboard-content-grid.dashboard-bottom-grid { grid-template-columns: minmax(0, 1fr); }
+.dashboard-page .dashboard-bottom-grid > .inventory-health-card { width: min(100%, 520px); box-sizing: border-box; }

@@ -1,0 +1,30 @@
+/* Shared welcome-card actions: a separate row, matching Restocking. */
+.sf-welcome-actions.sf-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.sf-welcome-actions.sf-welcome-actions > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.sf-welcome-actions .app-button,
+.sf-welcome-actions .intelligence-primary-action {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  height: auto;
+}
+.sf-welcome-actions .intelligence-primary-action {
+  padding: 10px 13px;
+}
+@media (max-width: 640px) {
+  .sf-welcome-actions.sf-welcome-actions > * {
+    flex-shrink: 1;
+  }
+}

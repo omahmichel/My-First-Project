@@ -11,6 +11,7 @@ import {
   exportSalesHistoryPdf,
   formatPaymentMethod,
 } from "../../utils/invoiceDocuments";
+import { documentDeliveryMessage } from "../../utils/documentDelivery";
 import { formatCurrency, formatDateTime } from "../../utils/formatters";
 
 import "../../styles/sales-history-compact.css";
@@ -99,8 +100,8 @@ export default function SalesHistoryPage() {
     clearActionFeedback();
 
     try {
-      const filename = exportSalesHistoryPdf(filtered, business);
-      setActionMessage(`${filename} downloaded successfully.`);
+      const result = exportSalesHistoryPdf(filtered, business);
+      setActionMessage(documentDeliveryMessage(result));
     } catch (error) {
       setActionError(
         error.message || "The sales PDF report could not be exported.",

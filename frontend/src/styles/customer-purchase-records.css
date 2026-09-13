@@ -658,3 +658,12 @@
     gap: 7px;
   }
 }
+
+/* StockFlow receipt download/share actions. */
+.purchase-receipt-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}

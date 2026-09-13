@@ -1,3 +1,4 @@
+import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
   RefreshCw,
@@ -107,7 +108,9 @@ export default function IntelligenceRecommendationsPage() {
             change stock, prices, sales, debt or payment records.
           </p>
         </div>
+      </section>
 
+      <div className="sf-welcome-actions">
         <button
           type="button"
           className="intelligence-primary-action"
@@ -124,7 +127,7 @@ export default function IntelligenceRecommendationsPage() {
               ? "Refresh recommendations"
               : "Generate recommendations"}
         </button>
-      </section>
+      </div>
 
       <section className="intelligence-safety-banner">
         <ShieldCheck size={19} />

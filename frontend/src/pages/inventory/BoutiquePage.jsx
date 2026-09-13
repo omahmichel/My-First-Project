@@ -301,6 +301,12 @@ export default function BoutiquePage() {
           <Button onClick={openNewProductModal}>
             <PackagePlus size={18} />
 
+
+            Add boutique record
+          </Button>
+        }
+      />
+
       {inventoryLoading ? (
         <div className="form-alert">Loading real boutique inventory...</div>
       ) : null}
@@ -310,10 +316,6 @@ export default function BoutiquePage() {
           {inventoryActionError || inventoryError}
         </div>
       ) : null}
-            Add boutique record
-          </Button>
-        }
-      />
 
       <section className="boutique-records-summary">
         <article>

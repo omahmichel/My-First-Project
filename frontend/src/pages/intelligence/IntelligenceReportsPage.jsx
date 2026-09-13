@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useStore } from "../../context/StoreContext";
 import { apiRequest } from "../../services/api";
+import { documentDeliveryMessage } from "../../utils/documentDelivery";
 import { exportIntelligenceReportPdf } from "../../utils/intelligenceReportExport";
 import {
   formatDateTime,
@@ -207,11 +208,11 @@ export default function IntelligenceReportsPage() {
     if (!selectedReport) return;
 
     try {
-      const filename = exportIntelligenceReportPdf({
+      const result = exportIntelligenceReportPdf({
         business,
         report: selectedReport,
       });
-      setNotice(`${filename} downloaded successfully.`);
+      setNotice(documentDeliveryMessage(result));
       setError("");
     } catch (downloadError) {
       setError(

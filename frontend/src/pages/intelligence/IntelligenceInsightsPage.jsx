@@ -1,3 +1,4 @@
+import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
   Boxes,
@@ -119,7 +120,9 @@ export default function IntelligenceInsightsPage() {
             calculated by the backend.
           </p>
         </div>
+      </section>
 
+      <div className="sf-welcome-actions">
         <button
           type="button"
           className="intelligence-primary-action"
@@ -128,7 +131,7 @@ export default function IntelligenceInsightsPage() {
           <RefreshCw size={16} />
           Refresh signals
         </button>
-      </section>
+      </div>
 
       <section className="intelligence-insights-grid">
         <InsightCard

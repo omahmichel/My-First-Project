@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { deliverPdfDocument } from "./documentDelivery";
 
 // Converts report values into a safe downloadable CSV document.
 
@@ -473,8 +474,7 @@ export function exportBusinessReportPdf({
   addReportPdfFooters(pdf, businessName);
 
   const filename = reportFilename(business, "pdf");
-  pdf.save(filename);
-  return filename;
+  return deliverPdfDocument(pdf, filename);
 }
 
 function styleExcelHeading(cell) {

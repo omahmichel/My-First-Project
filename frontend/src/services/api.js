@@ -188,3 +188,39 @@ export async function apiRequest(path, options = {}) {
   if (responseType === "blob") return response.blob();
   return response.json();
 }
+
+export async function sendSaleWhatsAppDocument(
+  businessId,
+  saleId,
+  {
+    documentType,
+    file,
+    paymentId = null,
+  },
+) {
+  if (!businessId || !saleId) {
+    throw new Error(
+      "StockFlow could not identify the business or sale for this document.",
+    );
+  }
+
+  if (!(file instanceof File)) {
+    throw new Error("The PDF document could not be prepared for WhatsApp.");
+  }
+
+  const formData = new FormData();
+  formData.append("documentType", documentType);
+  formData.append("document", file, file.name);
+
+  if (paymentId) {
+    formData.append("paymentId", paymentId);
+  }
+
+  return apiRequest(
+    `/businesses/${businessId}/sales/${saleId}/whatsapp-document/`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+}

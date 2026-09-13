@@ -1,3 +1,4 @@
+import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
   BarChart3,
@@ -129,7 +130,9 @@ export default function IntelligenceForecastsPage() {
             trend and confidence rather than an AI guess.
           </p>
         </div>
+      </section>
 
+      <div className="sf-welcome-actions">
         <button
           type="button"
           className="intelligence-primary-action"
@@ -142,7 +145,7 @@ export default function IntelligenceForecastsPage() {
           />
           {generating ? "Generating..." : "Generate fresh forecast"}
         </button>
-      </section>
+      </div>
 
       <div className="intelligence-horizon-tabs">
         {HORIZONS.map((days) => (

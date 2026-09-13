@@ -9,7 +9,7 @@ import {
   Share2,
   Truck,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
@@ -17,13 +17,17 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
+import { sendSaleWhatsAppDocument } from "../../services/api";
 import {
   downloadInvoicePdf,
   downloadReceiptPdf,
   downloadWaybillPdf,
   exportCustomerStatementPdf,
+  prepareCustomerStatementShare,
+  prepareReceiptShare,
   shareCustomerStatement,
 } from "../../utils/invoiceDocuments";
+import { documentDeliveryMessage } from "../../utils/documentDelivery";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
 import "../../styles/customer-purchase-records.css";
@@ -53,8 +57,10 @@ export default function CustomerPurchaseRecordsPage() {
   });
   const [message, setMessage] = useState("");
   const [sharingStatement, setSharingStatement] = useState(false);
+  const [sharingReceiptId, setSharingReceiptId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const preparedStatementShare = useRef(null);
 
   const selectedCustomerId = searchParams.get("customer") || "all";
 
@@ -170,8 +176,8 @@ export default function CustomerPurchaseRecordsPage() {
     setMessage("");
 
     try {
-      const filename = downloadInvoicePdf(sale, business);
-      setMessage(`${filename} downloaded successfully.`);
+      const result = downloadInvoicePdf(sale, business);
+      setMessage(documentDeliveryMessage(result));
     } catch (error) {
       setMessage(error.message);
     }
@@ -181,10 +187,44 @@ export default function CustomerPurchaseRecordsPage() {
     setMessage("");
 
     try {
-      const filename = downloadReceiptPdf(receipt, sale, business);
-      setMessage(`${filename} downloaded successfully.`);
+      const result = downloadReceiptPdf(receipt, sale, business);
+      setMessage(documentDeliveryMessage(result));
     } catch (error) {
       setMessage(error.message);
+    }
+  }
+
+  async function handleReceiptShare(receipt, sale) {
+    setMessage("");
+    setSharingReceiptId(receipt.id);
+
+    try {
+      const prepared = prepareReceiptShare(
+        receipt,
+        sale,
+        business,
+      );
+
+      const result = await sendSaleWhatsAppDocument(
+        business?.id,
+        sale.id,
+        {
+          documentType: "receipt",
+          paymentId: receipt.id,
+          file: prepared.file,
+        },
+      );
+
+      setMessage(
+        `${result.filename || prepared.filename} sent to `
+          + `${sale.customerName || "the customer"} on WhatsApp.`,
+      );
+    } catch (error) {
+      setMessage(
+        error.message || "The receipt could not be sent on WhatsApp.",
+      );
+    } finally {
+      setSharingReceiptId(null);
     }
   }
 
@@ -238,8 +278,8 @@ export default function CustomerPurchaseRecordsPage() {
     setMessage("");
 
     try {
-      const filename = downloadWaybillPdf(sale, business);
-      setMessage(`${filename} downloaded successfully.`);
+      const result = downloadWaybillPdf(sale, business);
+      setMessage(documentDeliveryMessage(result));
     } catch (error) {
       setMessage(error.message);
     }
@@ -254,18 +294,37 @@ export default function CustomerPurchaseRecordsPage() {
     }
 
     try {
-      const filename = exportCustomerStatementPdf(
+      const result = exportCustomerStatementPdf(
         selectedCustomer,
         filteredSales,
         payments,
         business,
       );
-      setMessage(`${filename} downloaded successfully.`);
+      setMessage(documentDeliveryMessage(result));
     } catch (error) {
       setMessage(error.message);
     }
   }
 
+
+  function prepareShareStatement() {
+    if (!selectedCustomer) {
+      preparedStatementShare.current = null;
+      return;
+    }
+
+    try {
+      preparedStatementShare.current =
+        prepareCustomerStatementShare(
+          selectedCustomer,
+          filteredSales,
+          payments,
+          business,
+        );
+    } catch {
+      preparedStatementShare.current = null;
+    }
+  }
 
   async function handleStatementShare() {
     setMessage("");
@@ -277,15 +336,20 @@ export default function CustomerPurchaseRecordsPage() {
       return;
     }
 
-    setSharingStatement(true);
+    const preparedShare = preparedStatementShare.current;
+    preparedStatementShare.current = null;
 
     try {
-      const result = await shareCustomerStatement(
+      const sharePromise = shareCustomerStatement(
         selectedCustomer,
         filteredSales,
         payments,
         business,
+        preparedShare,
       );
+      setSharingStatement(true);
+
+      const result = await sharePromise;
 
       setMessage(result);
     } catch (error) {
@@ -312,6 +376,7 @@ export default function CustomerPurchaseRecordsPage() {
           <div className="purchase-statement-actions">
             <Button
               variant="secondary"
+              onPointerDown={prepareShareStatement}
               onClick={handleStatementShare}
               disabled={
                 sharingStatement ||
@@ -632,15 +697,30 @@ export default function CustomerPurchaseRecordsPage() {
                           </small>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleReceiptDownload(receipt, selectedSale)
-                          }
-                        >
-                          <Download size={15} />
-                          Receipt
-                        </button>
+                        <div className="purchase-receipt-actions">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleReceiptShare(receipt, selectedSale)
+                            }
+                            disabled={sharingReceiptId === receipt.id}
+                          >
+                            <Share2 size={15} />
+                            {sharingReceiptId === receipt.id
+                              ? "Sharing..."
+                              : "Share"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleReceiptDownload(receipt, selectedSale)
+                            }
+                          >
+                            <Download size={15} />
+                            Receipt
+                          </button>
+                        </div>
                       </article>
                     ),
                   )}

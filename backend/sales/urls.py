@@ -7,6 +7,7 @@ from .views import (
     BusinessSaleDetailAPIView,
     BusinessSaleListCreateAPIView,
     BusinessSaleWaybillAPIView,
+    BusinessSaleWhatsAppDocumentAPIView,
 )
 
 app_name = "sales"
@@ -46,5 +47,11 @@ urlpatterns = [
         "<uuid:sale_id>/waybill/",
         BusinessSaleWaybillAPIView.as_view(),
         name="business-sale-waybill",
+    ),
+    path(
+        "businesses/<uuid:business_id>/sales/"
+        "<uuid:sale_id>/whatsapp-document/",
+        BusinessSaleWhatsAppDocumentAPIView.as_view(),
+        name="business-sale-whatsapp-document",
     ),
 ]
