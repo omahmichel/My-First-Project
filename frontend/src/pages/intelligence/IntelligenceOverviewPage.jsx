@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
@@ -187,11 +188,11 @@ export default function IntelligenceOverviewPage() {
         <div>
           <span className="intelligence-eyebrow">
             <Gauge size={15} />
-            Verified overview
+            Overview
           </span>
           <h2>See what changed and what needs attention.</h2>
           <p>
-            StockFlow is reading authoritative sales, inventory, debt
+            Review sales, inventory, debt
             and profitability records for{" "}
             <strong>{overview.businessName || business.name}</strong>.
           </p>
@@ -208,8 +209,7 @@ export default function IntelligenceOverviewPage() {
         </div>
       </section>
 
-      <div className="sf-welcome-actions">
-        <button
+      <NotificationRefresh><button
           type="button"
           className="intelligence-primary-action"
           onClick={() => loadOverview({ refresh: true })}
@@ -220,8 +220,7 @@ export default function IntelligenceOverviewPage() {
             size={16}
           />
           {refreshing ? "Refreshing..." : "Refresh overview"}
-        </button>
-      </div>
+        </button></NotificationRefresh>
 
       <section
         className={

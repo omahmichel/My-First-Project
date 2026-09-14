@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import CompleteShopOrder from './CompleteShopOrder';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../services/api';
@@ -42,7 +43,7 @@ export default function ShopOrdersPanel({ businessId, branches }) {
     <h2>Online orders</h2>
     <p>Review customer requests before arranging payment and fulfilment.</p>
     <label>Order status<select disabled={Boolean(busy)} value={status} onChange={event => { setStatus(event.target.value); setPage(1); setMessage(''); }}><option value='pending'>Pending review</option><option value='completed'>Completed</option><option value='cancelled'>Cancelled</option></select></label>
-    <button type='button' disabled={loading || Boolean(busy)} onClick={() => setRetry(value => value + 1)}>Refresh orders</button>
+    <NotificationRefresh><button type='button' disabled={loading || Boolean(busy)} onClick={() => setRetry(value => value + 1)}>Refresh orders</button></NotificationRefresh>
     {message && <p role='status'>{message}</p>}
     {error && <p role='alert'>{error}</p>}
     {loading ? <p role='status'>Loading orders...</p> : !error && <>

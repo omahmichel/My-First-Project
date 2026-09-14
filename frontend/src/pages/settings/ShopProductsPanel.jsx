@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import { useEffect, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { apiRequest } from '../../services/api';
@@ -45,7 +46,7 @@ export default function ShopProductsPanel({ businessId }) {
     <p>Inventory choices follow your selected workspace branch. Existing shop listings are included too.</p>
     {inventoryLoading && <p role='status'>Loading inventory...</p>}
     {inventoryError && <p role='alert'>{String(inventoryError)}</p>}
-    <button type='button' disabled={inventoryLoading} onClick={() => { Promise.resolve(loadInventory(businessId, activeBranchId)).catch(problem => setError(problem.message)); }}>Refresh inventory choices</button>
+    <NotificationRefresh><button type='button' disabled={inventoryLoading} onClick={() => { Promise.resolve(loadInventory(businessId, activeBranchId)).catch(problem => setError(problem.message)); }}>Refresh inventory choices</button></NotificationRefresh>
     {loading ? <p role='status'>Loading published and draft listings...</p> : error ? <div role='alert'><p>{error}</p><button type='button' onClick={() => setRetry(value => value + 1)}>Retry</button></div> : <>
       <p>{listings.filter(row => row.isPublished).length} published listings · {listings.length} saved listings</p>
       <label>Choose a product<select value={selected} onChange={event => setSelected(event.target.value)}><option value=''>Select an inventory product</option>{options.map(product => <option key={product.id} value={product.id}>{product.name} — {product.sku}</option>)}</select></label>

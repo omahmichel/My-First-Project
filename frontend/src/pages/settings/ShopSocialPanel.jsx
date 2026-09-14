@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../services/api';
 
@@ -45,7 +46,7 @@ export default function ShopSocialPanel({ businessId }) {
     <h2>Social publishing</h2>
     <p>Choose where you want StockFlow to publish your products automatically. Enabling a channel prepares your currently published products and future listing saves.</p>
     <p><strong>Account connections are not available yet.</strong> Products remain pending; nothing is sent to social media in this version.</p>
-    <button type='button' disabled={loading || saving} onClick={() => setRetry(value => value + 1)}>Refresh publishing status</button>
+    <NotificationRefresh><button type='button' disabled={loading || saving} onClick={() => setRetry(value => value + 1)}>Refresh publishing status</button></NotificationRefresh>
     {loading && <p role='status'>Loading social publishing...</p>}
     {error && <p role='alert'>{error}</p>}
     <fieldset disabled={loading || saving}>

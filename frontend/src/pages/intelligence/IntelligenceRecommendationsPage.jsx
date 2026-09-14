@@ -1,8 +1,8 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
   RefreshCw,
-  ShieldCheck,
   WandSparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -110,8 +110,7 @@ export default function IntelligenceRecommendationsPage() {
         </div>
       </section>
 
-      <div className="sf-welcome-actions">
-        <button
+      <NotificationRefresh><button
           type="button"
           className="intelligence-primary-action"
           onClick={generateRecommendations}
@@ -126,19 +125,9 @@ export default function IntelligenceRecommendationsPage() {
             : recommendations.length
               ? "Refresh recommendations"
               : "Generate recommendations"}
-        </button>
-      </div>
+        </button></NotificationRefresh>
 
-      <section className="intelligence-safety-banner">
-        <ShieldCheck size={19} />
-        <div>
-          <strong>Human confirmation remains required.</strong>
-          <span>
-            These recommendations explain what deserves attention; they
-            do not execute consequential business actions.
-          </span>
-        </div>
-      </section>
+
 
       {error ? (
         <div className="intelligence-inline-error" role="alert">

@@ -1,3 +1,4 @@
+import { NotificationActionsProvider } from "../notifications/NotificationRefresh";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import {
@@ -42,6 +43,7 @@ export default function AppLayout() {
     location.pathname !== subscriptionPath;
 
   return (
+    <NotificationActionsProvider>
     <div
       className={`app-shell ${isBoutiqueBusiness ? "stockflow-boutique-app" : ""}`}
     >
@@ -79,5 +81,6 @@ export default function AppLayout() {
         </main>
       </div>
     </div>
+    </NotificationActionsProvider>
   );
 }

@@ -1,8 +1,7 @@
+import NotificationBell from "../notifications/NotificationBell";
 import {
-  Bell,
   Menu,
-  ShieldCheck,
-} from "lucide-react";
+  } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { useStore } from "../../context/StoreContext";
@@ -47,19 +46,7 @@ export default function IntelligenceTopbar({ onOpenSidebar }) {
       </div>
 
       <div className="intelligence-topbar-right">
-        <div className="intelligence-topbar-security">
-          <ShieldCheck size={16} />
-          <span>Verified business data</span>
-        </div>
-
-        <button
-          type="button"
-          className="intelligence-topbar-icon"
-          aria-label="Intelligence notifications"
-          disabled
-        >
-          <Bell size={18} />
-        </button>
+<NotificationBell className="intelligence-topbar-icon" intelligence />
 
         <div className="intelligence-topbar-business">
           <span>{business.name || "Business"}</span>

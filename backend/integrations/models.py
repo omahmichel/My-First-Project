@@ -828,3 +828,5 @@ class SupplierPurchaseOrderReceipt(models.Model):
             )
         ]
 
+
+from .notification_models import NotificationRead  # noqa: E402,F401

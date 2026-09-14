@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import {
   Activity,
   AlertTriangle,
@@ -296,31 +297,13 @@ export default function IntelligenceAutomationPage() {
           </p>
         </div>
 
-        <div className="intelligence-ask-readonly">
-          <ShieldCheck size={18} />
-          <div>
-            <strong>Confirmation remains in your control</strong>
-            <span>
-              Scheduled Intelligence is read-only toward transactional records.
-            </span>
-          </div>
-        </div>
+
       </section>
 
-      <section className="intelligence-automation-runner">
-        <Activity size={18} />
-        <div>
-          <strong>Lightweight Django automation worker</strong>
-          <span>
-            Due rules are processed by StockFlow's management command. No
-            Redis, Celery or third-party scheduler is required.
-          </span>
-        </div>
-        <button type="button" onClick={loadAutomation} disabled={loading}>
+      <NotificationRefresh><button type="button" onClick={loadAutomation} disabled={loading}>
           <RefreshCw size={15} />
           Refresh
-        </button>
-      </section>
+        </button></NotificationRefresh>
 
       {error ? (
         <div className="intelligence-ask-error" role="alert">
@@ -423,8 +406,7 @@ export default function IntelligenceAutomationPage() {
                 <span>
                   <strong>Include AI narrative</strong>
                   <small>
-                    Optional and uses API credits. Django figures stay
-                    authoritative.
+                    Optional narrative for your reports.
                   </small>
                 </span>
               </label>
@@ -671,24 +653,7 @@ export default function IntelligenceAutomationPage() {
         )}
       </section>
 
-      <section className="intelligence-automation-safety">
-        <ShieldCheck size={17} />
-        <div>
-          <strong>Automation may</strong>
-          <p>
-            Refresh Intelligence recommendations, create advisory events and
-            generate Daily or Weekly management reports. AI can optionally
-            explain a generated report.
-          </p>
-        </div>
-        <div>
-          <strong>Automation may not</strong>
-          <p>
-            Silently alter inventory, prices, sales, customer debt, supplier
-            balances, payments or other transactional business records.
-          </p>
-        </div>
-      </section>
+
 
       {deleteRuleTarget ? (
         <div className="intelligence-automation-confirm-backdrop">

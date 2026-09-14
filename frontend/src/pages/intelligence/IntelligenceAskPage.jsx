@@ -3,7 +3,6 @@ import {
   Bot,
   BrainCircuit,
   Send,
-  ShieldCheck,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -151,18 +150,11 @@ export default function IntelligenceAskPage() {
           </span>
           <h2>Ask questions grounded in verified business data.</h2>
           <p>
-            Django calculates the figures. Ask StockFlow explains the
-            verified context and tells you when evidence is insufficient.
+            Explore your business performance and get clear answers from your records.
           </p>
         </div>
 
-        <div className="intelligence-ask-readonly">
-          <ShieldCheck size={18} />
-          <div>
-            <strong>Read-only analyst</strong>
-            <span>No business record can be changed from this chat.</span>
-          </div>
-        </div>
+
       </section>
 
       {error ? (

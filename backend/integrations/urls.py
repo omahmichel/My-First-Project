@@ -290,3 +290,10 @@ urlpatterns += [
     ),
 ]
 
+
+from .notification_views import NotificationCollectionAPIView, NotificationReadAPIView
+
+urlpatterns += [
+    path("businesses/<uuid:business_id>/notifications/", NotificationCollectionAPIView.as_view(), name="notifications"),
+    path("businesses/<uuid:business_id>/notifications/read/", NotificationReadAPIView.as_view(), name="notifications-read"),
+]

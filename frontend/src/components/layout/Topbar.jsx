@@ -1,4 +1,5 @@
-import { Bell, Menu, Search } from "lucide-react";
+import NotificationBell from "../notifications/NotificationBell";
+import { Menu, Search } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
@@ -46,10 +47,7 @@ export default function Topbar({ onOpenSidebar }) {
           <input type="search" placeholder="Search records..." aria-label="Search records" />
         </div>
 
-        <button type="button" className="topbar-icon-button" aria-label="Notifications">
-          <Bell size={20} />
-          <span className="notification-dot" />
-        </button>
+        <NotificationBell className="topbar-icon-button" />
 
         <div className="topbar-user">
           <div className="topbar-avatar">{user?.name?.slice(0, 2).toUpperCase() ?? "BO"}</div>

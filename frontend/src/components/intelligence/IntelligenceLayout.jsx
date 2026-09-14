@@ -1,3 +1,4 @@
+import { NotificationActionsProvider } from "../notifications/NotificationRefresh";
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 
@@ -11,6 +12,7 @@ export default function IntelligenceLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
+    <NotificationActionsProvider>
     <div className="intelligence-workspace">
       <IntelligenceSidebar
         open={sidebarOpen}
@@ -26,5 +28,6 @@ export default function IntelligenceLayout() {
         </main>
       </div>
     </div>
+    </NotificationActionsProvider>
   );
 }

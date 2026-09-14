@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
@@ -112,7 +113,7 @@ export default function IntelligenceInsightsPage() {
         <div>
           <span className="intelligence-eyebrow">
             <SearchCheck size={15} />
-            Verified insight signals
+            Insight signals
           </span>
           <h2>Inspect the evidence behind important business changes.</h2>
           <p>
@@ -122,16 +123,14 @@ export default function IntelligenceInsightsPage() {
         </div>
       </section>
 
-      <div className="sf-welcome-actions">
-        <button
+      <NotificationRefresh><button
           type="button"
           className="intelligence-primary-action"
           onClick={loadOverview}
         >
           <RefreshCw size={16} />
           Refresh signals
-        </button>
-      </div>
+        </button></NotificationRefresh>
 
       <section className="intelligence-insights-grid">
         <InsightCard

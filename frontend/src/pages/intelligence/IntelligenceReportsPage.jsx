@@ -4,7 +4,6 @@ import {
   FileBarChart2,
   History,
   LoaderCircle,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -238,18 +237,11 @@ export default function IntelligenceReportsPage() {
           </span>
           <h2>Turn verified StockFlow records into management reports.</h2>
           <p>
-            Every figure is calculated by Django. AI is optional and can
-            only explain the verified report; it never changes the figures.
+            Create management reports from your business records, with an optional narrative.
           </p>
         </div>
 
-        <div className="intelligence-ask-readonly">
-          <ShieldCheck size={18} />
-          <div>
-            <strong>Authoritative figures</strong>
-            <span>PDF downloads use GHS for reliable document rendering.</span>
-          </div>
-        </div>
+
       </section>
 
       {error ? (

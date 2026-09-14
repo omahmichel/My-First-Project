@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import "../../styles/welcome-actions.css";
 import {
   AlertTriangle,
@@ -126,14 +127,12 @@ export default function IntelligenceForecastsPage() {
           </span>
           <h2>See what the verified sales history suggests next.</h2>
           <p>
-            Forecasts use completed-day history, recent weighted demand,
-            trend and confidence rather than an AI guess.
+            Explore expected demand based on your sales history.
           </p>
         </div>
       </section>
 
-      <div className="sf-welcome-actions">
-        <button
+      <NotificationRefresh><button
           type="button"
           className="intelligence-primary-action"
           onClick={generateFreshForecast}
@@ -144,8 +143,7 @@ export default function IntelligenceForecastsPage() {
             size={16}
           />
           {generating ? "Generating..." : "Generate fresh forecast"}
-        </button>
-      </div>
+        </button></NotificationRefresh>
 
       <div className="intelligence-horizon-tabs">
         {HORIZONS.map((days) => (
@@ -353,46 +351,7 @@ export default function IntelligenceForecastsPage() {
             </article>
           </section>
 
-          <details className="intelligence-methodology">
-            <summary>Forecast methodology and evidence</summary>
-            <div>
-              <p>
-                Algorithm: <strong>{forecast.algorithm}</strong>{" "}
-                {forecast.algorithmVersion
-                  ? `v${forecast.algorithmVersion}`
-                  : ""}
-              </p>
-              <p>
-                Historical margin:{" "}
-                <strong>
-                  {formatPercent(
-                    forecast.businessForecast
-                      ?.historicalMarginPercent,
-                  )}
-                </strong>
-              </p>
-              <p>
-                Revenue direction:{" "}
-                <strong>
-                  {titleCase(
-                    forecast.businessForecast?.revenueDirection,
-                  )}
-                </strong>
-              </p>
-              <p>
-                Underlying data confidence:{" "}
-                <strong>
-                  {titleCase(
-                    forecast.confidence?.dataGrade ||
-                      forecast.confidence?.grade,
-                  )}
-                </strong>
-              </p>
-              <pre>
-                {JSON.stringify(forecast.methodology || {}, null, 2)}
-              </pre>
-            </div>
-          </details>
+
         </>
       ) : null}
     </div>

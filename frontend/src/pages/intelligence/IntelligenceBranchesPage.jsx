@@ -1,3 +1,4 @@
+import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import "../../styles/welcome-actions.css";
 import {
   ArrowRightLeft,
@@ -305,22 +306,19 @@ export default function IntelligenceBranchesPage() {
             <span>{business.name}</span>
             <span>•</span>
             <span>Working branch: {branch?.name || "Loading..."}</span>
-            <span>•</span>
-            <span>Django-calculated</span>
+
           </div>
         </div>
       </section>
 
-      <div className="sf-welcome-actions">
-        <button
+      <NotificationRefresh><button
           type="button"
           className="intelligence-primary-action"
           onClick={() => refreshAll()}
           disabled={loading || actionLoading}
         >
           <RefreshCw size={16} /> Refresh
-        </button>
-      </div>
+        </button></NotificationRefresh>
 
       {notice ? (
         <div className={`intelligence-branch-notice ${notice.tone}`}>

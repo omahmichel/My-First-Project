@@ -1,0 +1,7 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Internal StockFlow administration. Business workspace roles do not grant access here.</p>
+{% for title, description in notices %}
+<div class="module"><h2>{{ title }}</h2><p style="padding:12px">{{ description }}</p></div>
+{% endfor %}
+{% endblock %}
