@@ -13,14 +13,12 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
-import { sendSaleWhatsAppDocument } from "../../services/api";
 import {
-  downloadInvoicePdf,
   exportInvoiceList,
   formatPaymentMethod,
   prepareInvoiceShare,
 } from "../../utils/invoiceDocuments";
-import { documentDeliveryMessage } from "../../utils/documentDelivery";
+import { canShareInvoiceFile, downloadInvoiceFile, shareInvoiceFile } from "../../utils/invoiceFileDelivery";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
 import "../../styles/invoice-document-actions.css";
@@ -31,6 +29,9 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [sharingInvoiceId, setSharingInvoiceId] = useState(null);
+  const [preparedShare, setPreparedShare] = useState(null);
+  const [shareMessage, setShareMessage] = useState("");
+  const [shareError, setShareError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -103,39 +104,47 @@ export default function InvoicesPage() {
     clearActionFeedback();
 
     try {
-      const result = downloadInvoicePdf(invoice, business);
-      setActionMessage(documentDeliveryMessage(result));
+      const prepared = prepareInvoiceShare(invoice, business);
+      setActionMessage(downloadInvoiceFile(prepared));
     } catch (error) {
       setActionError(error.message || "The invoice PDF could not be created.");
     }
   }
 
-  async function handleShareInvoice(invoice) {
+  function handleShareInvoice(invoice) {
     clearActionFeedback();
-    setSharingInvoiceId(invoice.id);
-
+    setShareMessage("");
+    setShareError("");
     try {
-      const prepared = prepareInvoiceShare(invoice, business);
-
-      const result = await sendSaleWhatsAppDocument(
-        business?.id,
-        invoice.id,
-        {
-          documentType: "invoice",
-          file: prepared.file,
-        },
-      );
-
-      setActionMessage(
-        `${result.filename || prepared.filename} sent to `
-          + `${invoice.customerName || "the customer"} on WhatsApp.`,
-      );
+      setPreparedShare({ ...prepareInvoiceShare(invoice, business), invoiceId: invoice.id });
     } catch (error) {
-      setActionError(
-        error.message || "The invoice could not be sent on WhatsApp.",
-      );
+      setActionError(error.message || "The invoice PDF could not be created.");
+    }
+  }
+
+  async function handleShareFile() {
+    if (!preparedShare || sharingInvoiceId) return;
+    setSharingInvoiceId(preparedShare.invoiceId);
+    setShareError("");
+    setShareMessage("");
+    try {
+      await shareInvoiceFile(preparedShare);
+      setShareMessage("Invoice handed to the selected app. Check that app to confirm delivery.");
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        setShareError("File sharing could not open. Download the PDF below and attach it in WhatsApp.");
+      }
     } finally {
       setSharingInvoiceId(null);
+    }
+  }
+
+  function handleShareDownload() {
+    setShareError("");
+    try {
+      setShareMessage(downloadInvoiceFile(preparedShare));
+    } catch (error) {
+      setShareError(error.message || "The PDF download could not start.");
     }
   }
 
@@ -351,6 +360,34 @@ export default function InvoicesPage() {
       </section>
 
       <Modal
+        open={Boolean(preparedShare)}
+        onClose={() => { if (!sharingInvoiceId) setPreparedShare(null); }}
+        title="Share your invoice"
+      >
+        {preparedShare ? (
+          <div className="page-stack">
+            <p>{preparedShare.filename}</p>
+            {canShareInvoiceFile(preparedShare.file) ? (
+              <>
+                <p>Choose WhatsApp or another app, then select your recipient. The invoice is attached as a PDF document.</p>
+                <Button onClick={handleShareFile} disabled={Boolean(sharingInvoiceId)}>
+                  <Share2 size={17} />
+                  {sharingInvoiceId ? "Sharing..." : "Share PDF file"}
+                </Button>
+              </>
+            ) : (
+              <p>Download the PDF, then attach it in WhatsApp or another app.</p>
+            )}
+            <Button variant="secondary" onClick={handleShareDownload} disabled={Boolean(sharingInvoiceId)}>
+              <Download size={17} /> Download PDF
+            </Button>
+            {shareMessage ? <p role="status">{shareMessage}</p> : null}
+            {shareError ? <p role="alert" className="danger-text">{shareError}</p> : null}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
         open={Boolean(selectedInvoice)}
         onClose={() => setSelectedInvoice(null)}
         title="Invoice preview"
@@ -358,6 +395,8 @@ export default function InvoicesPage() {
       >
         {selectedInvoice ? (
           <div className="invoice-document">
+            {actionMessage ? <p role="status">{actionMessage}</p> : null}
+            {actionError ? <p role="alert" className="danger-text">{actionError}</p> : null}
             <header>
               <div>
                 <span className="invoice-document-logo">S</span>

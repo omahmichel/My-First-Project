@@ -15,12 +15,12 @@ import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 import { useStore } from "../../context/StoreContext";
-import { documentDeliveryMessage } from "../../utils/documentDelivery";
+import PdfDeliveryDialog from "../../components/ui/PdfDeliveryDialog";
 import { formatCurrency } from "../../utils/formatters";
 import {
   exportBusinessReportCsv,
   exportBusinessReportExcel,
-  exportBusinessReportPdf,
+  prepareBusinessReportPdf,
 } from "../../utils/reportExport";
 
 import "../../styles/invoice-document-actions.css";
@@ -46,6 +46,7 @@ export default function ReportsPage() {
     customersError,
   } = useStore();
 
+  const [preparedPdf, setPreparedPdf] = useState(null);
   const [range, setRange] = useState("30");
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
@@ -206,8 +207,8 @@ export default function ReportsPage() {
       let filename = "";
 
       if (format === "pdf") {
-        const result = exportBusinessReportPdf(payload);
-        setActionMessage(documentDeliveryMessage(result));
+        const prepared = prepareBusinessReportPdf(payload);
+        setPreparedPdf({ ...prepared, businessId: business.id });
         return;
       } else if (format === "excel") {
         filename = await exportBusinessReportExcel(payload);
@@ -500,6 +501,13 @@ export default function ReportsPage() {
           </p>
         </article>
       </section>
+      {preparedPdf && preparedPdf.businessId === business.id ? (
+        <PdfDeliveryDialog
+          prepared={preparedPdf}
+          title="Share your report"
+          onClose={() => setPreparedPdf(null)}
+        />
+      ) : null}
     </div>
   );
 }

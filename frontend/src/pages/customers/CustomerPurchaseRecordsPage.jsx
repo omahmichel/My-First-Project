@@ -9,7 +9,7 @@ import {
   Share2,
   Truck,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
@@ -17,17 +17,14 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
-import { sendSaleWhatsAppDocument } from "../../services/api";
 import {
-  downloadInvoicePdf,
-  downloadReceiptPdf,
-  downloadWaybillPdf,
-  exportCustomerStatementPdf,
   prepareCustomerStatementShare,
   prepareReceiptShare,
-  shareCustomerStatement,
+  prepareInvoiceShare,
+  createWaybillPdf,
 } from "../../utils/invoiceDocuments";
-import { documentDeliveryMessage } from "../../utils/documentDelivery";
+import { preparePdfShare } from "../../utils/documentDelivery";
+import { canShareInvoiceFile, downloadInvoiceFile, shareInvoiceFile } from "../../utils/invoiceFileDelivery";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
 import "../../styles/customer-purchase-records.css";
@@ -56,11 +53,12 @@ export default function CustomerPurchaseRecordsPage() {
     status: "pending",
   });
   const [message, setMessage] = useState("");
-  const [sharingStatement, setSharingStatement] = useState(false);
-  const [sharingReceiptId, setSharingReceiptId] = useState(null);
+  const [preparedDocument, setPreparedDocument] = useState(null);
+  const [sharingDocument, setSharingDocument] = useState(false);
+  const [documentMessage, setDocumentMessage] = useState("");
+  const [documentError, setDocumentError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const preparedStatementShare = useRef(null);
 
   const selectedCustomerId = searchParams.get("customer") || "all";
 
@@ -176,8 +174,7 @@ export default function CustomerPurchaseRecordsPage() {
     setMessage("");
 
     try {
-      const result = downloadInvoicePdf(sale, business);
-      setMessage(documentDeliveryMessage(result));
+      setMessage(downloadInvoiceFile(prepareInvoiceShare(sale, business)));
     } catch (error) {
       setMessage(error.message);
     }
@@ -187,44 +184,66 @@ export default function CustomerPurchaseRecordsPage() {
     setMessage("");
 
     try {
-      const result = downloadReceiptPdf(receipt, sale, business);
-      setMessage(documentDeliveryMessage(result));
+      setMessage(downloadInvoiceFile(prepareReceiptShare(receipt, sale, business)));
     } catch (error) {
       setMessage(error.message);
     }
   }
 
-  async function handleReceiptShare(receipt, sale) {
+  function openDocumentShare(prepare) {
     setMessage("");
-    setSharingReceiptId(receipt.id);
-
+    setDocumentMessage("");
+    setDocumentError("");
     try {
-      const prepared = prepareReceiptShare(
-        receipt,
-        sale,
-        business,
-      );
-
-      const result = await sendSaleWhatsAppDocument(
-        business?.id,
-        sale.id,
-        {
-          documentType: "receipt",
-          paymentId: receipt.id,
-          file: prepared.file,
-        },
-      );
-
-      setMessage(
-        `${result.filename || prepared.filename} sent to `
-          + `${sale.customerName || "the customer"} on WhatsApp.`,
-      );
+      setPreparedDocument(prepare());
     } catch (error) {
-      setMessage(
-        error.message || "The receipt could not be sent on WhatsApp.",
-      );
+      setMessage(error.message || "The PDF could not be created.");
+    }
+  }
+
+  function handleReceiptShare(receipt, sale) {
+    openDocumentShare(() => prepareReceiptShare(receipt, sale, business));
+  }
+
+  function prepareWaybillFile(sale) {
+    const number = String(sale?.waybill?.waybillNumber || "").trim();
+    if (!number) throw new Error("Save the waybill before sharing it.");
+    const filename = (number.replace(/[^a-zA-Z0-9_.-]+/g, "-") || "waybill") + ".pdf";
+    return preparePdfShare({
+      pdf: createWaybillPdf(sale, business),
+      filename,
+      title: number,
+      label: "Waybill",
+    });
+  }
+
+  function handleWaybillShare(sale) {
+    openDocumentShare(() => prepareWaybillFile(sale));
+  }
+
+  async function handleDocumentShare() {
+    if (!preparedDocument || sharingDocument) return;
+    setSharingDocument(true);
+    setDocumentMessage("");
+    setDocumentError("");
+    try {
+      await shareInvoiceFile(preparedDocument);
+      setDocumentMessage("PDF handed to the selected app. Check that app to confirm delivery.");
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        setDocumentError("Sharing could not open. Download the PDF below, then attach it in your chosen app.");
+      }
     } finally {
-      setSharingReceiptId(null);
+      setSharingDocument(false);
+    }
+  }
+
+  function handleDocumentDownload() {
+    setDocumentError("");
+    try {
+      setDocumentMessage(downloadInvoiceFile(preparedDocument));
+    } catch (error) {
+      setDocumentError(error.message || "The PDF download could not start.");
     }
   }
 
@@ -278,8 +297,7 @@ export default function CustomerPurchaseRecordsPage() {
     setMessage("");
 
     try {
-      const result = downloadWaybillPdf(sale, business);
-      setMessage(documentDeliveryMessage(result));
+      setMessage(downloadInvoiceFile(prepareWaybillFile(sale)));
     } catch (error) {
       setMessage(error.message);
     }
@@ -294,76 +312,27 @@ export default function CustomerPurchaseRecordsPage() {
     }
 
     try {
-      const result = exportCustomerStatementPdf(
+      const prepared = prepareCustomerStatementShare(
         selectedCustomer,
         filteredSales,
         payments,
         business,
       );
-      setMessage(documentDeliveryMessage(result));
+      setMessage(downloadInvoiceFile(prepared));
     } catch (error) {
       setMessage(error.message);
     }
   }
 
 
-  function prepareShareStatement() {
+  function handleStatementShare() {
     if (!selectedCustomer) {
-      preparedStatementShare.current = null;
+      setMessage("Select a named customer before sharing a statement.");
       return;
     }
-
-    try {
-      preparedStatementShare.current =
-        prepareCustomerStatementShare(
-          selectedCustomer,
-          filteredSales,
-          payments,
-          business,
-        );
-    } catch {
-      preparedStatementShare.current = null;
-    }
-  }
-
-  async function handleStatementShare() {
-    setMessage("");
-
-    if (!selectedCustomer) {
-      setMessage(
-        "Select a named customer before sharing a statement.",
-      );
-      return;
-    }
-
-    const preparedShare = preparedStatementShare.current;
-    preparedStatementShare.current = null;
-
-    try {
-      const sharePromise = shareCustomerStatement(
-        selectedCustomer,
-        filteredSales,
-        payments,
-        business,
-        preparedShare,
-      );
-      setSharingStatement(true);
-
-      const result = await sharePromise;
-
-      setMessage(result);
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        setMessage("Sharing was cancelled.");
-      } else {
-        setMessage(
-          error.message ||
-            "The customer statement could not be shared.",
-        );
-      }
-    } finally {
-      setSharingStatement(false);
-    }
+    openDocumentShare(() => prepareCustomerStatementShare(
+      selectedCustomer, filteredSales, payments, business,
+    ));
   }
 
   return (
@@ -376,18 +345,14 @@ export default function CustomerPurchaseRecordsPage() {
           <div className="purchase-statement-actions">
             <Button
               variant="secondary"
-              onPointerDown={prepareShareStatement}
               onClick={handleStatementShare}
               disabled={
-                sharingStatement ||
                 !selectedCustomer ||
                 !filteredSales.length
               }
             >
               <Share2 size={17} />
-              {sharingStatement
-                ? "Sharing..."
-                : "Share statement"}
+              Share statement
             </Button>
 
             <Button
@@ -638,7 +603,34 @@ export default function CustomerPurchaseRecordsPage() {
       </section>
 
       <Modal
-        open={Boolean(selectedSale)}
+        open={Boolean(preparedDocument)}
+        onClose={() => { if (!sharingDocument) setPreparedDocument(null); }}
+        title={preparedDocument?.label === "Waybill" ? "Share your waybill" : preparedDocument?.label === "Receipt" ? "Share your receipt" : "Share customer statement"}
+      >
+        {preparedDocument ? (
+          <div className="page-stack">
+            <p>{preparedDocument.filename}</p>
+            {canShareInvoiceFile(preparedDocument.file) ? (
+              <>
+                <p>Choose WhatsApp or another app, then select your recipient. Your document is attached as a PDF.</p>
+                <Button onClick={handleDocumentShare} disabled={sharingDocument}>
+                  <Share2 size={17} /> {sharingDocument ? "Sharing..." : "Share PDF file"}
+                </Button>
+              </>
+            ) : (
+              <p>Download the PDF, then attach it in WhatsApp or another app.</p>
+            )}
+            <Button variant="secondary" onClick={handleDocumentDownload} disabled={sharingDocument}>
+              <Download size={17} /> Download PDF
+            </Button>
+            {documentMessage ? <p role="status">{documentMessage}</p> : null}
+            {documentError ? <p role="alert" className="danger-text">{documentError}</p> : null}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(selectedSale) && !preparedDocument}
         onClose={() => setSelectedSale(null)}
         title={selectedSale?.saleNumber || "Purchase details"}
         description={
@@ -651,6 +643,7 @@ export default function CustomerPurchaseRecordsPage() {
       >
         {selectedSale ? (
           <div className="purchase-detail-content">
+            {message ? <p role="status">{message}</p> : null}
             <div className="purchase-detail-documents">
               <div>
                 <span>Invoice</span>
@@ -703,12 +696,9 @@ export default function CustomerPurchaseRecordsPage() {
                             onClick={() =>
                               handleReceiptShare(receipt, selectedSale)
                             }
-                            disabled={sharingReceiptId === receipt.id}
                           >
                             <Share2 size={15} />
-                            {sharingReceiptId === receipt.id
-                              ? "Sharing..."
-                              : "Share"}
+                            Share
                           </button>
 
                           <button
@@ -752,6 +742,10 @@ export default function CustomerPurchaseRecordsPage() {
                   </button>
 
                   {selectedSale.waybill ? (
+                    <>
+                    <button type="button" onClick={() => handleWaybillShare(selectedSale)}>
+                      <Share2 size={15} /> Share
+                    </button>
                     <button
                       type="button"
                       onClick={() =>
@@ -761,6 +755,7 @@ export default function CustomerPurchaseRecordsPage() {
                       <Download size={15} />
                       Download
                     </button>
+                    </>
                   ) : null}
                 </div>
               </div>

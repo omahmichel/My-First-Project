@@ -11,8 +11,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useStore } from "../../context/StoreContext";
 import { apiRequest } from "../../services/api";
-import { documentDeliveryMessage } from "../../utils/documentDelivery";
-import { exportIntelligenceReportPdf } from "../../utils/intelligenceReportExport";
+import PdfDeliveryDialog from "../../components/ui/PdfDeliveryDialog";
+import { prepareIntelligenceReportPdf } from "../../utils/intelligenceReportExport";
 import {
   formatDateTime,
   titleCase,
@@ -99,6 +99,7 @@ function QuestionBlock({ title, items }) {
 
 export default function IntelligenceReportsPage() {
   const { business } = useStore();
+  const [preparedPdf, setPreparedPdf] = useState(null);
   const [reports, setReports] = useState([]);
   const [selected, setSelected] = useState(null);
   const [reportType, setReportType] = useState("weekly_management");
@@ -208,11 +209,12 @@ export default function IntelligenceReportsPage() {
     if (!selectedReport) return;
 
     try {
-      const result = exportIntelligenceReportPdf({
+      const prepared = prepareIntelligenceReportPdf({
         business,
         report: selectedReport,
       });
-      setNotice(documentDeliveryMessage(result));
+      setPreparedPdf({ ...prepared, businessId: business.id });
+      setNotice("");
       setError("");
     } catch (downloadError) {
       setError(
@@ -491,6 +493,13 @@ export default function IntelligenceReportsPage() {
           )}
         </main>
       </div>
+      {preparedPdf && preparedPdf.businessId === business.id ? (
+        <PdfDeliveryDialog
+          prepared={preparedPdf}
+          title="Share your report"
+          onClose={() => setPreparedPdf(null)}
+        />
+      ) : null}
     </div>
   );
 }

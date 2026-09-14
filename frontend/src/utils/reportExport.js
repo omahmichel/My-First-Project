@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { deliverPdfDocument } from "./documentDelivery";
+import { downloadPdfFile, preparePdfShare } from "./documentDelivery";
 
 // Converts report values into a safe downloadable CSV document.
 
@@ -254,7 +254,7 @@ function addReportPdfFooters(pdf, businessName) {
   }
 }
 
-export function exportBusinessReportPdf({
+export function prepareBusinessReportPdf({
   business,
   rangeLabel,
   report,
@@ -474,7 +474,7 @@ export function exportBusinessReportPdf({
   addReportPdfFooters(pdf, businessName);
 
   const filename = reportFilename(business, "pdf");
-  return deliverPdfDocument(pdf, filename);
+  return preparePdfShare({ pdf, filename, label: "Report" });
 }
 
 function styleExcelHeading(cell) {
@@ -699,4 +699,9 @@ export async function exportBusinessReportExcel({
   const filename = reportFilename(business, "xlsx");
 
   return triggerWorkbookDownload(filename, buffer);
+}
+
+// Preserve direct-download behaviour for any other callers.
+export function exportBusinessReportPdf(options) {
+  return downloadPdfFile(prepareBusinessReportPdf(options));
 }

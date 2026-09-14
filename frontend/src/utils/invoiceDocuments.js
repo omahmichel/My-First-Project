@@ -13,10 +13,10 @@ function safeText(value, fallback = "Not recorded") {
 
 function safeFilename(value) {
   return safeText(value, "document")
-    .replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g, "-")
-    .replace(/\\s+/g, "-")
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+    .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-|-$/g, "") || "document";
 }
 
 function formatPdfCurrency(value) {

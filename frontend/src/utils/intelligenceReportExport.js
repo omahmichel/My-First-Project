@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import { autoTable } from "jspdf-autotable";
-import { deliverPdfDocument } from "./documentDelivery";
+import { downloadPdfFile, preparePdfShare } from "./documentDelivery";
 
 
 function safeText(value, fallback = "Not recorded") {
@@ -86,7 +86,7 @@ function addWrappedSection(pdf, title, lines, y, margin, pageWidth) {
 }
 
 
-export function exportIntelligenceReportPdf({ business, report }) {
+export function prepareIntelligenceReportPdf({ business, report }) {
   if (!report?.payload) {
     throw new Error("Select an Intelligence report before downloading.");
   }
@@ -263,5 +263,10 @@ export function exportIntelligenceReportPdf({ business, report }) {
     new Date(report.generatedAt).toISOString().slice(0, 10)
   }.pdf`;
 
-  return deliverPdfDocument(pdf, filename);
+  return preparePdfShare({ pdf, filename, label: "Report" });
+}
+
+// Preserve direct-download behaviour for any other callers.
+export function exportIntelligenceReportPdf(options) {
+  return downloadPdfFile(prepareIntelligenceReportPdf(options));
 }

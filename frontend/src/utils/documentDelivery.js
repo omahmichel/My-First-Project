@@ -1,116 +1,72 @@
-// Central delivery and sharing rules for StockFlow-generated documents.
+// Shared PDF delivery for all StockFlow businesses and document types.
+// New PDF exports should call deliverPdfDocument. Share dialogs can prepare a
+// file first, then call sharePdfFile directly from their final button click.
 
-function isMobileDevice() {
-  if (typeof navigator.userAgentData?.mobile === "boolean") {
-    return navigator.userAgentData.mobile;
+function pdfFilename(value) {
+  const name = String(value || "document.pdf")
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+    .trim();
+  if (!name || name.toLowerCase() === ".pdf") return "document.pdf";
+  return /\.pdf$/i.test(name) ? name : `${name}.pdf`;
+}
+
+export function canSharePdfFile(file) {
+  try {
+    return Boolean(window.isSecureContext && navigator.share &&
+      navigator.canShare?.({ files: [file] }));
+  } catch {
+    return false;
   }
-
-  return /Android|iPhone|iPad|iPod|Mobile/i.test(
-    navigator.userAgent || "",
-  );
 }
 
-function shouldPreviewPdf() {
-  return isMobileDevice() && !window.isSecureContext;
-}
-
-function openExternalUrl(url) {
+export function downloadPdfFile({ file, filename }) {
+  const name = pdfFilename(filename || file?.name);
   const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.target = "_blank";
-  anchor.rel = "noopener noreferrer";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  const url = URL.createObjectURL(file);
+  try {
+    anchor.href = url;
+    anchor.download = name;
+    document.body.appendChild(anchor);
+    anchor.click();
+  } finally {
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+  return { filename: name, deliveryMode: "download" };
 }
 
 export function deliverPdfDocument(pdf, filename) {
-  if (!shouldPreviewPdf()) {
-    pdf.save(filename);
-
-    return {
-      filename,
-      deliveryMode: "download",
-    };
-  }
-
-  const blob = pdf.output("blob");
-  const url = URL.createObjectURL(blob);
-
-  openExternalUrl(url);
-
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-
-  return {
-    filename,
-    deliveryMode: "preview",
-  };
+  return downloadPdfFile(preparePdfShare({ pdf, filename }));
 }
 
 export function documentDeliveryMessage(result) {
-  if (typeof result === "string") {
-    return `${result} downloaded successfully.`;
-  }
-
-  if (result?.deliveryMode === "preview") {
-    return `${result.filename} opened in the phone PDF viewer. Use the viewer to save, print or share it.`;
-  }
-
-  return `${result?.filename || "Document"} downloaded successfully.`;
+  const filename = typeof result === "string" ? result : result?.filename;
+  return `Download requested: ${filename || "Document"}. Check Downloads to open or share the file.`;
 }
 
-export function preparePdfShare({
-  pdf,
-  filename,
-  title,
-  label = "Document",
-}) {
-  const blob = pdf.output("blob");
-  const file = new File(
-    [blob],
-    filename,
-    { type: "application/pdf" },
-  );
-
-  return {
-    file,
-    filename,
-    title,
-    label,
-  };
+export function preparePdfShare({ pdf, filename, title, label = "Document" }) {
+  const name = pdfFilename(filename);
+  const file = new File([pdf.output("blob")], name, { type: "application/pdf" });
+  return { file, filename: name, title, label };
 }
 
-export async function sharePreparedPdfDocument({
-  file,
-  title,
-  label = "Document",
-}) {
-  if (!window.isSecureContext) {
-    throw new Error(
-      `${label} file sharing requires StockFlow to be opened over HTTPS. `
-      + "The current local HTTP connection can download or preview the PDF, "
-      + "but the browser will not securely attach it to WhatsApp.",
-    );
+// Strict sharing for dialogs that already offer a separate Download button.
+// Do not turn cancellation or a failed native share into an unwanted download.
+export function sharePdfFile({ file }) {
+  if (!canSharePdfFile(file)) {
+    throw new Error("Download the PDF, then attach it in WhatsApp or another app.");
   }
+  return navigator.share({ files: [file] });
+}
 
-  if (
-    !navigator.share ||
-    !navigator.canShare?.({ files: [file] })
-  ) {
-    throw new Error(
-      `This browser cannot share the ${label.toLowerCase()} PDF file directly. `
-      + "Download the PDF and share the file manually, or use a supported "
-      + "mobile browser on the secure StockFlow site.",
-    );
+// Compatibility entry point for existing one-button share callers.
+export async function sharePreparedPdfDocument(prepared) {
+  if (!canSharePdfFile(prepared.file)) {
+    return documentDeliveryMessage(downloadPdfFile(prepared))
+      + " To send it in WhatsApp, attach it as a Document.";
   }
-
-  // Invoke the native share API immediately from the final click.
-  await navigator.share({
-    title,
-    files: [file],
-  });
-
-  return `${label} PDF shared successfully.`;
+  await sharePdfFile(prepared);
+  return `${prepared.label || "Document"} PDF handed to the selected app. Check that app to confirm delivery.`;
 }
 
 export async function sharePdfDocument(options) {
