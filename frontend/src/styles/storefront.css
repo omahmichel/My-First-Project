@@ -18,7 +18,9 @@
 /* StockFlow business-controlled WhatsApp enquiries v1 */
 .sf-shop a.sf-shop-whatsapp{display:inline-flex;align-items:center;justify-content:center;border-radius:10px;padding:11px 16px;background:#1f7a4d;color:#fff;text-decoration:none;font-weight:700;line-height:1.2;margin-top:8px}
 .sf-shop a.sf-shop-whatsapp:hover{filter:brightness(.95)}
-.sf-shop a.sf-shop-whatsapp-product{margin:4px 0 16px;background:#eef7f1;color:#195b3c;border:1px solid #bad8c6;padding:10px 14px}
+.sf-shop a.sf-shop-whatsapp-product{display:flex;width:46px;height:46px;margin:4px 0 16px;padding:0;border:1px solid #1fbd5a;border-radius:50%;background:#25d366;color:#fff;box-shadow:0 5px 14px rgba(37,211,102,.24)}
+.sf-shop a.sf-shop-whatsapp-product:hover{background:#20c75a;filter:none;transform:translateY(-1px)}
+.sf-shop-whatsapp-icon{width:25px;height:25px;display:block}
 .sf-shop-whatsapp-settings{margin:18px 0;padding:18px;border:1px solid #dce4de;border-radius:12px;background:#f8fbf8}
 .sf-shop-whatsapp-settings h3{margin:0 0 8px;font-size:18px}
 .sf-shop-whatsapp-settings p{margin-bottom:0;color:#58675f}

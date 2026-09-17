@@ -106,7 +106,21 @@ function ShopCatalogue({ slug }) {
             )}
             target='_blank'
             rel='noopener noreferrer'
-          >Ask on WhatsApp</a>}
+          aria-label='Ask on WhatsApp'
+            title='Ask on WhatsApp'
+          >
+            <svg
+              className='sf-shop-whatsapp-icon'
+              viewBox='0 0 24 24'
+              aria-hidden='true'
+              focusable='false'
+            >
+              <path
+                fill='currentColor'
+                d='M12 2a9.2 9.2 0 0 0-7.9 13.9L3 22l6.2-1.6A9.2 9.2 0 1 0 12 2Zm0 16.7a7.4 7.4 0 0 1-3.8-1l-.4-.2-2.7.7.7-2.6-.3-.4A7.4 7.4 0 1 1 12 18.7Zm4.1-5.5c-.2-.1-1.3-.6-1.5-.7-.2-.1-.4-.1-.6.1-.2.2-.6.7-.8.9-.1.2-.3.2-.5.1-1.4-.7-2.4-1.3-3.3-2.9-.2-.3.2-.3.6-1.1.1-.2 0-.4 0-.5l-.7-1.7c-.2-.4-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.2-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.2-.2-.5-.3Z'
+              />
+            </svg>
+          </a>}
           <strong className='sf-shop-price'>{shopMoney(product.price)} <small>/ {product.unit}</small></strong>
           <p className={product.inStock ? 'sf-shop-available' : 'sf-shop-unavailable'}>{product.inStock ? 'In stock' : 'Currently unavailable'}</p>
           {product.description && <p className='sf-shop-description'>{product.description}</p>}
