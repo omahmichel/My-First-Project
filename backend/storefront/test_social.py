@@ -6,7 +6,10 @@ from .models import StorefrontListing, SocialChannel, SocialPublishingJob
 from .social import sync_social_shop
 
 
-@override_settings(ALLOWED_HOSTS=['testserver', 'localhost'])
+@override_settings(
+    ALLOWED_HOSTS=['testserver', 'localhost'],
+    STOCKFLOW_PUBLIC_BASE_URL='https://shops.stockflow.test',
+)
 class SocialPublishingTests(TestCase):
     def setUp(self):
         test_listings.ShopListingApiTests.setUp(self)
@@ -48,7 +51,18 @@ class SocialPublishingTests(TestCase):
         self.assertNotEqual(current.fingerprint, original.fingerprint)
         self.assertEqual(current.payload['description'], 'Updated description')
         self.assertEqual(current.payload['currency'], 'GHS')
+        self.assertEqual(current.payload['shopPath'], '/shops/' + self.business.slug)
         self.assertNotIn('costPrice', current.payload)
+
+    def test_social_settings_expose_dynamic_public_shop_link(self):
+        response = self.client.get(self.social + 'channels/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['shopPath'], '/shops/' + self.business.slug)
+        self.assertEqual(
+            response.data['shopUrl'],
+            'https://shops.stockflow.test/shops/' + self.business.slug,
+        )
+        self.assertNotIn('Trade Waves', response.data['shopUrl'])
 
     def test_enabling_includes_existing_published_listings(self):
         self.publish()

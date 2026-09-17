@@ -1,7 +1,4 @@
-"""Owner preferences and pending social publication records.
-
-Delivery adapters and OAuth connections are deliberately not activated here.
-"""
+"""Owner social-publishing preferences, current intents and delivery audit state."""
 import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -53,3 +50,39 @@ class SocialPublishingJob(models.Model):
     def save(self, *args, **kwargs):
         self.clean()
         return super().save(*args, **kwargs)
+
+class SocialDeliveryAttempt(models.Model):
+    class Status(models.TextChoices):
+        IN_PROGRESS = 'in_progress', 'In progress'
+        SUCCEEDED = 'succeeded', 'Succeeded'
+        FAILED = 'failed', 'Failed'
+        UNKNOWN = 'unknown', 'Outcome unknown'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(
+        SocialPublishingJob,
+        on_delete=models.CASCADE,
+        related_name='delivery_attempts',
+    )
+    fingerprint = models.CharField(max_length=64)
+    status = models.CharField(max_length=20, choices=Status.choices)
+    attempt_count = models.PositiveIntegerField(default=0)
+    provider_post_id = models.CharField(max_length=180, blank=True)
+    provider_container_id = models.CharField(max_length=180, blank=True)
+    error_message = models.CharField(max_length=500, blank=True)
+    started_at = models.DateTimeField(blank=True, null=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('job', 'fingerprint'),
+                name='sf_social_delivery_version_unique',
+            ),
+        ]
+        ordering = ('-updated_at', '-id')
+        indexes = [
+            models.Index(fields=('job', 'status'), name='sf_social_delivery_status'),
+        ]

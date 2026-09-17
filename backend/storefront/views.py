@@ -77,7 +77,7 @@ class PublicShopAPIView(APIView):
                 'designCode': product.design_code,
                 'styleCode': product.style_code,
                 'description': listing.description,
-                'imageUrl': product_photo_url(product, request) or listing.image_url,
+                'imageUrl': product_photo_url(product) or listing.image_url,
                 'availableQuantity': available,
                 'inStock': available > 0,
             })

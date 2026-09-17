@@ -15,11 +15,26 @@ from .orders import ShopOrdersAPIView, ShopOrderAPIView, ShopOrderCancelAPIView
 from .completion import ShopOrderCompleteAPIView
 
 from .social import SocialChannelsAPIView, SocialChannelAPIView, SocialJobsAPIView
+from .facebook_social import (
+    FacebookConnectAPIView,
+    FacebookOAuthCallbackAPIView,
+    FacebookPageSelectionAPIView,
+    FacebookDisconnectAPIView,
+)
+from .facebook_delivery import FacebookPublishJobAPIView
+from .instagram_delivery import InstagramMediaAPIView, InstagramPublishJobAPIView
 
 urlpatterns = [
+    path('businesses/<uuid:business_id>/storefront/social/facebook/connect/', FacebookConnectAPIView.as_view(), name='social-facebook-connect'),
+    path('businesses/<uuid:business_id>/storefront/social/facebook/select-page/', FacebookPageSelectionAPIView.as_view(), name='social-facebook-select-page'),
+    path('businesses/<uuid:business_id>/storefront/social/facebook/connection/', FacebookDisconnectAPIView.as_view(), name='social-facebook-disconnect'),
+    path('storefront/social/facebook/callback/', FacebookOAuthCallbackAPIView.as_view(), name='social-facebook-callback'),
     path('businesses/<uuid:business_id>/storefront/social/channels/', SocialChannelsAPIView.as_view(), name='social-channels'),
     path('businesses/<uuid:business_id>/storefront/social/channels/<str:platform>/', SocialChannelAPIView.as_view(), name='social-channel'),
     path('businesses/<uuid:business_id>/storefront/social/jobs/', SocialJobsAPIView.as_view(), name='social-jobs'),
+    path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/publish-facebook/', FacebookPublishJobAPIView.as_view(), name='social-facebook-publish-job'),
+    path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/publish-instagram/', InstagramPublishJobAPIView.as_view(), name='social-instagram-publish-job'),
+    path('storefront/social/instagram/media/', InstagramMediaAPIView.as_view(), name='social-instagram-media'),
     path('businesses/<uuid:business_id>/storefront/orders/<uuid:order_id>/complete/', ShopOrderCompleteAPIView.as_view(), name='shop-order-complete'),
     path('businesses/<uuid:business_id>/storefront/orders/', ShopOrdersAPIView.as_view(), name='shop-orders'),
     path('businesses/<uuid:business_id>/storefront/orders/<uuid:order_id>/', ShopOrderAPIView.as_view(), name='shop-order'),

@@ -12,7 +12,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .management import owner_business
-from .models import Storefront, StorefrontListing, SocialChannel, SocialPublishingJob
+from .public_urls import public_shop_path, public_shop_url
+from .models import Storefront, StorefrontListing, SocialChannel, SocialPublishingJob, SocialDeliveryAttempt
 from .serializers import StrictInputSerializer
 
 
@@ -43,7 +44,7 @@ def sync_social_listing(listing):
         'name': listing.product.name, 'sku': listing.product.sku,
         'price': str(listing.product.selling_price), 'currency': 'GHS',
         'description': listing.description, 'imageUrl': product_photo_url(listing.product) or listing.image_url,
-        'shopPath': '/shops/' + shop.business.slug,
+        'shopPath': public_shop_path(shop),
     }
     fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     cancel_jobs(rows.filter(channel__auto_publish=False))
@@ -66,13 +67,32 @@ def sync_social_shop(shop):
 
 
 def channel_data(shop):
+    # Connection credentials are business-scoped and encrypted in integrations.
+    # Only safe connection metadata is exposed to the frontend.
+    from .facebook_social import facebook_connection_summary, instagram_connection_summary
+
     existing = {row.platform: row for row in shop.social_channels.all()}
-    return {'channels': [
-        {'platform': value, 'label': label,
-         'autoPublish': existing[value].auto_publish if value in existing else False,
-         'connectionStatus': 'not_connected', 'deliveryAvailable': False}
-        for value, label in SocialChannel.Platform.choices
-    ]}
+    facebook = facebook_connection_summary(shop.business)
+    instagram = instagram_connection_summary(shop.business)
+    channels = []
+    for value, label in SocialChannel.Platform.choices:
+        row = {
+            'platform': value,
+            'label': label,
+            'autoPublish': existing[value].auto_publish if value in existing else False,
+            'connectionStatus': 'not_connected',
+            'deliveryAvailable': False,
+        }
+        if value == SocialChannel.Platform.FACEBOOK:
+            row.update(facebook)
+        elif value == SocialChannel.Platform.INSTAGRAM:
+            row.update(instagram)
+        channels.append(row)
+    return {
+        'channels': channels,
+        'shopPath': public_shop_path(shop),
+        'shopUrl': public_shop_url(shop),
+    }
 
 
 class SocialChannelInput(StrictInputSerializer):
@@ -113,6 +133,40 @@ class SocialJobsPagination(PageNumberPagination):
     page_size = 20
 
 
+def _delivery_data(row):
+    attempt = (
+        row.delivery_attempts.filter(fingerprint=row.fingerprint)
+        .order_by('-updated_at', '-id')
+        .first()
+    )
+    if attempt is None:
+        return {
+            'deliveryStatus': 'not_sent',
+            'deliveryAttemptCount': 0,
+            'deliveryError': '',
+            'remotePostId': '',
+            'remoteContainerId': '',
+            'publishedAt': None,
+        }
+    return {
+        'deliveryStatus': attempt.status,
+        'deliveryAttemptCount': attempt.attempt_count,
+        'deliveryError': attempt.error_message,
+        'remotePostId': (
+            attempt.provider_post_id
+            if attempt.status == SocialDeliveryAttempt.Status.SUCCEEDED
+            else ''
+        ),
+        'remoteContainerId': attempt.provider_container_id,
+        'publishedAt': (
+            attempt.completed_at.isoformat()
+            if attempt.status == SocialDeliveryAttempt.Status.SUCCEEDED
+            and attempt.completed_at
+            else None
+        ),
+    }
+
+
 class SocialJobsAPIView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -125,7 +179,7 @@ class SocialJobsAPIView(APIView):
         response = paginator.get_paginated_response([
             {'id': str(row.pk), 'platform': row.channel.platform,
              'productName': row.listing.product.name, 'status': row.status,
-             'updatedAt': row.updated_at.isoformat()}
+             'updatedAt': row.updated_at.isoformat(), **_delivery_data(row)}
             for row in page])
         response['Cache-Control'] = 'no-store'
         return response

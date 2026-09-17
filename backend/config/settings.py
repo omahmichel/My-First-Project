@@ -260,6 +260,18 @@ if not FRONTEND_BASE_URL:
         "FRONTEND_BASE_URL must contain the React application URL."
     )
 
+# Permanent public React base used for customer-facing StockFlow storefront links.
+# Leave blank during local-only development; production should use the real HTTPS domain.
+STOCKFLOW_PUBLIC_BASE_URL = os.getenv(
+    "STOCKFLOW_PUBLIC_BASE_URL",
+    "",
+).strip().rstrip("/")
+
+if STOCKFLOW_PUBLIC_BASE_URL and not STOCKFLOW_PUBLIC_BASE_URL.startswith("https://"):
+    raise ImproperlyConfigured(
+        "STOCKFLOW_PUBLIC_BASE_URL must use HTTPS when configured."
+    )
+
 # Keeps signed password-reset links short-lived.
 PASSWORD_RESET_TIMEOUT = get_env_positive_int(
     "DJANGO_PASSWORD_RESET_TIMEOUT_SECONDS",
@@ -477,6 +489,28 @@ if get_env_bool("DJANGO_TRUST_PROXY_SSL_HEADER", default=False):
 STOCKFLOW_INTEGRATION_DATA_KEY = os.getenv(
     "STOCKFLOW_INTEGRATION_DATA_KEY", ""
 ).strip()
+
+# Meta/Facebook Login for Business application configuration.
+# App secrets stay server-side and are never sent to React.
+META_APP_ID = os.getenv("META_APP_ID", "").strip()
+META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
+META_FACEBOOK_CONFIG_ID = os.getenv("META_FACEBOOK_CONFIG_ID", "").strip()
+META_FACEBOOK_REDIRECT_URI = os.getenv("META_FACEBOOK_REDIRECT_URI", "").strip()
+META_GRAPH_API_VERSION = (
+    os.getenv("META_GRAPH_API_VERSION", "v26.0").strip() or "v26.0"
+)
+META_SOCIAL_RETURN_URL = (
+    os.getenv("META_SOCIAL_RETURN_URL", "").strip()
+    or f"{FRONTEND_BASE_URL}/app/online-shop"
+)
+
+# Optional public HTTPS base used when Meta must fetch a StockFlow-hosted
+# product image for Instagram publishing. Local development can point this at
+# a short-lived HTTPS tunnel; production should use the real StockFlow domain.
+META_INSTAGRAM_MEDIA_BASE_URL = os.getenv(
+    "META_INSTAGRAM_MEDIA_BASE_URL",
+    "",
+).strip().rstrip("/")
 
 QUICKBOOKS_CLIENT_ID = os.getenv("QUICKBOOKS_CLIENT_ID", "").strip()
 QUICKBOOKS_CLIENT_SECRET = os.getenv("QUICKBOOKS_CLIENT_SECRET", "").strip()

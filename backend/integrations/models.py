@@ -428,6 +428,7 @@ class ProviderCredential(models.Model):
         ACCOUNTING = "accounting", "Accounting"
         COMMERCE = "commerce", "Commerce"
         MESSAGING = "messaging", "Messaging"
+        SOCIAL = "social", "Social publishing"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.ForeignKey(

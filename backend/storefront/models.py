@@ -261,4 +261,4 @@ class StorefrontActivity(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
-from .social_models import SocialChannel, SocialPublishingJob  # noqa: E402,F401
+from .social_models import SocialChannel, SocialPublishingJob, SocialDeliveryAttempt  # noqa: E402,F401
