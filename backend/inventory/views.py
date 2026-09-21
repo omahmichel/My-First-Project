@@ -37,7 +37,7 @@ def product_inventory_summary_queryset(queryset, *, branch=None):
             )
         )
 
-    return queryset.select_related("uploaded_photo").annotate(
+    return queryset.select_related("uploaded_photo", "uploaded_video").annotate(
         quantity_sold=-1 * Coalesce(
             Sum("stock_movements__quantity", filter=movement_filter),
             Value(0),
@@ -388,4 +388,3 @@ class ProductStockAdjustmentAPIView(
             },
             status=status.HTTP_201_CREATED,
         )
-

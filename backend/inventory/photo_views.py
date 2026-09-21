@@ -82,6 +82,36 @@ class ProductPhotoUploadAPIView(BusinessProductAccessMixin, APIView):
         return response
 
 
+    def delete(self, request, business_id, product_id, prepare=False):
+        _, denied = self.require_inventory_write_access()
+        if denied is not None:
+            return denied
+        product = self.get_product()  # Enforces the existing business/branch access rules.
+        if prepare:
+            raise ValidationError({'image': 'Delete a saved photo using the product photo endpoint.'})
+        from storefront.models import Storefront, StorefrontListing
+        from storefront.social import sync_social_listing
+        with transaction.atomic():
+            Storefront.objects.select_for_update().filter(business_id=product.business_id).first()
+            product = Product.objects.select_for_update().get(pk=product.pk)
+            photo = ProductPhoto.objects.filter(product=product).first()
+            if photo:
+                storage, old_name = photo.image.storage, photo.image.name
+                photo.delete()
+                if old_name:
+                    transaction.on_commit(lambda: delete_replaced_file(storage, old_name))
+            # Remove the alternate listing image too, so it cannot reappear as
+            # a fallback after deleting an uploaded photo. External files are not deleted.
+            for listing in StorefrontListing.objects.filter(product=product, storefront__business_id=product.business_id):
+                if listing.image_url:
+                    listing.image_url = ''
+                    listing.save(update_fields=['image_url'])
+                sync_social_listing(listing)
+        response = Response({'productId': str(product.pk), 'imageUrl': ''})
+        response['Cache-Control'] = 'no-store'
+        return response
+
+
 class PhotoReadThrottle(UserRateThrottle):
     scope = 'product_photo_read'
     rate = '240/min'

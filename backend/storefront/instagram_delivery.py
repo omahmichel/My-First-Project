@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from integrations.provider_credentials import get_provider_credential, touch_provider_credential
+from inventory.video_urls import product_video_url
 
 from .facebook_delivery import _whatsapp_link_for
 from .management import owner_business
@@ -31,6 +32,7 @@ CATEGORY = 'social'
 MEDIA_SALT = 'stockflow.instagram.product-media.v1'
 MEDIA_MAX_AGE_SECONDS = 1800
 CONTAINER_STATUS_MAX_ATTEMPTS = 6
+VIDEO_CONTAINER_STATUS_MAX_ATTEMPTS = 30
 CONTAINER_STATUS_DELAY_SECONDS = 2
 
 
@@ -117,6 +119,13 @@ def _product_photo(job):
         return None
 
 
+def _product_video(job):
+    try:
+        return job.listing.product.uploaded_video
+    except ObjectDoesNotExist:
+        return None
+
+
 def _is_public_https_url(raw_url):
     try:
         parsed = urlparse(str(raw_url or '').strip())
@@ -189,6 +198,33 @@ def _image_url_for(job, request):
     })
 
 
+
+def _video_url_for(job, request):
+    video = _product_video(job)
+    if video is None:
+        return ''
+
+    path = product_video_url(job.listing.product)
+    configured_base = str(
+        getattr(settings, 'META_INSTAGRAM_MEDIA_BASE_URL', '') or ''
+    ).strip().rstrip('/')
+    if configured_base:
+        candidate = configured_base + path
+        if _is_public_https_url(candidate):
+            return candidate
+
+    candidate = request.build_absolute_uri(path)
+    if _is_public_https_url(candidate):
+        return candidate
+
+    raise ValidationError({
+        'instagram': (
+            'Instagram needs a publicly reachable HTTPS product video. '
+            'This StockFlow video is only reachable locally right now. '
+            'Use a public StockFlow HTTPS address before publishing the Reel.'
+        )
+    })
+
 def _attempt_response(attempt):
     return {
         'deliveryStatus': attempt.status,
@@ -221,6 +257,7 @@ def _claim_attempt(*, business, job_id):
                 'channel__storefront__branch',
                 'listing__product',
                 'listing__product__uploaded_photo',
+                'listing__product__uploaded_video',
             )
             .get(pk=probe.pk)
         )
@@ -288,13 +325,14 @@ def _finalize_attempt(*, attempt_id, status, provider_post_id='', error_message=
 
 
 
-def _wait_for_container_ready(*, container_id, page_token, credential_row):
+def _wait_for_container_ready(*, container_id, page_token, credential_row, max_attempts=None):
+    max_attempts = max_attempts or CONTAINER_STATUS_MAX_ATTEMPTS
     common = {
         'access_token': page_token,
         'appsecret_proof': _appsecret_proof(page_token),
     }
 
-    for attempt_number in range(1, CONTAINER_STATUS_MAX_ATTEMPTS + 1):
+    for attempt_number in range(1, max_attempts + 1):
         try:
             response = requests.get(
                 _graph_url(container_id),
@@ -304,7 +342,7 @@ def _wait_for_container_ready(*, container_id, page_token, credential_row):
             )
             touch_provider_credential(credential_row)
         except requests.RequestException:
-            if attempt_number < CONTAINER_STATUS_MAX_ATTEMPTS:
+            if attempt_number < max_attempts:
                 time.sleep(CONTAINER_STATUS_DELAY_SECONDS)
                 continue
             return (
@@ -314,7 +352,7 @@ def _wait_for_container_ready(*, container_id, page_token, credential_row):
             )
 
         if not 200 <= response.status_code < 300:
-            if response.status_code >= 500 and attempt_number < CONTAINER_STATUS_MAX_ATTEMPTS:
+            if response.status_code >= 500 and attempt_number < max_attempts:
                 time.sleep(CONTAINER_STATUS_DELAY_SECONDS)
                 continue
             return (
@@ -360,7 +398,7 @@ def _wait_for_container_ready(*, container_id, page_token, credential_row):
                 f'{status_code}. StockFlow will not retry automatically.',
             )
 
-        if attempt_number < CONTAINER_STATUS_MAX_ATTEMPTS:
+        if attempt_number < max_attempts:
             time.sleep(CONTAINER_STATUS_DELAY_SECONDS)
 
     return (
@@ -377,7 +415,8 @@ def publish_instagram_job(*, business, job_id, request):
         return attempt
 
     try:
-        image_url = _image_url_for(job, request)
+        video_url = _video_url_for(job, request)
+        image_url = '' if video_url else _image_url_for(job, request)
     except ValidationError as exc:
         detail = exc.detail.get('instagram') if isinstance(exc.detail, dict) else exc.detail
         return _finalize_attempt(
@@ -392,9 +431,19 @@ def publish_instagram_job(*, business, job_id, request):
     }
 
     try:
+        media_data = {'caption': _caption_for(job), **common}
+        if video_url:
+            media_data.update({
+                'media_type': 'REELS',
+                'video_url': video_url,
+                'share_to_feed': 'true',
+            })
+        else:
+            media_data['image_url'] = image_url
+
         create_response = requests.post(
             _graph_url(f'{account_id}/media'),
-            data={'image_url': image_url, 'caption': _caption_for(job), **common},
+            data=media_data,
             timeout=30,
             allow_redirects=False,
         )
@@ -431,6 +480,7 @@ def publish_instagram_job(*, business, job_id, request):
         container_id=container_id,
         page_token=page_token,
         credential_row=credential_row,
+        max_attempts=(VIDEO_CONTAINER_STATUS_MAX_ATTEMPTS if video_url else None),
     )
     if readiness != 'ready':
         return _finalize_attempt(
@@ -523,6 +573,7 @@ class InstagramMediaAPIView(APIView):
                 'channel__storefront__branch',
                 'listing__product',
                 'listing__product__uploaded_photo',
+                'listing__product__uploaded_video',
             ),
             pk=data.get('job'),
             fingerprint=data.get('fingerprint'),

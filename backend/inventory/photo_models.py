@@ -11,3 +11,30 @@ class ProductPhoto(models.Model):
     version = models.UUIDField(default=uuid.uuid4, editable=False)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class ProductVideo(models.Model):
+    """One optional social-publishing video attached to a product."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.OneToOneField(
+        'inventory.Product',
+        on_delete=models.CASCADE,
+        related_name='uploaded_video',
+    )
+    video = models.FileField(
+        storage=product_photo_storage,
+        upload_to='product-videos/',
+        max_length=255,
+    )
+    version = models.UUIDField(default=uuid.uuid4, editable=False)
+    content_type = models.CharField(max_length=80, default='video/mp4')
+    extension = models.CharField(max_length=8, default='mp4')
+    size_bytes = models.PositiveBigIntegerField(default=0)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    updated_at = models.DateTimeField(auto_now=True)

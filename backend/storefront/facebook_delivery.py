@@ -132,6 +132,7 @@ def _attempt_response(attempt):
         'deliveryStatus': attempt.status,
         'attemptCount': attempt.attempt_count,
         'remotePostId': attempt.provider_post_id if attempt.status == SocialDeliveryAttempt.Status.SUCCEEDED else '',
+        'remoteContainerId': attempt.provider_container_id,
         'error': attempt.error_message,
         'publishedAt': (
             attempt.completed_at.isoformat()
@@ -158,6 +159,7 @@ def _claim_attempt(*, business, job_id):
                 'channel__storefront__branch',
                 'listing__product',
                 'listing__product__uploaded_photo',
+                'listing__product__uploaded_video',
             )
             .get(pk=probe.pk)
         )
@@ -192,6 +194,7 @@ def _claim_attempt(*, business, job_id):
         attempt.status = SocialDeliveryAttempt.Status.IN_PROGRESS
         attempt.attempt_count += 1
         attempt.provider_post_id = ''
+        attempt.provider_container_id = ''
         attempt.error_message = ''
         attempt.started_at = timezone.now()
         attempt.completed_at = None
@@ -199,6 +202,7 @@ def _claim_attempt(*, business, job_id):
             'status',
             'attempt_count',
             'provider_post_id',
+            'provider_container_id',
             'error_message',
             'started_at',
             'completed_at',
@@ -229,6 +233,21 @@ def _product_photo(job):
         return job.listing.product.uploaded_photo
     except ObjectDoesNotExist:
         return None
+
+
+def _product_video(job):
+    try:
+        return job.listing.product.uploaded_video
+    except ObjectDoesNotExist:
+        return None
+
+
+def _remember_container(attempt_id, container_id):
+    with transaction.atomic():
+        attempt = SocialDeliveryAttempt.objects.select_for_update().get(pk=attempt_id)
+        attempt.provider_container_id = str(container_id)[:180]
+        attempt.save(update_fields=('provider_container_id', 'updated_at'))
+        return attempt
 
 
 def _send_to_meta(*, job, page_id, page_token):
@@ -270,11 +289,169 @@ def _send_to_meta(*, job, page_id, page_token):
         ), True
 
 
+
+def _publish_video_reel(*, job, attempt, page_id, page_token, credential_row):
+    video = _product_video(job)
+    if video is None:
+        return None
+
+    common = {
+        'access_token': page_token,
+        'appsecret_proof': _appsecret_proof(page_token),
+    }
+
+    try:
+        create_response = requests.post(
+            _graph_url(f'{page_id}/video_reels'),
+            data={'upload_phase': 'start', **common},
+            timeout=30,
+            allow_redirects=False,
+        )
+        touch_provider_credential(credential_row)
+    except requests.RequestException:
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.FAILED,
+            error_message=(
+                'Meta could not confirm creation of the Facebook Reel upload session. '
+                'No publish request was sent, so this delivery may be retried.'
+            ),
+        )
+
+    if not 200 <= create_response.status_code < 300:
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.FAILED,
+            error_message=_safe_meta_error(
+                create_response,
+                'Meta rejected the Facebook Reel upload session',
+            ),
+        )
+
+    try:
+        create_payload = create_response.json()
+    except ValueError:
+        create_payload = {}
+    video_id = str(create_payload.get('video_id', '')).strip() if isinstance(create_payload, dict) else ''
+    if not video_id:
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.FAILED,
+            error_message='Meta returned success without a Facebook Reel video ID. No publish request was sent.',
+        )
+
+    _remember_container(attempt.id, video_id)
+
+    try:
+        video_file = video.video.storage.open(video.video.name, 'rb')
+    except (OSError, ValueError):
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.FAILED,
+            error_message='The stored product video could not be opened. Upload the product video again before publishing.',
+        )
+
+    upload_url = f'https://rupload.facebook.com/video-upload/{settings.META_GRAPH_API_VERSION}/{video_id}'
+    try:
+        with video_file:
+            upload_response = requests.post(
+                upload_url,
+                headers={
+                    'Authorization': f'OAuth {page_token}',
+                    'offset': '0',
+                    'file_size': str(video.size_bytes),
+                    'Content-Type': 'application/octet-stream',
+                },
+                data=video_file,
+                timeout=120,
+                allow_redirects=False,
+            )
+        touch_provider_credential(credential_row)
+    except requests.RequestException:
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.FAILED,
+            error_message=(
+                'Meta could not confirm the Facebook Reel video upload. '
+                'No publish request was sent, so this delivery may be retried.'
+            ),
+        )
+
+    if not 200 <= upload_response.status_code < 300:
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.FAILED,
+            error_message=_safe_meta_error(
+                upload_response,
+                'Meta rejected the Facebook Reel video upload',
+            ),
+        )
+
+    payload = job.payload if isinstance(job.payload, dict) else {}
+    title = ' '.join(str(payload.get('name', '')).split())[:255] or 'Product'
+    try:
+        publish_response = requests.post(
+            _graph_url(f'{page_id}/video_reels'),
+            data={
+                'video_id': video_id,
+                'upload_phase': 'finish',
+                'video_state': 'PUBLISHED',
+                'description': _message_for(job),
+                'title': title,
+                **common,
+            },
+            timeout=30,
+            allow_redirects=False,
+        )
+        touch_provider_credential(credential_row)
+    except requests.RequestException:
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=SocialDeliveryAttempt.Status.UNKNOWN,
+            error_message=(
+                'Meta did not confirm whether the Facebook Reel was published. '
+                'Do not retry automatically.'
+            ),
+        )
+
+    if not 200 <= publish_response.status_code < 300:
+        status = (
+            SocialDeliveryAttempt.Status.UNKNOWN
+            if publish_response.status_code >= 500
+            else SocialDeliveryAttempt.Status.FAILED
+        )
+        fallback = (
+            'Meta returned a server error and the Facebook Reel publish outcome could not be confirmed'
+            if status == SocialDeliveryAttempt.Status.UNKNOWN
+            else 'Meta rejected the Facebook Reel publish request'
+        )
+        return _finalize_attempt(
+            attempt_id=attempt.id,
+            status=status,
+            error_message=_safe_meta_error(publish_response, fallback),
+        )
+
+    return _finalize_attempt(
+        attempt_id=attempt.id,
+        status=SocialDeliveryAttempt.Status.SUCCEEDED,
+        provider_post_id=video_id,
+    )
+
 def publish_facebook_job(*, business, job_id):
     credential_row, page_id, page_token = _connection_for(business)
     job, attempt, should_send = _claim_attempt(business=business, job_id=job_id)
     if not should_send:
         return attempt
+
+    video_attempt = _publish_video_reel(
+        job=job,
+        attempt=attempt,
+        page_id=page_id,
+        page_token=page_token,
+        credential_row=credential_row,
+    )
+    if video_attempt is not None:
+        return video_attempt
 
     try:
         response, used_photo = _send_to_meta(

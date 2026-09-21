@@ -504,8 +504,8 @@ META_SOCIAL_RETURN_URL = (
     or f"{FRONTEND_BASE_URL}/app/online-shop"
 )
 
-# Optional public HTTPS base used when Meta must fetch a StockFlow-hosted
-# product image for Instagram publishing. Local development can point this at
+# Optional public HTTPS base used when Meta must fetch StockFlow-hosted
+# product photos or videos for Instagram publishing. Local development can point this at
 # a short-lived HTTPS tunnel; production should use the real StockFlow domain.
 META_INSTAGRAM_MEDIA_BASE_URL = os.getenv(
     "META_INSTAGRAM_MEDIA_BASE_URL",
@@ -605,3 +605,10 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["intelligence_automation_run"] = (
     ).strip()
     or "30/hour"
 )
+
+
+# StockFlow local phone host: 10.162.135.123
+if DEBUG:
+    ALLOWED_HOSTS = list(ALLOWED_HOSTS)
+    if "10.162.135.123" not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append("10.162.135.123")

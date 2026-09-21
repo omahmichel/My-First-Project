@@ -1,0 +1,22 @@
+/* Scoped public-shop media controls. */
+.sf-media-actions { position: relative; display: flex; justify-content: flex-end; padding: 8px 12px; background: #fff; z-index: 2; }
+.sf-media-actions summary { display: grid; place-items: center; list-style: none; width: 44px; height: 44px; cursor: pointer; border-radius: 12px; color: #123d32; background: #edf5f1; }
+.sf-media-actions summary::-webkit-details-marker { display: none; }
+.sf-media-actions .sf-media-delete-option { display: flex; align-items: center; gap: 9px; position: absolute; top: 54px; right: 12px; z-index: 3; padding: 13px 17px; border: 1px solid #eed5d5; border-radius: 12px; background: #fff; color: #a52b35; box-shadow: 0 6px 24px #102c2420; font: inherit; cursor: pointer; }
+.sf-media-dialog { box-sizing: border-box; width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 28px; border: 1px solid #dce9e2; border-radius: 24px; background: #fff; color: #183c32; box-shadow: 0 24px 80px #071e2440; font-family: inherit; overflow: auto; }
+.sf-media-dialog::backdrop { background: #092c2466; backdrop-filter: blur(4px); }
+.sf-media-dialog-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.sf-media-delete-icon { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: #fff0f0; color: #b3343e; }
+.sf-media-dialog .sf-media-close { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #f1f6f3; color: #476258; cursor: pointer; }
+.sf-media-dialog h2 { margin: 0 0 10px; font-size: 25px; line-height: 1.25; color: #12382d; }
+.sf-media-dialog p { font-size: 15px; line-height: 1.6; color: #536960; overflow-wrap: anywhere; }
+.sf-media-dialog .sf-media-product-name { margin: 0; font-weight: 700; color: #254b3d; }
+.sf-media-dialog .sf-media-delete-note { font-size: 13px; }
+.sf-media-dialog .sf-media-delete-error { padding: 10px 12px; background: #fff0f0; border-radius: 10px; color: #a52b35; }
+.sf-media-dialog-buttons { display: flex; gap: 12px; margin-top: 24px; }
+.sf-media-dialog-buttons button { flex: 1; min-height: 48px; padding: 12px; font: inherit; font-weight: 700; border-radius: 12px; cursor: pointer; }
+.sf-media-dialog .sf-media-cancel { border: 1px solid #cddfd5; background: #f6faf8; color: #254b3d; }
+.sf-media-dialog .sf-media-confirm { border: 1px solid #b3343e; background: #b3343e; color: #fff; }
+.sf-media-dialog button:disabled { opacity: .6; cursor: wait; }
+.sf-media-dialog button:focus-visible, .sf-media-actions summary:focus-visible, .sf-media-actions button:focus-visible { outline: 3px solid #149d8e; outline-offset: 3px; }
+@media (max-width: 380px) { .sf-media-dialog { padding: 20px; } .sf-media-dialog-buttons { flex-direction: column; } }

@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import serializers
 
@@ -24,10 +25,23 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     imageUrl = serializers.SerializerMethodField()
+    videoUrl = serializers.SerializerMethodField()
+    hasVideo = serializers.SerializerMethodField()
 
     def get_imageUrl(self, obj):
         from .photo_urls import product_photo_url
         return product_photo_url(obj, self.context.get("request"), private=True)
+
+    def get_videoUrl(self, obj):
+        from .video_urls import product_video_url
+        return product_video_url(obj, self.context.get("request"), private=True)
+
+    def get_hasVideo(self, obj):
+        try:
+            obj.uploaded_video
+        except ObjectDoesNotExist:
+            return False
+        return True
 
     branchId = serializers.SerializerMethodField()
     productType = serializers.ChoiceField(
@@ -148,6 +162,8 @@ class ProductSerializer(serializers.ModelSerializer):
             "businessType",
             "branchId",
             "imageUrl",
+            "videoUrl",
+            "hasVideo",
             "productType",
             "name",
             "sku",
@@ -180,6 +196,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "businessId",
             "businessType",
             "branchId",
+            "hasVideo",
             "reservedStock",
             "availableStock",
             "quantitySold",
@@ -551,4 +568,3 @@ class StockMovementSerializer(serializers.ModelSerializer):
             "createdAt",
         )
         read_only_fields = fields
-

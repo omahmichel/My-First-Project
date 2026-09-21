@@ -49,7 +49,7 @@ class PublicStorefrontApiTests(TestCase):
         self.assertEqual(set(product), {
             'listingId', 'productId', 'name', 'category', 'brand', 'unit',
             'price', 'currency', 'size', 'color', 'designCode', 'styleCode',
-            'description', 'imageUrl', 'availableQuantity', 'inStock',
+            'description', 'imageUrl', 'videoUrl', 'availableQuantity', 'inStock',
         })
         self.assertEqual(product['price'], '50.00')
         self.assertEqual(product['availableQuantity'], 5)

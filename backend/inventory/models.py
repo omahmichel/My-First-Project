@@ -524,4 +524,4 @@ from .restock_models import (  # noqa: E402,F401
     Supplier,
 )
 
-from .photo_models import ProductPhoto  # noqa: E402,F401
+from .photo_models import ProductPhoto, ProductVideo  # noqa: E402,F401

@@ -1,4 +1,7 @@
+import ShopMediaActions, { useShopMediaManager } from './ShopMediaActions';
 import ShopCart from './ShopCart';
+import ShopProductMedia from './ShopProductMedia';
+import ShopPromotionVideos from './ShopPromotionVideos';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { publicShopRequest, shopMoney } from '../../services/storefront';
@@ -28,6 +31,12 @@ export default function ShopPage() {
 }
 
 function ShopCatalogue({ slug }) {
+  const manager = useShopMediaManager(slug);
+  const [mediaNotice, setMediaNotice] = useState('');
+  function photoDeleted() {
+    setMediaNotice('Photo deleted successfully. The product and video are unchanged.');
+    setRetry(value => value + 1);
+  }
   const [data, setData] = useState(null);
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
@@ -88,11 +97,14 @@ function ShopCatalogue({ slug }) {
         <label htmlFor='shop-search'>Find a product</label>
         <div><input id='shop-search' value={draft} onChange={event => setDraft(event.target.value)} maxLength={100} placeholder='Search names, categories or design codes' /><button type='submit'>Search</button></div>
       </form>
+      {mediaNotice && <p role='status'>{mediaNotice}</p>}
       {loading ? <p role='status'>Loading products...</p> : error ? <div role='alert'><p>{error}</p><button type='button' onClick={() => setRetry(value => value + 1)}>Try again</button></div> : <>
         <p className='sf-shop-count'>{data?.count || 0} products {query && 'matching your search'}</p>
         {!data?.results.length && <div className='sf-shop-empty'><h2>No products to show</h2><p>{query ? 'Try another name or category.' : 'Check back soon for new listings.'}</p></div>}
         <div className='sf-shop-grid'>{data?.results.map(product => <article className='sf-shop-card' key={product.listingId}>
-          <div className='sf-shop-image'>{product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading='lazy' referrerPolicy='no-referrer' onError={event => { event.currentTarget.style.display = 'none'; }} /> : <span>{product.name.slice(0, 1)}</span>}</div>
+          {manager && product.imageUrl && <ShopMediaActions
+            key={manager.userId + ':' + manager.businessId} product={product} manager={manager} kind="photo" onDeleted={photoDeleted} />}
+          <ShopProductMedia key={product.listingId + ':' + (product.videoUrl || '') + ':' + (product.imageUrl || '')} product={product} />
           <div className='sf-shop-card-body'><small>{product.category}</small><h2>{product.name}</h2>
           {(product.designCode || product.size || product.color) && <p>{[product.designCode, product.size, product.color].filter(Boolean).join(' / ')}</p>}
           <button type='button' disabled={cartLocked || !product.inStock} onClick={() => addToCart(product)}>Add to cart</button>
@@ -128,6 +140,7 @@ function ShopCatalogue({ slug }) {
         <div className='sf-shop-pagination'><button type='button' disabled={!data?.previous} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</button><span>Page {page}</span><button type='button' disabled={!data?.next} onClick={() => setPage(value => value + 1)}>Next</button></div>
       </>}
     </section>
+    {!loading && !error && <ShopPromotionVideos slug={slug} />}
     <div className='sf-shop-cart-wrap'><p role='status'>{cartMessage}</p><ShopCart slug={slug} cart={cart} setCart={setCart} locked={cartLocked} setLocked={setCartLocked} /></div>
     <footer className='sf-shop-footer'>Powered by StockFlow</footer>
   </main>;
