@@ -262,3 +262,5 @@ class StorefrontActivity(models.Model):
         super().save(*args, **kwargs)
 
 from .social_models import SocialChannel, SocialPublishingJob, SocialDeliveryAttempt  # noqa: E402,F401
+
+from .social_models import SocialAuthorizationRequest  # noqa: E402,F401

@@ -1,3 +1,4 @@
+import ShortVideoConnections from './ShortVideoConnections';
 import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../services/api';
@@ -13,7 +14,7 @@ function connectionLabel(channel) {
 
 function deliveryLabel(job, facebookConnected, instagramConnected) {
   if (job.status === 'cancelled') return 'Cancelled';
-  if (job.platform !== 'facebook' && job.platform !== 'instagram') return 'Pending connection';
+  if (job.platform !== 'facebook' && job.platform !== 'instagram') return 'Publishing not enabled yet';
   if (job.deliveryStatus === 'succeeded') return 'Published';
   if (job.deliveryStatus === 'failed') return 'Failed';
   if (job.deliveryStatus === 'unknown') return 'Outcome unknown';
@@ -249,7 +250,8 @@ export default function ShopSocialPanel({ businessId }) {
 
   return <section className='sf-shop-cart'>
     <h2>Social publishing</h2>
-    <p>Choose where StockFlow should prepare social publishing. Facebook live delivery is available; Instagram account connection can now be verified before Instagram delivery is activated.</p>
+    <p>Connect your business accounts and manage product publishing.</p>
+    <ShortVideoConnections key={businessId} businessId={businessId} />
     <NotificationRefresh><button type='button' disabled={loading || saving} onClick={() => setRetry(value => value + 1)}>Refresh publishing status</button></NotificationRefresh>
     {loading && <p role='status'>Loading social publishing...</p>}
     {error && <p role='alert'>{error}</p>}

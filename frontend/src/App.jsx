@@ -42,9 +42,13 @@ import SubscriptionPage from "./pages/settings/SubscriptionPage";
 import ReportIssuePage from "./pages/support/ReportIssuePage";
 import NotFoundPage from "./pages/NotFoundPage";
 
+import PolicyPage from "./pages/public/PolicyPage";
+
 export default function App() {
   return (
     <Routes>
+      <Route path="/terms" element={<PolicyPage kind="terms" />} />
+      <Route path="/privacy" element={<PolicyPage kind="privacy" />} />
       <Route path="/shops/:slug" element={<ShopPage />} />
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />

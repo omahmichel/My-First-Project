@@ -567,7 +567,7 @@ export default function LandingPage() {
             <p>Inventory, invoicing and business control for Ghanaian building materials shops and boutiques.</p>
           </div>
           <div><strong>Product</strong><a href="#features">Features</a><a href="#solutions">Solutions</a><a href="#pricing">Pricing</a></div>
-          <div><strong>Account</strong><Link to="/login">Log in</Link><Link to="/register">Create account</Link></div>
+          <div><strong>Account</strong><Link to="/login">Log in</Link><Link to="/register">Create account</Link><Link to="/terms">Terms of Service</Link><Link to="/privacy">Privacy Policy</Link></div>
         </div>
         <div className="marketing-container marketing-footer-bottom">
           <span>© 2026 StockFlow. All rights reserved.</span><span>Built for Ghanaian businesses.</span>

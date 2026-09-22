@@ -46,3 +46,15 @@ urlpatterns = [
     path('shops/<slug:shop_slug>/', PublicShopAPIView.as_view(), name='public-shop'),
     path('shops/<slug:shop_slug>/orders/', PublicShopOrderAPIView.as_view(), name='public-order-create'),
 ]
+
+from .short_video_connections import (
+    ShortVideoConnectAPIView, ShortVideoCallbackAPIView,
+    ShortVideoFinishAPIView, ShortVideoConnectionAPIView,
+)
+for provider in ('tiktok', 'snapchat'):
+    urlpatterns += [
+        path('businesses/<uuid:business_id>/storefront/social/' + provider + '/connect/', ShortVideoConnectAPIView.as_view(), {'provider': provider}, name='social-' + provider + '-connect'),
+        path('storefront/social/' + provider + '/callback/', ShortVideoCallbackAPIView.as_view(), {'provider': provider}, name='social-' + provider + '-callback'),
+        path('businesses/<uuid:business_id>/storefront/social/' + provider + '/finish/', ShortVideoFinishAPIView.as_view(), {'provider': provider}, name='social-' + provider + '-finish'),
+        path('businesses/<uuid:business_id>/storefront/social/' + provider + '/connection/', ShortVideoConnectionAPIView.as_view(), {'provider': provider}, name='social-' + provider + '-connection'),
+    ]

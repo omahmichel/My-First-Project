@@ -73,6 +73,8 @@ def channel_data(shop):
     # Only safe connection metadata is exposed to the frontend.
     from .facebook_social import facebook_connection_summary, instagram_connection_summary
 
+    from .short_video_connections import summary
+
     existing = {row.platform: row for row in shop.social_channels.all()}
     facebook = facebook_connection_summary(shop.business)
     instagram = instagram_connection_summary(shop.business)
@@ -89,6 +91,8 @@ def channel_data(shop):
             row.update(facebook)
         elif value == SocialChannel.Platform.INSTAGRAM:
             row.update(instagram)
+        elif value in ('tiktok', 'snapchat'):
+            row.update(summary(shop.business, value))
         channels.append(row)
     return {
         'channels': channels,

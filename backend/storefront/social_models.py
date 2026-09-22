@@ -1,5 +1,6 @@
 """Owner social-publishing preferences, current intents and delivery audit state."""
 import uuid
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -86,3 +87,16 @@ class SocialDeliveryAttempt(models.Model):
         indexes = [
             models.Index(fields=('job', 'status'), name='sf_social_delivery_status'),
         ]
+
+
+class SocialAuthorizationRequest(models.Model):
+    """Short-lived, single-use OAuth requests bound to a business owner."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    provider = models.CharField(max_length=20)
+    nonce = models.CharField(max_length=100)
+    expires_at = models.DateTimeField(db_index=True)
+    received = models.BooleanField(default=False)
+    consumed = models.BooleanField(default=False)
+    encrypted_code = models.TextField(blank=True)

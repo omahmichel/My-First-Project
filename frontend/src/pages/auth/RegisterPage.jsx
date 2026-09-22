@@ -158,7 +158,7 @@ export default function RegisterPage() {
 
             <label className="checkbox-label terms-checkbox">
               <input type="checkbox" required />
-              I agree to the planned terms of service and privacy policy.
+              <span>I agree to the <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</Link> and acknowledge the <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.</span>
             </label>
 
             <Button
