@@ -1,4 +1,5 @@
 import ShortVideoConnections from './ShortVideoConnections';
+import TikTokProductPublishDialog from './TikTokProductPublishDialog';
 import NotificationRefresh from "../../components/notifications/NotificationRefresh";
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../services/api';
@@ -12,14 +13,15 @@ function connectionLabel(channel) {
   return 'Not connected';
 }
 
-function deliveryLabel(job, facebookConnected, instagramConnected) {
+function deliveryLabel(job, facebookConnected, instagramConnected, tiktokConnected) {
   if (job.status === 'cancelled') return 'Cancelled';
-  if (job.platform !== 'facebook' && job.platform !== 'instagram') return 'Publishing not enabled yet';
+  if (!['facebook', 'instagram', 'tiktok'].includes(job.platform)) return 'Publishing not enabled yet';
   if (job.deliveryStatus === 'succeeded') return 'Published';
   if (job.deliveryStatus === 'failed') return 'Failed';
   if (job.deliveryStatus === 'unknown') return 'Outcome unknown';
-  if (job.deliveryStatus === 'in_progress') return 'Publishing...';
+  if (job.deliveryStatus === 'in_progress') return job.platform === 'tiktok' ? 'Processing on TikTok...' : 'Publishing...';
   if (job.platform === 'instagram') return instagramConnected ? 'Ready for live test' : 'Pending connection';
+  if (job.platform === 'tiktok') return tiktokConnected ? 'Ready for live test' : 'Pending connection';
   return facebookConnected ? 'Ready for live test' : 'Pending connection';
 }
 
@@ -34,6 +36,7 @@ export default function ShopSocialPanel({ businessId }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [publishCandidate, setPublishCandidate] = useState(null);
+  const [tiktokCandidate, setTikTokCandidate] = useState(null);
   const [shopUrl, setShopUrl] = useState('');
   const [shopPath, setShopPath] = useState('');
   const base = '/businesses/' + businessId + '/storefront/social/';
@@ -206,6 +209,28 @@ export default function ShopSocialPanel({ businessId }) {
     }
   }
 
+  async function checkTikTokStatus(job) {
+    if (saving || !job?.id) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await apiRequest(base + 'jobs/' + job.id + '/check-tiktok/', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (result?.deliveryStatus === 'succeeded') setMessage('TikTok confirmed publication of ' + job.productName + '.');
+      else if (result?.deliveryStatus === 'failed') setMessage('TikTok could not publish ' + job.productName + '. Review the delivery message below.');
+      else setMessage('TikTok is still processing ' + job.productName + '.');
+      setRetry(value => value + 1);
+    } catch (problem) {
+      setError(problem.message);
+      setRetry(value => value + 1);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function copyShopLink() {
     if (!shopUrl) return;
     setError('');
@@ -247,6 +272,7 @@ export default function ShopSocialPanel({ businessId }) {
 
   const facebook = channels.find(channel => channel.platform === 'facebook');
   const instagram = channels.find(channel => channel.platform === 'instagram');
+  const tiktok = channels.find(channel => channel.platform === 'tiktok');
 
   return <section className='sf-shop-cart'>
     <h2>Social publishing</h2>
@@ -319,31 +345,46 @@ export default function ShopSocialPanel({ businessId }) {
     {message && <p role='status'>{message}</p>}
     {!loading && jobs && <>
       <h3>Publishing records ({jobs.count})</h3>
-      <p>Each record represents the latest product details for one channel. Use Publish now for one controlled Facebook or Instagram post. Unknown delivery outcomes are deliberately not retried automatically to prevent duplicate posts.</p>
+      <p>Each record represents the latest product details for one channel. Use Publish now for one controlled Facebook, Instagram, or TikTok product post. Unknown delivery outcomes are deliberately not retried automatically to prevent duplicate posts.</p>
       {!jobs.results.length ? <p>No publishing records yet.</p> : <div style={{ overflowX: 'auto' }}>
         <table><thead><tr><th scope='col'>Product</th><th scope='col'>Channel</th><th scope='col'>Status</th><th scope='col'>Action</th></tr></thead>
           <tbody>{jobs.results.map(job => {
             const facebookConnected = facebook?.connectionStatus === 'connected' && facebook?.deliveryAvailable;
             const instagramConnected = instagram?.connectionStatus === 'connected' && instagram?.deliveryAvailable;
-            const platformConnected = job.platform === 'instagram' ? instagramConnected : facebookConnected;
-            const supportedPlatform = job.platform === 'facebook' || job.platform === 'instagram';
+            const tiktokConnected = tiktok?.connectionStatus === 'connected';
+            const platformConnected = job.platform === 'instagram'
+              ? instagramConnected
+              : job.platform === 'tiktok'
+                ? tiktokConnected
+                : facebookConnected;
+            const supportedPlatform = ['facebook', 'instagram', 'tiktok'].includes(job.platform);
             const canPublish = supportedPlatform
               && job.status !== 'cancelled'
               && platformConnected
               && (job.deliveryStatus === 'not_sent' || job.deliveryStatus === 'failed');
+            const canCheckTikTok = job.platform === 'tiktok'
+              && platformConnected
+              && Boolean(job.remoteContainerId)
+              && (job.deliveryStatus === 'in_progress' || job.deliveryStatus === 'unknown');
             return <tr key={job.id}>
               <td>{job.productName}</td>
               <td>{channels.find(channel => channel.platform === job.platform)?.label || job.platform}</td>
               <td>
-                {deliveryLabel(job, facebookConnected, instagramConnected)}
+                {deliveryLabel(job, facebookConnected, instagramConnected, tiktokConnected)}
                 {job.deliveryError && <small style={{ display: 'block' }}>{job.deliveryError}</small>}
               </td>
               <td>
-                {canPublish
-                  ? <button type='button' disabled={saving} onClick={() => requestSocialPublish(job)}>
-                      {job.deliveryStatus === 'failed' ? 'Retry publish' : 'Publish now'}
-                    </button>
-                  : <span>-</span>}
+                {canCheckTikTok
+                  ? <button type='button' disabled={saving} onClick={() => checkTikTokStatus(job)}>Check status</button>
+                  : canPublish
+                    ? <button
+                        type='button'
+                        disabled={saving}
+                        onClick={() => job.platform === 'tiktok' ? setTikTokCandidate(job) : requestSocialPublish(job)}
+                      >
+                        {job.deliveryStatus === 'failed' ? 'Retry publish' : 'Publish now'}
+                      </button>
+                    : <span>-</span>}
               </td>
             </tr>;
           })}</tbody>
@@ -355,6 +396,20 @@ export default function ShopSocialPanel({ businessId }) {
         <button type='button' disabled={saving || !jobs.next} onClick={() => setPage(value => value + 1)}>Next</button>
       </div>
     </>}
+
+    {tiktokCandidate && <TikTokProductPublishDialog
+      businessId={businessId}
+      job={tiktokCandidate}
+      accountName={tiktok?.accountName || ''}
+      onClose={() => setTikTokCandidate(null)}
+      onSubmitted={result => {
+        setTikTokCandidate(null);
+        setMessage(result?.deliveryStatus === 'succeeded'
+          ? 'TikTok confirmed publication of ' + tiktokCandidate.productName + '.'
+          : 'Submitted ' + tiktokCandidate.productName + ' to TikTok. Processing may take a few minutes.');
+        setRetry(value => value + 1);
+      }}
+    />}
 
     {publishCandidate && <div
       role='presentation'

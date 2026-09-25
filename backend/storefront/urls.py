@@ -23,6 +23,10 @@ from .facebook_social import (
 )
 from .facebook_delivery import FacebookPublishJobAPIView
 from .instagram_delivery import InstagramMediaAPIView, InstagramPublishJobAPIView
+from .tiktok_product_delivery import (
+    TikTokProductPrepareAPIView, TikTokProductPublishJobAPIView,
+    TikTokProductStatusAPIView, TikTokProductMediaAPIView,
+)
 
 urlpatterns = [
     path('businesses/<uuid:business_id>/storefront/social/facebook/connect/', FacebookConnectAPIView.as_view(), name='social-facebook-connect'),
@@ -35,6 +39,10 @@ urlpatterns = [
     path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/publish-facebook/', FacebookPublishJobAPIView.as_view(), name='social-facebook-publish-job'),
     path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/publish-instagram/', InstagramPublishJobAPIView.as_view(), name='social-instagram-publish-job'),
     path('storefront/social/instagram/media/', InstagramMediaAPIView.as_view(), name='social-instagram-media'),
+    path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/prepare-tiktok/', TikTokProductPrepareAPIView.as_view(), name='social-tiktok-product-prepare'),
+    path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/publish-tiktok/', TikTokProductPublishJobAPIView.as_view(), name='social-tiktok-product-publish-job'),
+    path('businesses/<uuid:business_id>/storefront/social/jobs/<uuid:job_id>/check-tiktok/', TikTokProductStatusAPIView.as_view(), name='social-tiktok-product-status'),
+    path('storefront/social/tiktok/product-media/', TikTokProductMediaAPIView.as_view(), name='social-tiktok-product-media'),
     path('businesses/<uuid:business_id>/storefront/orders/<uuid:order_id>/complete/', ShopOrderCompleteAPIView.as_view(), name='shop-order-complete'),
     path('businesses/<uuid:business_id>/storefront/orders/', ShopOrdersAPIView.as_view(), name='shop-orders'),
     path('businesses/<uuid:business_id>/storefront/orders/<uuid:order_id>/', ShopOrderAPIView.as_view(), name='shop-order'),
