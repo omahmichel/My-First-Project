@@ -16,6 +16,10 @@ import {
   Settings,
   Shirt,
   ShoppingCart,
+  Smartphone,
+  Sparkles,
+  Car,
+  Zap,
   Users,
   X,
 } from "lucide-react";
@@ -23,6 +27,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
+import { businessTypeLabel } from "../../data/businessTypes";
 
 import "../../styles/sidebar-business-switcher.css";
 
@@ -53,6 +58,31 @@ const industryNavigation = {
     to: "/app/boutique",
     label: "Boutique inventory",
     icon: Shirt,
+  },
+  provision_mini_mart: {
+    to: "/app/provision-mini-mart",
+    label: "Provision inventory",
+    icon: Boxes,
+  },
+  phone_electronics_accessories: {
+    to: "/app/phone-accessories",
+    label: "Phone & accessories",
+    icon: Smartphone,
+  },
+  electrical_electronics: {
+    to: "/app/electrical-electronics",
+    label: "Electrical inventory",
+    icon: Zap,
+  },
+  auto_spare_parts: {
+    to: "/app/auto-spare-parts",
+    label: "Spare parts inventory",
+    icon: Car,
+  },
+  cosmetics_beauty: {
+    to: "/app/cosmetics-beauty",
+    label: "Beauty inventory",
+    icon: Sparkles,
   },
 };
 
@@ -138,11 +168,7 @@ export default function Sidebar({ open, onClose }) {
 
             <div>
               <span>Current workspace</span>
-              <small>
-                {business.type === "boutique"
-                  ? "Boutique"
-                  : "Building materials"}
-              </small>
+              <small>{businessTypeLabel(business.type)}</small>
             </div>
           </div>
 

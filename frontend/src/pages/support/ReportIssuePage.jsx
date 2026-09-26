@@ -11,6 +11,7 @@ import { useState } from "react";
 
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
+import { businessTypeLabel } from "../../data/businessTypes";
 import { apiRequest } from "../../services/api";
 
 import "../../styles/support.css";
@@ -257,9 +258,7 @@ export default function ReportIssuePage() {
             <strong>{business.name || "Current business"}</strong>
             <small>
               {business.currentUserRole || "Business member"} ·{" "}
-              {business.type === "boutique"
-                ? "Boutique"
-                : "Building materials"}
+              {businessTypeLabel(business.type)}
             </small>
           </div>
 

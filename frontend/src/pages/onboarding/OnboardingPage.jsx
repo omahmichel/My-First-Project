@@ -8,7 +8,11 @@ import {
   MapPin,
   ShieldCheck,
   Shirt,
+  ShoppingCart,
   Smartphone,
+  Sparkles,
+  Car,
+  Zap,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -19,8 +23,19 @@ import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
 import { apiRequest } from "../../services/api";
+import { BUSINESS_TYPE_OPTIONS } from "../../data/businessTypes";
 
 import "../../styles/onboarding-polish.css";
+
+const BUSINESS_TYPE_ICONS = {
+  building_materials: Layers3,
+  boutique: Shirt,
+  provision_mini_mart: ShoppingCart,
+  phone_electronics_accessories: Smartphone,
+  electrical_electronics: Zap,
+  auto_spare_parts: Car,
+  cosmetics_beauty: Sparkles,
+};
 
 export default function OnboardingPage() {
   const { user, pendingRegistration, completeOnboarding } = useAuth();
@@ -293,41 +308,28 @@ export default function OnboardingPage() {
               </p>
             </div>
             <div className="business-choice-grid">
-              <button
-                type="button"
-                className={
-                  form.type === "building_materials"
-                    ? "business-choice-active"
-                    : ""
-                }
-                onClick={() => selectBusinessType("building_materials")}
-              >
-                <Layers3 size={30} />
-                <strong>Building materials shop</strong>
-                <span>
-                  Tiles, cement, paint, plumbing, roofing and related products.
-                </span>
-                <small>
-                  Includes tile design numbers, boxes, loose pieces and
-                  coverage.
-                </small>
-              </button>
-              <button
-                type="button"
-                className={
-                  form.type === "boutique" ? "business-choice-active" : ""
-                }
-                onClick={() => selectBusinessType("boutique")}
-              >
-                <Shirt size={30} />
-                <strong>Boutique or fashion store</strong>
-                <span>
-                  Clothing, shoes, bags, accessories and related products.
-                </span>
-                <small>
-                  Includes size, colour, style codes and product variants.
-                </small>
-              </button>
+              {BUSINESS_TYPE_OPTIONS.map((option) => {
+                const BusinessIcon =
+                  BUSINESS_TYPE_ICONS[option.value] || Building2;
+
+                return (
+                  <button
+                    type="button"
+                    className={
+                      form.type === option.value
+                        ? "business-choice-active"
+                        : ""
+                    }
+                    onClick={() => selectBusinessType(option.value)}
+                    key={option.value}
+                  >
+                    <BusinessIcon size={30} />
+                    <strong>{option.onboardingTitle}</strong>
+                    <span>{option.description}</span>
+                    <small>{option.detail}</small>
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : null}

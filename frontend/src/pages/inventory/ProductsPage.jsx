@@ -229,29 +229,31 @@ export default function ProductsPage() {
                     <td><strong>{formatCurrency(product.sellingPrice)}</strong></td>
                     <td><Badge tone={product.status === "active" ? (lowStock ? "warning" : "success") : "neutral"}>{product.status === "active" ? (lowStock ? "Low stock" : "Active") : "Inactive"}</Badge></td>
                     <td>
-                      <div className="table-action-group stockflow-inventory-actions stockflow-icon-actions">
+                      <div className="table-action-group stockflow-inventory-actions stockflow-icon-actions max-[700px]:grid! max-[700px]:grid-cols-2! max-[700px]:gap-2! max-[700px]:items-stretch! max-[700px]:w-full! max-[700px]:max-w-none! max-[700px]:p-2! max-[700px]:rounded-2xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-emerald-50/60! max-[700px]:box-border! max-[700px]:min-w-[168px]!">
                         <button
                           type="button"
-                          className="stockflow-icon-action"
+                          className="stockflow-icon-action max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-white! max-[700px]:text-emerald-950! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-emerald-50! max-[700px]:active:bg-emerald-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
                           aria-label={`Edit ${product.name}`}
                           title="Edit product"
                           onClick={() => { setEditingProduct(product); setProductModalOpen(true); }}
                         >
-                          <Pencil size={16} aria-hidden="true" />
+                          <Pencil size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">Edit</span>
                         </button>
                         <button
                           type="button"
-                          className="stockflow-icon-action"
+                          className="stockflow-icon-action max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-white! max-[700px]:text-emerald-950! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-emerald-50! max-[700px]:active:bg-emerald-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
                           aria-label={`Adjust stock for ${product.name}`}
                           title="Adjust stock"
                           onClick={() => setStockProduct(product)}
                           disabled={product.status !== "active"}
                         >
-                          <StockActionIcon size={16} aria-hidden="true" />
+                          <StockActionIcon size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">Stock</span>
                         </button>
                         <button
                           type="button"
-                          className="stockflow-icon-action stockflow-icon-action-secondary"
+                          className="stockflow-icon-action stockflow-icon-action-secondary max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-white! max-[700px]:text-emerald-950! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-emerald-50! max-[700px]:active:bg-emerald-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
                           aria-label={
                             statusProductId === product.id
                               ? `Updating ${product.name}`
@@ -269,19 +271,21 @@ export default function ProductsPage() {
                           onClick={() => changeProductStatus(product)}
                           disabled={Boolean(statusProductId)}
                         >
-                          <Power size={16} aria-hidden="true" />
+                          <Power size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">{statusProductId === product.id ? 'Updating…' : product.status === 'active' ? 'Disable' : 'Enable'}</span>
                         </button>
                         <button
                           type="button"
-                          className="stockflow-icon-action stockflow-icon-action-danger product-delete-action"
-                          aria-label={`Delete ${product.name}`}
-                          title="Delete product"
+                          className="stockflow-icon-action stockflow-icon-action-danger product-delete-action max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-rose-100! max-[700px]:bg-white! max-[700px]:text-rose-700! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-rose-50! max-[700px]:active:bg-rose-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
+                          aria-label={`Archive ${product.name}`}
+                          title="Archive product"
                           onClick={() => {
                             setDeleteError("");
                             setDeleteProductTarget(product);
                           }}
                         >
-                          <Trash2 size={16} aria-hidden="true" />
+                          <Trash2 size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">Archive</span>
                         </button>
                       </div>
                     </td>

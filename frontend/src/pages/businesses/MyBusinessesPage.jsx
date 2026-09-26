@@ -13,15 +13,9 @@ import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
+import { businessTypeLabel } from "../../data/businessTypes";
 
 import "../../styles/business-workspaces.css";
-
-
-function businessTypeLabel(type) {
-  if (type === "boutique") return "Boutique";
-  if (type === "building_materials") return "Building materials";
-  return "Business";
-}
 
 
 function subscriptionLabel(business) {

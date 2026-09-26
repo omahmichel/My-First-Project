@@ -66,3 +66,12 @@ for provider in ('tiktok', 'snapchat'):
         path('businesses/<uuid:business_id>/storefront/social/' + provider + '/finish/', ShortVideoFinishAPIView.as_view(), {'provider': provider}, name='social-' + provider + '-finish'),
         path('businesses/<uuid:business_id>/storefront/social/' + provider + '/connection/', ShortVideoConnectionAPIView.as_view(), {'provider': provider}, name='social-' + provider + '-connection'),
     ]
+
+from .tiktok_publishing import TikTokVideosAPIView, TikTokPrepareAPIView, TikTokPublishAPIView, TikTokStatusAPIView, TikTokMediaAPIView
+urlpatterns += [
+    path('businesses/<uuid:business_id>/storefront/social/tiktok/videos/', TikTokVideosAPIView.as_view()),
+    path('businesses/<uuid:business_id>/storefront/social/tiktok/prepare/', TikTokPrepareAPIView.as_view()),
+    path('businesses/<uuid:business_id>/storefront/social/tiktok/posts/<uuid:post_id>/publish/', TikTokPublishAPIView.as_view()),
+    path('businesses/<uuid:business_id>/storefront/social/tiktok/posts/<uuid:post_id>/status/', TikTokStatusAPIView.as_view()),
+    path('storefront/social/tiktok/media/<str:token>/video.mp4', TikTokMediaAPIView.as_view(), name='tiktok-media'),
+]

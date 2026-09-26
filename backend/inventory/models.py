@@ -83,6 +83,10 @@ class Product(models.Model):
     # Boutique products use a style code plus the shared size and colour fields.
     style_code = models.CharField(max_length=100, blank=True)
 
+    # Flexible specialist details for the shared retail routes.  Keeping these
+    # in one JSON object avoids duplicating inventory models for each industry.
+    retail_details = models.JSONField(default=dict, blank=True)
+
     # Soft deactivation preserves products needed by future sales history.
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -123,14 +127,30 @@ class Product(models.Model):
                 "Boutique products can only belong to a boutique business."
             )
 
+        standard_business_types = {
+            Business.BusinessType.BUILDING_MATERIALS,
+            Business.BusinessType.PROVISION_MINI_MART,
+            Business.BusinessType.PHONE_ELECTRONICS_ACCESSORIES,
+            Business.BusinessType.ELECTRICAL_ELECTRONICS,
+            Business.BusinessType.AUTO_SPARE_PARTS,
+            Business.BusinessType.COSMETICS_BEAUTY,
+        }
+
         if (
-            self.product_type
-            in (self.ProductType.STANDARD, self.ProductType.TILE)
+            self.product_type == self.ProductType.STANDARD
+            and self.business.business_type not in standard_business_types
+        ):
+            errors["product_type"] = (
+                "Standard products are not available for this business type."
+            )
+
+        if (
+            self.product_type == self.ProductType.TILE
             and self.business.business_type
             != Business.BusinessType.BUILDING_MATERIALS
         ):
             errors["product_type"] = (
-                "Standard and tile products can only belong to a "
+                "Tile products can only belong to a "
                 "building materials business."
             )
 

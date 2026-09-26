@@ -41,15 +41,15 @@ export default function ShopProductsPanel({ businessId }) {
   const listing = listings.find(row => String(row.productId) === selected);
   const selectedProduct = choices.get(selected);
 
-  return <section className='sf-shop-cart'>
-    <h2>Products in your online shop</h2>
+  return <section id='sf-shop-products' aria-labelledby='sf-shop-products-title' className='sf-shop-cart sf-shop-card-section'>
+    <header className='sf-shop-section-heading'><span>03</span><div><h2 id='sf-shop-products-title'>Product catalogue</h2><p>Prepare listings and choose which products customers can see.</p></div></header>
     <p>Choose an inventory product and save its public listing. Publishing a product makes it visible when the shop is also published.</p>
     <p>Inventory choices follow your selected workspace branch. Existing shop listings are included too.</p>
     {inventoryLoading && <p role='status'>Loading inventory...</p>}
     {inventoryError && <p role='alert'>{String(inventoryError)}</p>}
     <NotificationRefresh><button type='button' disabled={inventoryLoading} onClick={() => { Promise.resolve(loadInventory(businessId, activeBranchId)).catch(problem => setError(problem.message)); }}>Refresh inventory choices</button></NotificationRefresh>
     {loading ? <p role='status'>Loading published and draft listings...</p> : error ? <div role='alert'><p>{error}</p><button type='button' onClick={() => setRetry(value => value + 1)}>Retry</button></div> : <>
-      <p>{listings.filter(row => row.isPublished).length} published listings · {listings.length} saved listings</p>
+      <p className='sf-shop-count-badge'>{listings.filter(row => row.isPublished).length} published listings · {listings.length} saved listings</p>
       <label>Choose a product<select value={selected} onChange={event => setSelected(event.target.value)}><option value=''>Select an inventory product</option>{options.map(product => <option key={product.id} value={product.id}>{product.name} — {product.sku}</option>)}</select></label>
       {!options.length && <p>Add products in All products, then refresh the inventory choices here.</p>}
       {selected && <ListingEditor key={selected} base={base} businessId={businessId} branchId={activeBranchId} productId={selected} product={selectedProduct} listing={listing} onSaved={result => setListings(rows => [...rows.filter(row => row.productId !== result.productId), result])} />}
@@ -80,7 +80,7 @@ function ListingEditor({ base, businessId, branchId, productId, product, listing
     } catch (problem) { setError(problem.message); }
     finally { setSaving(false); }
   }
-  return <form onSubmit={save}>
+  return <form className='sf-shop-listing-editor' onSubmit={save}>
     <fieldset disabled={saving}>
       <label>Public description<textarea rows={4} maxLength={2000} value={description} onChange={event => setDescription(event.target.value)} /></label>
       <label>Product image URL (optional)<input type='url' placeholder='https://example.com/product.jpg' maxLength={1000} value={imageUrl} onChange={event => setImageUrl(event.target.value)} /></label>

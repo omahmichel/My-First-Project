@@ -109,6 +109,10 @@ class ProductSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True,
     )
+    retailDetails = serializers.JSONField(
+        source="retail_details",
+        required=False,
+    )
     isActive = serializers.BooleanField(
         source="is_active",
         read_only=True,
@@ -187,6 +191,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "sqmPerBox",
             "loosePieces",
             "styleCode",
+            "retailDetails",
             "isActive",
             "createdAt",
             "updatedAt",
@@ -296,17 +301,30 @@ class ProductSerializer(serializers.ModelSerializer):
                 "Boutique products can only belong to a boutique business."
             )
 
+        standard_business_types = {
+            Business.BusinessType.BUILDING_MATERIALS,
+            Business.BusinessType.PROVISION_MINI_MART,
+            Business.BusinessType.PHONE_ELECTRONICS_ACCESSORIES,
+            Business.BusinessType.ELECTRICAL_ELECTRONICS,
+            Business.BusinessType.AUTO_SPARE_PARTS,
+            Business.BusinessType.COSMETICS_BEAUTY,
+        }
+
         if (
-            product_type
-            in (
-                Product.ProductType.STANDARD,
-                Product.ProductType.TILE,
+            product_type == Product.ProductType.STANDARD
+            and business.business_type not in standard_business_types
+        ):
+            errors["productType"] = (
+                "Standard products are not available for this business type."
             )
+
+        if (
+            product_type == Product.ProductType.TILE
             and business.business_type
             != Business.BusinessType.BUILDING_MATERIALS
         ):
             errors["productType"] = (
-                "Standard and tile products can only belong to a "
+                "Tile products can only belong to a "
                 "building materials business."
             )
 

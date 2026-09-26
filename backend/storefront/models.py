@@ -264,3 +264,5 @@ class StorefrontActivity(models.Model):
 from .social_models import SocialChannel, SocialPublishingJob, SocialDeliveryAttempt  # noqa: E402,F401
 
 from .social_models import SocialAuthorizationRequest  # noqa: E402,F401
+
+from .tiktok_models import TikTokPublication  # noqa: E402,F401

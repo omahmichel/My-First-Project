@@ -324,6 +324,10 @@ function buildProductPayload(product, { includeStock = false } = {}) {
     sqmPerBox: numberOrZero(product.sqmPerBox),
     loosePieces: numberOrZero(product.loosePieces),
     styleCode: String(product.styleCode ?? "").trim(),
+    retailDetails:
+      product.retailDetails && typeof product.retailDetails === "object"
+        ? product.retailDetails
+        : {},
   };
 
   if (includeStock) {

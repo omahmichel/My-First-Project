@@ -27,3 +27,5 @@ Thumbs.db
 **/*.backup.txt
 **/*.problem.txt
 frontend/.vite/
+.stockflow_backups/
+*.bak_*

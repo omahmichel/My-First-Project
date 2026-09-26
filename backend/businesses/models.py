@@ -37,6 +37,26 @@ class Business(models.Model):
             "Building materials",
         )
         BOUTIQUE = "boutique", "Boutique"
+        PROVISION_MINI_MART = (
+            "provision_mini_mart",
+            "Provision Shop & Mini Mart",
+        )
+        PHONE_ELECTRONICS_ACCESSORIES = (
+            "phone_electronics_accessories",
+            "Phone & Electronics Accessories",
+        )
+        ELECTRICAL_ELECTRONICS = (
+            "electrical_electronics",
+            "Electrical / Electronics Shop",
+        )
+        AUTO_SPARE_PARTS = (
+            "auto_spare_parts",
+            "Auto Spare Parts",
+        )
+        COSMETICS_BEAUTY = (
+            "cosmetics_beauty",
+            "Cosmetics & Beauty",
+        )
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"

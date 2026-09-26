@@ -12,6 +12,7 @@ import DealerItemsSelector from "../../components/business/DealerItemsSelector";
 import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
+import { BUSINESS_TYPE_OPTIONS } from "../../data/businessTypes";
 
 import "../../styles/vat-settings.css";
 import "../../styles/payment-account-settings.css";
@@ -381,10 +382,11 @@ export default function SettingsPage() {
                   value={form.type}
                   onChange={handleChange}
                 >
-                  <option value="building_materials">
-                    Building materials
-                  </option>
-                  <option value="boutique">Boutique</option>
+                  {BUSINESS_TYPE_OPTIONS.map((option) => (
+                    <option value={option.value} key={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
 

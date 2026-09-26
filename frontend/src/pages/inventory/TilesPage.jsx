@@ -456,11 +456,11 @@ const finishes = useMemo(() => {
                         </Badge>
                       </td>
 
-                      <td data-label="Actions">
-                        <div className="stockflow-inventory-actions stockflow-icon-actions tile-record-actions">
+                      <td data-label="Actions" className="max-[700px]:grid-cols-1! max-[700px]:gap-2! max-[700px]:overflow-visible!">
+                        <div className="stockflow-inventory-actions stockflow-icon-actions tile-record-actions max-[700px]:grid! max-[700px]:grid-cols-3! max-[700px]:gap-2! max-[700px]:items-stretch! max-[700px]:w-full! max-[700px]:max-w-none! max-[700px]:p-2! max-[700px]:rounded-2xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-emerald-50/60! max-[700px]:box-border! max-[700px]:min-w-0!">
                           <button
                             type="button"
-                            className="stockflow-icon-action"
+                            className="stockflow-icon-action max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-white! max-[700px]:text-emerald-950! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-emerald-50! max-[700px]:active:bg-emerald-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
                             aria-label={`Edit ${tile.name}`}
                             title="Edit product"
                             onClick={() => {
@@ -468,20 +468,22 @@ const finishes = useMemo(() => {
                               setProductModalOpen(true);
                             }}
                           >
-                            <Pencil size={16} aria-hidden="true" />
+                            <Pencil size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">Edit</span>
                           </button>
                           <button
                             type="button"
-                            className="stockflow-icon-action"
+                            className="stockflow-icon-action max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-white! max-[700px]:text-emerald-950! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-emerald-50! max-[700px]:active:bg-emerald-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
                             aria-label={`Adjust stock for ${tile.name}`}
                             title="Adjust stock"
                             onClick={() => setStockTile(tile)}
                             disabled={tile.status !== "active"}
                           >
-                            <StockActionIcon size={16} aria-hidden="true" />
+                            <StockActionIcon size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">Stock</span>
                           </button>
                           <button
-                            className="stockflow-icon-action stockflow-icon-action-secondary tile-record-secondary-action"
+                            className="stockflow-icon-action stockflow-icon-action-secondary tile-record-secondary-action max-[700px]:flex! max-[700px]:flex-col! max-[700px]:items-center! max-[700px]:justify-center! max-[700px]:gap-1.5! max-[700px]:w-full! max-[700px]:min-w-0! max-[700px]:max-w-none! max-[700px]:h-auto! max-[700px]:min-h-16! max-[700px]:m-0! max-[700px]:px-1! max-[700px]:py-2! max-[700px]:rounded-xl! max-[700px]:border! max-[700px]:border-solid! max-[700px]:border-emerald-100! max-[700px]:bg-white! max-[700px]:text-emerald-950! max-[700px]:shadow-[0_2px_5px_rgba(16,59,55,0.10)]! max-[700px]:leading-tight! max-[700px]:text-center! max-[700px]:touch-manipulation! max-[700px]:transition-colors! max-[700px]:hover:bg-emerald-50! max-[700px]:active:bg-emerald-100! max-[700px]:focus-visible:outline-2! max-[700px]:focus-visible:outline-offset-2! max-[700px]:focus-visible:outline-emerald-600! max-[700px]:disabled:opacity-40! max-[700px]:disabled:shadow-none! max-[700px]:disabled:cursor-not-allowed! max-[700px]:disabled:transform-none!"
                             type="button"
                             aria-label={
                               statusProductId === tile.id
@@ -500,7 +502,8 @@ const finishes = useMemo(() => {
                             onClick={() => changeTileStatus(tile)}
                             disabled={Boolean(statusProductId)}
                           >
-                            <Power size={16} aria-hidden="true" />
+                            <Power size={16} aria-hidden="true" className="max-[700px]:size-5! max-[700px]:shrink-0!" />
+                            <span aria-hidden="true" className="hidden! max-[700px]:block! max-[700px]:m-0! max-[700px]:text-[11px]! max-[700px]:font-semibold! max-[700px]:leading-tight! max-[700px]:whitespace-normal! max-[700px]:text-center!">{statusProductId === tile.id ? 'Updating…' : tile.status === 'active' ? 'Disable' : 'Enable'}</span>
                           </button>
                         </div>
                       </td>

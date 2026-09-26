@@ -1,0 +1,86 @@
+@reference './tailwind.css';
+
+/* Shared owner workspace: scoped away from the public shop and other pages. */
+.sf-shop.sf-shop-admin.sf-shop-workspace { @apply min-w-0 bg-transparent p-0 text-slate-800; }
+.sf-shop-workspace .sf-shop-workspace-hero { @apply mb-6 flex flex-wrap items-center justify-between gap-5 rounded-3xl border border-solid border-emerald-900 bg-emerald-950 px-6 py-7 text-white shadow-sm; }
+.sf-shop-workspace .sf-shop-workspace-hero .sf-shop-eyebrow { @apply text-xs font-bold tracking-widest text-emerald-200; }
+.sf-shop-workspace .sf-shop-workspace-hero h1 { @apply my-2 text-3xl font-bold leading-tight text-white; overflow-wrap:anywhere; }
+.sf-shop-workspace .sf-shop-workspace-hero p { @apply m-0 max-w-2xl text-sm leading-relaxed text-emerald-100; }
+.sf-shop-workspace .sf-shop-visibility { @apply inline-flex shrink-0 items-center rounded-full border border-solid border-white/25 bg-white/10 px-4 py-2 text-xs font-bold text-white; }
+.sf-shop-workspace .sf-shop-visibility.is-live { @apply border-emerald-300/30 bg-emerald-400/15 text-emerald-100; }
+.sf-shop-workspace .sf-shop-workspace-layout { @apply grid min-w-0 items-start gap-6; grid-template-columns: 220px minmax(0,1fr); }
+.sf-shop-workspace .sf-shop-section-nav { @apply grid gap-1 rounded-2xl border border-solid border-slate-200 bg-white p-3 shadow-sm; position:sticky; top:100px; }
+.sf-shop-workspace .sf-shop-section-nav > p { @apply mx-2 mb-3 mt-2 text-[10px] font-bold tracking-widest text-slate-500; }
+.sf-shop-workspace .sf-shop-section-nav > a, .sf-shop-workspace .sf-shop-nav-unavailable { @apply flex min-w-0 items-start gap-3 rounded-xl p-3 text-slate-700 no-underline; }
+.sf-shop-workspace .sf-shop-section-nav > a { @apply transition-colors hover:bg-emerald-50 hover:text-emerald-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600; }
+.sf-shop-workspace .sf-shop-section-nav > a > span, .sf-shop-workspace .sf-shop-nav-unavailable > span { @apply mt-0.5 text-xs font-bold text-emerald-700; }
+.sf-shop-workspace .sf-shop-section-nav strong { @apply block text-sm font-semibold leading-tight; }
+.sf-shop-workspace .sf-shop-section-nav small { @apply mt-1 block text-xs leading-relaxed text-slate-500; }
+.sf-shop-workspace .sf-shop-nav-unavailable { @apply opacity-50; }
+.sf-shop-workspace .sf-shop-workspace-content { @apply grid min-w-0 gap-6; }
+.sf-shop-workspace .sf-shop-card-section { @apply m-0 min-w-0 rounded-2xl border border-solid border-slate-200 bg-white p-6 shadow-sm; scroll-margin-top:110px; }
+.sf-shop-workspace .sf-shop-section-heading { @apply mb-5 flex items-start gap-3 border-0 border-b border-solid border-slate-100 pb-5; }
+.sf-shop-workspace .sf-shop-section-heading > span { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-sm font-bold text-emerald-800; }
+.sf-shop-workspace .sf-shop-section-heading h2 { @apply m-0 text-xl font-bold leading-snug text-slate-900; }
+.sf-shop-workspace .sf-shop-section-heading p { @apply mb-0 mt-1 text-sm leading-relaxed text-slate-500; }
+.sf-shop-workspace .sf-shop-card-section p { @apply text-sm leading-relaxed; overflow-wrap:anywhere; }
+.sf-shop-workspace .sf-shop-card-section h3 { @apply text-base font-bold leading-snug text-slate-900; }
+.sf-shop-workspace .sf-shop-settings-form.sf-shop-cart { @apply m-0 rounded-none border-0 bg-transparent p-0 shadow-none; }
+.sf-shop-workspace .sf-shop-settings-grid { @apply grid min-w-0 gap-5; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.sf-shop-workspace .sf-shop-setting-block { @apply min-w-0 rounded-xl border border-solid border-slate-200 bg-slate-50/60 p-4; }
+.sf-shop-workspace .sf-shop-setting-block h3 { @apply mt-0; }
+.sf-shop-workspace .sf-shop-setting-block p { @apply text-slate-500; }
+.sf-shop-workspace label { @apply my-4 block min-w-0 text-sm font-semibold text-slate-700; }
+.sf-shop-workspace input:not([type='checkbox']):not([type='file']), .sf-shop-workspace select, .sf-shop-workspace textarea { @apply mt-2 block w-full min-w-0 max-w-none rounded-xl border border-solid border-slate-300 bg-white px-3 py-2.5 text-base font-normal leading-normal text-slate-900 shadow-sm; }
+.sf-shop-workspace textarea { @apply min-h-24 resize-y; }
+.sf-shop-workspace .sf-shop-toggle { @apply flex items-start gap-3 rounded-xl border border-solid border-slate-200 bg-white p-3 text-sm leading-relaxed; }
+.sf-shop-workspace .sf-shop-toggle input[type='checkbox'] { @apply m-0 mt-0.5 h-5 w-5 min-w-5 shrink-0 cursor-pointer accent-emerald-700; }
+.sf-shop-workspace .sf-shop-visibility-setting { @apply mt-5 rounded-xl border border-solid border-emerald-100 bg-emerald-50/50 p-4; }
+.sf-shop-workspace .sf-shop-visibility-setting h3 { @apply mt-0; }
+.sf-shop-workspace .sf-shop-save-bar { @apply mt-5 flex flex-wrap items-center justify-between gap-3 border-0 border-t border-solid border-slate-100 pt-5; }
+.sf-shop-workspace .sf-shop-save-bar > span { @apply text-xs text-slate-500; }
+.sf-shop-workspace button:not([role='dialog'] button) { @apply min-h-11 max-w-full whitespace-normal rounded-xl border border-solid border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold leading-normal text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45; touch-action:manipulation; }
+.sf-shop-workspace button[type='submit']:not([role='dialog'] button) { @apply border-emerald-800 bg-emerald-800 text-white hover:bg-emerald-900; }
+.sf-shop-workspace button.sf-shop-danger-button { @apply border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100; }
+.sf-shop-workspace :is(input,textarea,select,button,a):focus-visible { @apply outline-2 outline-offset-2 outline-emerald-600; }
+.sf-shop-workspace .sf-shop-admin-actions, .sf-shop-workspace .sf-shop-pagination { @apply my-4 flex flex-wrap items-center gap-3; }
+.sf-shop-workspace .sf-shop-admin-actions a { @apply inline-flex min-h-11 items-center rounded-xl border border-solid border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 no-underline; }
+.sf-shop-workspace .sf-shop-admin-actions [role='status']:empty { display:none; }
+.sf-shop-workspace .sf-shop-help-note { @apply rounded-xl border border-solid border-slate-200 bg-slate-50 p-3 text-xs text-slate-600; }
+.sf-shop-workspace .sf-shop-listing-editor, .sf-shop-workspace .sf-shop-whatsapp-settings, .sf-shop-workspace .sf-shop-connection-area, .sf-shop-workspace .sf-shop-publishing-preferences { @apply my-5 min-w-0 rounded-xl border border-solid border-slate-200 bg-slate-50/60 p-4; }
+.sf-shop-workspace .sf-shop-connection-area > h3 { @apply mt-0; }
+.sf-shop-workspace .sf-shop-connection-area .sf-shop-cart { @apply my-3 rounded-xl border border-solid border-slate-200 bg-white p-4; }
+.sf-shop-workspace .sf-shop-publishing-preferences legend { @apply px-2 text-sm font-bold text-slate-800; }
+.sf-shop-workspace .sf-shop-records-heading { @apply mt-8 border-0 border-t border-solid border-slate-200 pt-5; }
+.sf-shop-workspace .sf-shop-records-scroll { @apply my-4 max-w-full rounded-xl border border-solid border-slate-200; }
+.sf-shop-workspace .sf-shop-records-scroll table { @apply m-0 w-full border-collapse text-left text-sm; min-width:580px; }
+.sf-shop-workspace .sf-shop-records-scroll th { @apply border-0 border-b border-solid border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600; }
+.sf-shop-workspace .sf-shop-records-scroll td { @apply border-0 border-b border-solid border-slate-100 px-4 py-3 align-middle; }
+.sf-shop-workspace .sf-shop-records-scroll tbody tr:last-child td { @apply border-b-0; }
+.sf-shop-workspace .sf-shop-records-scroll tbody tr:hover { @apply bg-emerald-50/40; }
+.sf-shop-workspace .sf-shop-count-badge { @apply my-4 inline-flex rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800; }
+.sf-shop-workspace .sf-shop-order { @apply my-4 rounded-xl border border-solid border-slate-200 bg-slate-50/50 p-4; }
+.sf-shop-workspace .sf-shop-order h3 { @apply mt-0; }
+.sf-shop-workspace .sf-shop-order-note { @apply rounded-lg border border-solid border-amber-100 bg-amber-50 p-3 text-amber-900; }
+.sf-shop-workspace .sf-shop-empty-state { @apply my-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-slate-600; }
+.sf-shop-workspace [role='alert']:not([role='dialog'] *) { @apply rounded-xl border border-solid border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800; }
+.sf-shop-workspace p[role='status']:not([role='dialog'] *) { @apply rounded-xl border border-solid border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900; }
+@media(max-width:1100px) {
+ .sf-shop-workspace .sf-shop-workspace-layout { @apply grid-cols-1; }
+ .sf-shop-workspace .sf-shop-section-nav { @apply static grid-cols-3; }
+ .sf-shop-workspace .sf-shop-section-nav > p { @apply col-span-full; }
+}
+@media(max-width:700px) {
+ .sf-shop-workspace .sf-shop-workspace-hero { @apply rounded-2xl p-5; }
+ .sf-shop-workspace .sf-shop-workspace-hero h1 { @apply text-2xl; }
+ .sf-shop-workspace .sf-shop-section-nav { @apply grid-cols-2 p-2; }
+ .sf-shop-workspace .sf-shop-section-nav > a, .sf-shop-workspace .sf-shop-nav-unavailable { @apply gap-2 p-2.5; }
+ .sf-shop-workspace .sf-shop-section-nav strong { @apply text-xs; }
+ .sf-shop-workspace .sf-shop-section-nav small { @apply text-[11px]; }
+ .sf-shop-workspace .sf-shop-card-section { @apply p-4; }
+ .sf-shop-workspace .sf-shop-settings-grid { @apply grid-cols-1; }
+ .sf-shop-workspace .sf-shop-save-bar { @apply items-stretch; }
+ .sf-shop-workspace .sf-shop-save-bar button { @apply w-full; }
+ .sf-shop-workspace .sf-shop-admin-actions { @apply gap-2; }
+ .sf-shop-workspace .sf-shop-admin-actions [role='status'] { @apply basis-full; }
+}

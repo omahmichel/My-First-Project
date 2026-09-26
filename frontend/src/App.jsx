@@ -20,6 +20,7 @@ import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProductsPage from "./pages/inventory/ProductsPage";
 import TilesPage from "./pages/inventory/TilesPage";
 import BoutiquePage from "./pages/inventory/BoutiquePage";
+import RetailInventoryPage from "./pages/inventory/RetailInventoryPage";
 import StockMovementsPage from "./pages/inventory/StockMovementsPage";
 import RestockingPage from "./pages/inventory/RestockingPage";
 import NewSalePage from "./pages/sales/NewSalePage";
@@ -143,6 +144,36 @@ export default function App() {
               element={<IndustryRoute allowedBusinessTypes={["boutique"]} />}
             >
               <Route path="boutique" element={<BoutiquePage />} />
+            </Route>
+
+            <Route
+              element={<IndustryRoute allowedBusinessTypes={["provision_mini_mart"]} />}
+            >
+              <Route path="provision-mini-mart" element={<RetailInventoryPage />} />
+            </Route>
+
+            <Route
+              element={<IndustryRoute allowedBusinessTypes={["phone_electronics_accessories"]} />}
+            >
+              <Route path="phone-accessories" element={<RetailInventoryPage />} />
+            </Route>
+
+            <Route
+              element={<IndustryRoute allowedBusinessTypes={["electrical_electronics"]} />}
+            >
+              <Route path="electrical-electronics" element={<RetailInventoryPage />} />
+            </Route>
+
+            <Route
+              element={<IndustryRoute allowedBusinessTypes={["auto_spare_parts"]} />}
+            >
+              <Route path="auto-spare-parts" element={<RetailInventoryPage />} />
+            </Route>
+
+            <Route
+              element={<IndustryRoute allowedBusinessTypes={["cosmetics_beauty"]} />}
+            >
+              <Route path="cosmetics-beauty" element={<RetailInventoryPage />} />
             </Route>
 
             <Route path="stock-movements" element={<StockMovementsPage />} />

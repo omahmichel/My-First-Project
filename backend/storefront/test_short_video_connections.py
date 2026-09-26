@@ -19,6 +19,8 @@ CONFIG = dict(DEBUG=True,
 @override_settings(**CONFIG)
 class ShortVideoConnectionTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         test_management.ShopSettingsApiTests.setUp(self)
         self.base = f'/api/businesses/{self.business.id}/storefront/social/'
 

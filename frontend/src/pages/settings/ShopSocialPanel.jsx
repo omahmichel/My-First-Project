@@ -274,10 +274,10 @@ export default function ShopSocialPanel({ businessId }) {
   const instagram = channels.find(channel => channel.platform === 'instagram');
   const tiktok = channels.find(channel => channel.platform === 'tiktok');
 
-  return <section className='sf-shop-cart'>
-    <h2>Social publishing</h2>
-    <p>Connect your business accounts and manage product publishing.</p>
-    <ShortVideoConnections key={businessId} businessId={businessId} />
+  return <section id='sf-shop-social' aria-labelledby='sf-shop-social-title' className='sf-shop-cart sf-shop-card-section'>
+    <header className='sf-shop-section-heading'><span>04</span><div><h2 id='sf-shop-social-title'>Social publishing</h2><p>Connect accounts, choose publishing preferences and track your posts.</p></div></header>
+
+    <div className='sf-shop-connection-area'><h3>TikTok &amp; Snapchat connections</h3><ShortVideoConnections key={businessId} businessId={businessId} /></div>
     <NotificationRefresh><button type='button' disabled={loading || saving} onClick={() => setRetry(value => value + 1)}>Refresh publishing status</button></NotificationRefresh>
     {loading && <p role='status'>Loading social publishing...</p>}
     {error && <p role='alert'>{error}</p>}
@@ -334,7 +334,7 @@ export default function ShopSocialPanel({ businessId }) {
       </>}
     </div>}
 
-    <fieldset disabled={loading || saving}>
+    <fieldset className='sf-shop-publishing-preferences' disabled={loading || saving}>
       <legend>Automatic publishing preferences</legend>
       {channels.map(channel => <label className='sf-shop-toggle' key={channel.platform}>
         <input type='checkbox' checked={channel.autoPublish} onChange={() => toggle(channel)} />
@@ -344,9 +344,9 @@ export default function ShopSocialPanel({ businessId }) {
 
     {message && <p role='status'>{message}</p>}
     {!loading && jobs && <>
-      <h3>Publishing records ({jobs.count})</h3>
+      <h3 className='sf-shop-records-heading'>Publishing records ({jobs.count})</h3>
       <p>Each record represents the latest product details for one channel. Use Publish now for one controlled Facebook, Instagram, or TikTok product post. Unknown delivery outcomes are deliberately not retried automatically to prevent duplicate posts.</p>
-      {!jobs.results.length ? <p>No publishing records yet.</p> : <div style={{ overflowX: 'auto' }}>
+      {!jobs.results.length ? <p>No publishing records yet.</p> : <div className='sf-shop-records-scroll' role='region' aria-label='Social publishing records' tabIndex={0} style={{ overflowX: 'auto' }}>
         <table><thead><tr><th scope='col'>Product</th><th scope='col'>Channel</th><th scope='col'>Status</th><th scope='col'>Action</th></tr></thead>
           <tbody>{jobs.results.map(job => {
             const facebookConnected = facebook?.connectionStatus === 'connected' && facebook?.deliveryAvailable;
