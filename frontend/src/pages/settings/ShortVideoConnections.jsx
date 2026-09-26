@@ -1,4 +1,3 @@
-import TikTokPublisher from './TikTokPublisher';
 import { useEffect, useRef, useState } from 'react';
 import { apiRequest } from '../../services/api';
 
@@ -72,7 +71,7 @@ export default function ShortVideoConnections({ businessId }) {
         <h3>{row.platform === 'tiktok' ? 'TikTok' : 'Snapchat'}</h3>
         <p><strong>{row.connectionStatus === 'connected' ? 'Connected to ' + row.accountName : row.connectionStatus === 'expired' ? 'Connection needs renewal' : 'Not connected'}</strong></p>
         {!row.configured && <p>Account connections are being set up. Please check back soon.</p>}
-        <p>{row.platform === 'tiktok' ? 'Manual video publishing: preview and approve each post below.' : row.message}</p>
+        <p>{row.message}</p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {row.configured && <button type="button" disabled={Boolean(busy)} onClick={() => run(row.platform, 'connect')}>
             {busy === row.platform ? 'Please wait…' : row.connectionStatus === 'not_connected' ? 'Connect account' : 'Reconnect'}
@@ -82,7 +81,6 @@ export default function ShortVideoConnections({ businessId }) {
             <button type="button" disabled={Boolean(busy)} onClick={() => setDisconnect(row.platform)}>Disconnect</button>
           </>}
         </div>
-        {row.platform === 'tiktok' && row.connectionStatus === 'connected' && <TikTokPublisher key={businessId + row.accountName} businessId={businessId} />}
       </article>)}
     </div>
     {disconnect && <dialog ref={dialog} onCancel={event => { event.preventDefault(); if (!busy) setDisconnect(null); }} style={{ border: '1px solid #dce6df', borderRadius: '22px', padding: '28px', maxWidth: '420px', width: 'calc(100% - 40px)' }}>
