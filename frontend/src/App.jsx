@@ -1,3 +1,4 @@
+import PlatformAdminPage from './pages/platform/PlatformAdminPage';
 import OnlineShopPage from './pages/settings/OnlineShopPage';
 import ShopPage from './pages/public/ShopPage';
 import { Navigate, Route, Routes } from "react-router-dom";
@@ -48,6 +49,10 @@ import PolicyPage from "./pages/public/PolicyPage";
 export default function App() {
   return (
     <Routes>
+      <Route path="/platform-admin" element={<AppLayout platform />}>
+        <Route index element={<Navigate to="overview" replace />} />
+        <Route path=":section" element={<PlatformAdminPage />} />
+      </Route>
       <Route path="/terms" element={<PolicyPage kind="terms" />} />
       <Route path="/privacy" element={<PolicyPage kind="privacy" />} />
       <Route path="/shops/:slug" element={<ShopPage />} />

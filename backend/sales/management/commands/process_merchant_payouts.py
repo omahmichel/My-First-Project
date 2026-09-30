@@ -1,3 +1,4 @@
+from platform_events.capture import audited_job
 from django.core.management.base import BaseCommand
 
 from sales.merchant_payout_service import process_merchant_payout
@@ -10,6 +11,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--limit", type=int, default=50)
 
+    @audited_job('process_merchant_payouts')
     def handle(self, *args, **options):
         limit = max(1, min(int(options["limit"]), 500))
         payout_ids = list(

@@ -1,3 +1,4 @@
+from platform_events.capture import audited_job
 from django.core.management.base import BaseCommand, CommandError
 
 from sales.mobile_money_service import (
@@ -21,6 +22,7 @@ class Command(BaseCommand):
             help="Maximum expired reservations to process in one run.",
         )
 
+    @audited_job('cleanup_mobile_money_reservations')
     def handle(self, *args, **options):
         limit = options["limit"]
 

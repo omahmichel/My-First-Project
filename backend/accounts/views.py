@@ -1,3 +1,4 @@
+from .login_otp_service import challenge_timing
 from django.conf import settings
 
 from rest_framework import status
@@ -119,9 +120,18 @@ class RegistrationOTPResendAPIView(APIView):
         )
 
 
-class LoginAPIView(APIView):
+class LoginChallengeAPIView(APIView):
+    # Password and challenge endpoints do not depend on an earlier JWT.
+    authentication_classes = ()
+
+    def get_authenticate_header(self, request):
+        return 'Bearer realm="api"'
+
+
+class LoginAPIView(LoginChallengeAPIView):
     # Validates email/password and creates a 2FA challenge without SMTP latency.
 
+    authentication_classes = ()
     permission_classes = (AllowAny,)
     throttle_scope = "auth_login"
 
@@ -145,21 +155,18 @@ class LoginAPIView(APIView):
                 ),
                 "challengeId": challenge.challenge_token,
                 "email": challenge.user.email,
-                "expiresIn": settings.LOGIN_OTP_EXPIRY_SECONDS,
-                "resendCooldown": (
-                    0
-                    if email_delivery_required
-                    else settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS
-                ),
+                **challenge_timing(challenge),
+
                 "emailDeliveryRequired": email_delivery_required,
             },
             status=status.HTTP_202_ACCEPTED,
         )
 
 
-class LoginOTPDeliverAPIView(APIView):
+class LoginOTPDeliverAPIView(LoginChallengeAPIView):
     # Delivers the first OTP after the login request has already completed.
 
+    authentication_classes = ()
     permission_classes = (AllowAny,)
     throttle_scope = "auth_login_deliver"
 
@@ -191,17 +198,17 @@ class LoginOTPDeliverAPIView(APIView):
                 ),
                 "challengeId": challenge.challenge_token,
                 "email": challenge.user.email,
-                "expiresIn": settings.LOGIN_OTP_EXPIRY_SECONDS,
-                "resendCooldown": settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+                **challenge_timing(challenge),
                 "emailDeliveryRequired": False,
             },
             status=status.HTTP_200_OK,
         )
 
 
-class LoginOTPVerifyAPIView(APIView):
+class LoginOTPVerifyAPIView(LoginChallengeAPIView):
     # Completes login and issues JWT credentials only after OTP verification.
 
+    authentication_classes = ()
     permission_classes = (AllowAny,)
     throttle_scope = "auth_login_verify"
 
@@ -219,9 +226,10 @@ class LoginOTPVerifyAPIView(APIView):
         )
 
 
-class LoginOTPResendAPIView(APIView):
+class LoginOTPResendAPIView(LoginChallengeAPIView):
     # Reissues the login security code after the configured cooldown.
 
+    authentication_classes = ()
     permission_classes = (AllowAny,)
     throttle_scope = "auth_login_resend"
 
@@ -249,8 +257,7 @@ class LoginOTPResendAPIView(APIView):
                 "message": "A new security code was sent to your email.",
                 "challengeId": challenge.challenge_token,
                 "email": challenge.user.email,
-                "expiresIn": settings.LOGIN_OTP_EXPIRY_SECONDS,
-                "resendCooldown": settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+                **challenge_timing(challenge),
             },
             status=status.HTTP_200_OK,
         )

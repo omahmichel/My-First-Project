@@ -28,11 +28,11 @@ const titles = {
   "/app/settings": "Settings",
 };
 
-export default function Topbar({ onOpenSidebar }) {
+export default function Topbar({ onOpenSidebar, platform = false }) {
   const { user } = useAuth();
   const { business } = useStore();
   const location = useLocation();
-  const title = titles[location.pathname] ?? "StockFlow";
+  const title = platform ? "StockFlow administration" : titles[location.pathname] ?? "StockFlow";
 
   return (
     <header className="app-topbar">
@@ -41,7 +41,7 @@ export default function Topbar({ onOpenSidebar }) {
           <Menu size={22} />
         </button>
         <div>
-          <span>Workspace</span>
+          <span>{platform ? "Platform" : "Workspace"}</span>
           <strong>{title}</strong>
         </div>
       </div>
@@ -52,13 +52,13 @@ export default function Topbar({ onOpenSidebar }) {
           <input type="search" placeholder="Search records..." aria-label="Search records" />
         </div>
 
-        <NotificationBell className="topbar-icon-button" />
+        {!platform && <NotificationBell className="topbar-icon-button" />}
 
         <div className="topbar-user">
           <div className="topbar-avatar">{user?.name?.slice(0, 2).toUpperCase() ?? "BO"}</div>
           <div>
             <strong>{user?.name ?? "Business Owner"}</strong>
-            <span>{business?.currentUserRole ?? user?.role ?? "account"}</span>
+            <span>{platform ? "Platform administrator" : business?.currentUserRole ?? user?.role ?? "account"}</span>
           </div>
         </div>
       </div>

@@ -5,8 +5,10 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+
+import "../../styles/login-otp.css";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
@@ -20,6 +22,7 @@ function remainingSeconds(timestamp) {
 export default function LoginOTPPage() {
   const {
     isAuthenticated,
+    user,
     pendingLogin,
     deliverLoginOtp,
     resendLoginOtp,
@@ -38,70 +41,48 @@ export default function LoginOTPPage() {
     Boolean(pendingLogin?.emailDeliveryRequired),
   );
   const [resending, setResending] = useState(false);
-  const deliveryStartedRef = useRef(false);
+  const [resendAt, setResendAt] = useState(() => pendingLogin?.resendAvailableAt || Date.now() + 60000);
   const [secondsRemaining, setSecondsRemaining] = useState(() =>
     remainingSeconds(pendingLogin?.resendAvailableAt),
   );
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const adminLogin = params.get("mode") === "admin";
+  const loginPath = adminLogin ? "/login?mode=admin" : "/login?mode=business";
 
   useEffect(() => {
-    if (secondsRemaining <= 0) return undefined;
-
-    const timer = window.setInterval(() => {
-      setSecondsRemaining((current) => Math.max(0, current - 1));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [secondsRemaining]);
+    const tick = () => setSecondsRemaining(remainingSeconds(resendAt));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    window.addEventListener("focus", tick);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", tick); };
+  }, [resendAt]);
 
   useEffect(() => {
-    if (
-      !pendingLogin?.challengeId ||
-      !pendingLogin?.emailDeliveryRequired ||
-      deliveryStartedRef.current
-    ) {
-      return undefined;
-    }
-
-    deliveryStartedRef.current = true;
+    if (!pendingLogin?.challengeId || !pendingLogin.emailDeliveryRequired) return undefined;
     let active = true;
     setDelivering(true);
-    setError("");
-    setMessage("Sending your security code...");
-
+    setMessage("Sending your security code…");
     deliverLoginOtp(pendingLogin.challengeId)
-      .then((nextPendingLogin) => {
+      .then((next) => {
         if (!active) return;
-        setSecondsRemaining(
-          remainingSeconds(nextPendingLogin.resendAvailableAt),
-        );
-        setMessage("Security code sent. Check your email.");
+        setResendAt(next.resendAvailableAt);
+        setMessage("Code submitted for delivery. Check your inbox and spam folder.");
       })
-      .catch((deliveryError) => {
-        deliveryStartedRef.current = false;
-        if (!active) return;
-        setMessage("");
-        setError(deliveryError.message);
-      })
-      .finally(() => {
-        if (active) setDelivering(false);
-      });
+      .catch((err) => { if (active) { setMessage(""); setError(err.message); } })
+      .finally(() => { if (active) setDelivering(false); });
+    return () => { active = false; };
+    // One shared request per challenge; completion must survive provider updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliverLoginOtp, pendingLogin?.challengeId]);
 
-    return () => {
-      active = false;
-    };
-  }, [
-    deliverLoginOtp,
-    pendingLogin?.challengeId,
-    pendingLogin?.emailDeliveryRequired,
-  ]);
-
-  if (isAuthenticated) {
-    return <Navigate to="/businesses" replace />;
+  // A new login challenge must complete before reusing an older session.
+  if (isAuthenticated && !pendingLogin) {
+    return <Navigate to={adminLogin ? "/platform-admin" : "/businesses"} replace />;
   }
 
   if (!pendingLogin) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
   function handleOtpChange(event) {
@@ -121,13 +102,18 @@ export default function LoginOTPPage() {
     setSubmitting(true);
 
     try {
-      await verifyLoginOtp({
+      const authenticatedUser = await verifyLoginOtp({
         challengeId: pendingLogin.challengeId,
         otp,
       });
+      if (adminLogin) {
+        // Existing platform route and backend permissions remain authoritative.
+        navigate("/platform-admin", { replace: true });
+        return;
+      }
       const availableBusinesses = await loadBusinesses();
       navigate(
-        availableBusinesses.length > 0 ? "/businesses" : "/onboarding",
+        availableBusinesses.length > 0 || authenticatedUser?.isPlatformAdmin ? "/businesses" : "/onboarding",
         { replace: true },
       );
     } catch (verificationError) {
@@ -138,52 +124,27 @@ export default function LoginOTPPage() {
   }
 
   async function handleResend() {
-    const needsInitialDelivery = Boolean(
-      pendingLogin?.emailDeliveryRequired,
-    );
-
-    if (
-      (!needsInitialDelivery && secondsRemaining > 0) ||
-      resending ||
-      delivering
-    ) {
-      return;
-    }
-
-    setError("");
-    setMessage("");
-    setResending(true);
-
+    if (secondsRemaining > 0 || resending || delivering || submitting) return;
+    setError(""); setMessage(""); setOtp(""); setResending(true);
+    setResendAt(Date.now() + 60000);
     try {
-      const nextPendingLogin = needsInitialDelivery
-        ? await deliverLoginOtp(pendingLogin.challengeId)
-        : await resendLoginOtp(pendingLogin.challengeId);
-      setOtp("");
-      setSecondsRemaining(
-        remainingSeconds(nextPendingLogin.resendAvailableAt),
-      );
-      setMessage(
-        needsInitialDelivery
-          ? "Security code sent. Check your email."
-          : "A new security code was sent to your email.",
-      );
-    } catch (resendError) {
-      setError(resendError.message);
-    } finally {
-      setResending(false);
-    }
+      const next = await resendLoginOtp(pendingLogin.challengeId);
+      setResendAt(next.resendAvailableAt);
+      setMessage("New code submitted for delivery. Use the latest code only.");
+    } catch (err) { setError(err.message); }
+    finally { setResending(false); }
   }
 
   return (
     <main className="auth-page auth-registration-otp-page auth-login-otp-page">
       <section className="auth-visual-panel">
-        <Link to="/login" className="auth-back-link">
+        <Link to={loginPath} className="auth-back-link">
           <ArrowLeft size={18} /> Back to login
         </Link>
 
         <div className="auth-visual-content">
           <span>Two-factor authentication</span>
-          <h1>One more security check before your workspace opens.</h1>
+          <h1>Your account. One secure step away.</h1>
           <p>
             Your password has been accepted. StockFlow now requires the
             one-time code sent to your registered email address.
@@ -191,7 +152,7 @@ export default function LoginOTPPage() {
           <ul className="auth-benefit-list">
             <li>The security code expires after 10 minutes</li>
             <li>Five incorrect attempts are allowed per code</li>
-            <li>JWT access is issued only after this check succeeds</li>
+            <li>Your workspace opens after successful verification</li>
           </ul>
         </div>
       </section>
@@ -209,19 +170,17 @@ export default function LoginOTPPage() {
             <span>Secure sign-in</span>
             <h2>Verify your sign-in</h2>
             <p>
-              {pendingLogin.emailDeliveryRequired
-                ? "We are sending a security code to "
-                : "We sent a security code to "}
+              Enter the six-digit code for 
               <strong>{pendingLogin.email}</strong>.
             </p>
           </div>
 
           {error ? (
-            <div className="form-alert form-alert-error">{error}</div>
+            <div role="alert" className="form-alert form-alert-error">{error}</div>
           ) : null}
 
           {message ? (
-            <div className="form-alert form-alert-success">{message}</div>
+            <div role="status" className="form-alert form-alert-success">{message}</div>
           ) : null}
 
           <form onSubmit={handleSubmit} className="auth-form">
@@ -237,12 +196,15 @@ export default function LoginOTPPage() {
                   value={otp}
                   onChange={handleOtpChange}
                   maxLength={6}
-                  placeholder="000000"
+                  placeholder="••••••"
+                  autoFocus
+                  spellCheck={false}
+                  aria-describedby="otp-help"
                   aria-label="Six-digit sign-in security code"
                   required
                 />
               </div>
-              <small>
+              <small id="otp-help">
                 Check your inbox and spam folder for the StockFlow email.
               </small>
             </label>
@@ -251,32 +213,26 @@ export default function LoginOTPPage() {
               type="submit"
               size="large"
               className="full-width-button"
-              disabled={submitting || otp.length !== 6}
+              disabled={submitting || resending || delivering || otp.length !== 6}
             >
               <ShieldCheck size={18} />
               {submitting ? "Verifying sign-in..." : "Verify and log in"}
             </Button>
 
-            <button
-              type="button"
-              className="registration-otp-resend"
-              onClick={handleResend}
-              disabled={delivering || secondsRemaining > 0 || resending}
-            >
-              <RefreshCw size={16} />
-              {delivering
-                ? "Sending security code..."
-                : resending
-                  ? "Sending new code..."
-                  : secondsRemaining > 0
-                  ? `Resend available in ${secondsRemaining}s`
-                  : "Resend security code"}
-            </button>
+            <div className="sf-otp-resend-area">
+              <span>Haven’t received your code?</span>
+              {secondsRemaining > 0 ? (
+                <p className="sf-otp-countdown">Request a new code in <strong>{String(Math.floor(secondsRemaining / 60)).padStart(2, "0")}:{String(secondsRemaining % 60).padStart(2, "0")}</strong></p>
+              ) : (
+                <button type="button" className="registration-otp-resend" onClick={handleResend} disabled={delivering || resending || submitting}>
+                  <RefreshCw size={16} /> {resending ? "Sending new code…" : "Resend code"}
+                </button>
+              )}
+            </div>
           </form>
 
           <p className="auth-switch-text">
-            <MailCheck size={15} /> Password accepted. Waiting for your second
-            factor.
+            <MailCheck size={15} /> Your workspace stays locked until your code is verified.
           </p>
         </div>
       </section>

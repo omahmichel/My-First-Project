@@ -1,0 +1,44 @@
+.marketing-nav .sf-landing-nav-icon { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0; border:1px solid #dcebe6; border-radius:12px; color:#164b40; background:#f5faf8; cursor:pointer; list-style:none; }
+.marketing-nav .sf-landing-nav-icon:hover { background:#e4f3ed; }
+.marketing-nav .sf-landing-nav-icon:focus-visible { outline:3px solid #11998e; outline-offset:3px; }
+.sf-landing-login-choice { position:relative; }
+.sf-landing-login-choice summary::-webkit-details-marker { display:none; }
+.sf-landing-login-options { position:absolute; right:0; top:calc(100% + 10px); z-index:100; width:245px; max-width:calc(100vw - 32px); padding:8px; background:#fff; border:1px solid #dae8e1; border-radius:14px; box-shadow:0 14px 40px #103e3026; }
+.marketing-nav .sf-landing-login-options a { display:flex; align-items:center; gap:10px; min-height:48px; padding:10px 12px; border-radius:9px; color:#164b40; font-size:14px; text-decoration:none; white-space:normal; }
+.sf-landing-login-options a:hover,.sf-landing-login-options a:focus-visible { background:#eef7f2; }
+.sf-landing-login-options svg { flex-shrink:0; }
+
+/* Header-only responsive repair: menus stay inside the viewport. */
+.marketing-page .marketing-nav { gap: 16px; }
+.marketing-page .marketing-nav .marketing-brand { flex-shrink: 0; white-space: nowrap; }
+.marketing-nav .sf-landing-wordmark { font-weight: 650; letter-spacing: -.04em; }
+.marketing-nav .marketing-actions { flex-shrink: 0; }
+.marketing-nav .marketing-actions .marketing-primary-button { white-space: nowrap; }
+.marketing-nav .sf-landing-nav-icon { flex-shrink: 0; box-sizing: border-box; color: #075c50; background: #edf7f3; border-color: #cee4dc; box-shadow: 0 2px 5px #093d3010; }
+.marketing-nav .sf-landing-nav-icon svg { width: 22px; height: 22px; stroke-width: 2.2; }
+.marketing-nav .sf-landing-login-options { box-sizing: border-box; width: 290px; }
+.marketing-nav .sf-landing-login-options a { font-size: 14px; line-height: 1.45; font-weight: 600; gap: 12px; }
+.marketing-nav .sf-login-option-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; background: #eaf6f1; color: #075c50; }
+.marketing-nav .sf-landing-login-options a > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.marketing-nav .marketing-menu-button { width: 44px; height: 44px; flex-shrink: 0; padding: 0; border: 1px solid #cee4dc; border-radius: 12px; background: #edf7f3; color: #075c50; }
+.marketing-nav .marketing-menu-button svg { width: 22px; height: 22px; stroke-width: 2.2; margin: auto; }
+.marketing-nav .marketing-menu-button:focus-visible { outline: 3px solid #11998e; outline-offset: 3px; }
+@media (max-width: 860px) {
+ .marketing-page .marketing-nav .sf-landing-login-choice { position: static; }
+ .marketing-page .marketing-nav .sf-landing-login-options { top: calc(100% + 8px); right: 0; left: auto; max-width: 100%; }
+ .marketing-page .marketing-nav .marketing-links { left: 0; right: 0; top: calc(100% + 8px); padding: 12px; border: 1px solid #dae8e1; border-radius: 16px; box-shadow: 0 14px 40px #103e3026; }
+ .marketing-page .marketing-nav .marketing-links-open { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+ .marketing-page .marketing-nav .marketing-links .sf-landing-nav-icon { width: 100%; height: 48px; padding: 0; }
+}
+@media (max-width: 600px) {
+ .marketing-page .marketing-header .marketing-nav { width: calc(100% - 28px); min-height: 0; display: grid; grid-template-columns: minmax(0,1fr) 44px 44px; gap: 10px; padding: 12px 0; }
+ .marketing-page .marketing-nav .marketing-brand { grid-column: 1; grid-row: 1; font-size: 18px; gap: 8px; }
+ .marketing-page .marketing-nav .marketing-brand > span { width: 36px; height: 36px; flex: 0 0 36px; }
+ .marketing-page .marketing-nav .marketing-actions { display: contents; }
+ .marketing-page .marketing-nav .sf-landing-login-choice { grid-column: 2; grid-row: 1; }
+ .marketing-page .marketing-nav .marketing-menu-button { display: block; grid-column: 3; grid-row: 1; }
+ .marketing-page .marketing-nav .marketing-actions .marketing-primary-button { grid-column: 1 / -1; grid-row: 2; min-height: 40px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
+ .marketing-page .marketing-nav .marketing-actions .marketing-primary-button svg { display: block; }
+ .marketing-page .marketing-nav .sf-landing-login-options { width: 100%; max-width: 100%; max-height: calc(100dvh - 150px); overflow-y: auto; }
+ .marketing-page .marketing-hero { padding-top: 156px; }
+}

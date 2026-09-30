@@ -1,3 +1,4 @@
+import BackToStockFlow from '../../components/layout/BackToStockFlow';
 import ShopSocialPanel from './ShopSocialPanel';
 import ShopOrdersPanel from './ShopOrdersPanel';
 import ShopProductsPanel from './ShopProductsPanel';
@@ -77,6 +78,7 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
   }
 
   return <section className='sf-shop sf-shop-admin sf-shop-workspace'>
+    <div><BackToStockFlow /></div>
     <header className='sf-shop-workspace-hero'>
       <div><span className='sf-shop-eyebrow'>ONLINE SHOP · MANAGEMENT</span><h1>{business.name}</h1><p>Set up your shop, prepare your catalogue and manage customer orders in one place.</p></div>
       {settings && <span className={'sf-shop-visibility ' + (settings.isPublished ? 'is-live' : '')}>{settings.isPublished ? 'Shop published' : 'Shop unpublished'}</span>}
@@ -152,5 +154,6 @@ function ShopSettings({ business, branches, branchesLoading, branchesError, relo
         </>}
       </div>
     </div>
+    <div><BackToStockFlow /></div>
   </section>;
 }

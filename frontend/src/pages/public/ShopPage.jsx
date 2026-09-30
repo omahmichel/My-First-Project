@@ -4,6 +4,8 @@ import ShopProductMedia from './ShopProductMedia';
 import ShopPromotionVideos from './ShopPromotionVideos';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import BackToStockFlow from '../../components/layout/BackToStockFlow';
+import { useStore } from '../../context/StoreContext';
 import { publicShopRequest, shopMoney } from '../../services/storefront';
 import '../../styles/storefront.css';
 
@@ -31,7 +33,14 @@ export default function ShopPage() {
 }
 
 function ShopCatalogue({ slug }) {
+  const { businesses, business, switchBusiness } = useStore();
   const manager = useShopMediaManager(slug);
+  const returnBusiness = manager && businesses.find(item =>
+    String(item.id) === String(manager.businessId) && item.hasSystemAccess &&
+    ['owner', 'manager', 'inventory_clerk'].includes(item.currentUserRole));
+  function returnToDashboard() {
+    if (returnBusiness && business.id !== returnBusiness.id) switchBusiness(returnBusiness.id);
+  }
   const [mediaNotice, setMediaNotice] = useState('');
   function photoDeleted() {
     setMediaNotice('Photo deleted successfully. The product and video are unchanged.');
@@ -83,8 +92,8 @@ function ShopCatalogue({ slug }) {
       )
     : '';
 
-  return <main className='sf-shop'>
-    <nav className='sf-shop-nav'><Link to='/'>Stock<strong>Flow</strong></Link><span>Discover your local shop</span></nav>
+  return <main className='sf-shop sf-shop-compact'>
+    <nav className='sf-shop-nav'><Link to='/'>Stock<strong>Flow</strong></Link>{returnBusiness && <BackToStockFlow onClick={returnToDashboard} />}</nav>
     <header className='sf-shop-hero'>
       <span className='sf-shop-eyebrow'>SHOP LOCAL</span>
       <h1>{data?.shop.name || 'Welcome to the shop'}</h1>
@@ -106,7 +115,11 @@ function ShopCatalogue({ slug }) {
             key={manager.userId + ':' + manager.businessId} product={product} manager={manager} kind="photo" onDeleted={photoDeleted} />}
           <ShopProductMedia key={product.listingId + ':' + (product.videoUrl || '') + ':' + (product.imageUrl || '')} product={product} />
           <div className='sf-shop-card-body'><small>{product.category}</small><h2>{product.name}</h2>
-          {(product.designCode || product.size || product.color) && <p>{[product.designCode, product.size, product.color].filter(Boolean).join(' / ')}</p>}
+          {(product.designCode || product.size || product.color) && <p className='sf-shop-specs'>{[product.designCode, product.size, product.color].filter(Boolean).join(' / ')}</p>}
+          <strong className='sf-shop-price'>{shopMoney(product.price)} <small>/ {product.unit}</small></strong>
+          <p className={product.inStock ? 'sf-shop-available' : 'sf-shop-unavailable'}>{product.inStock ? 'In stock' : 'Currently unavailable'}</p>
+          {product.description && <details className='sf-shop-product-details'><summary>Product details</summary><p className='sf-shop-description'>{product.description}</p></details>}
+          <div className='sf-shop-card-actions'>
           <button type='button' disabled={cartLocked || !product.inStock} onClick={() => addToCart(product)}>Add to cart</button>
           {whatsappEnabled && <a
             className='sf-shop-whatsapp sf-shop-whatsapp-product'
@@ -133,15 +146,13 @@ function ShopCatalogue({ slug }) {
               />
             </svg>
           </a>}
-          <strong className='sf-shop-price'>{shopMoney(product.price)} <small>/ {product.unit}</small></strong>
-          <p className={product.inStock ? 'sf-shop-available' : 'sf-shop-unavailable'}>{product.inStock ? 'In stock' : 'Currently unavailable'}</p>
-          {product.description && <p className='sf-shop-description'>{product.description}</p>}
+          </div>
           </div></article>)}</div>
         <div className='sf-shop-pagination'><button type='button' disabled={!data?.previous} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</button><span>Page {page}</span><button type='button' disabled={!data?.next} onClick={() => setPage(value => value + 1)}>Next</button></div>
       </>}
     </section>
     {!loading && !error && <ShopPromotionVideos slug={slug} />}
     <div className='sf-shop-cart-wrap'><p role='status'>{cartMessage}</p><ShopCart slug={slug} cart={cart} setCart={setCart} locked={cartLocked} setLocked={setCartLocked} /></div>
-    <footer className='sf-shop-footer'>Powered by StockFlow</footer>
+    <footer className='sf-shop-footer'>{returnBusiness && <BackToStockFlow onClick={returnToDashboard} />}<p>Powered by StockFlow</p></footer>
   </main>;
 }

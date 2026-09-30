@@ -1,0 +1,25 @@
+/* Scoped to the existing login OTP form only. */
+.auth-login-otp-page { min-height: 100dvh; }
+.auth-login-otp-page .auth-form-panel { padding: clamp(24px,4vw,64px); }
+.auth-login-otp-page .auth-form-card { max-width: 480px; width: 100%; }
+.auth-login-otp-page .auth-brand { margin-bottom: 28px; }
+.auth-login-otp-page .auth-heading h2 { font-size: clamp(26px,3vw,34px); line-height: 1.2; }
+.auth-login-otp-page .auth-heading p { font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
+.auth-login-otp-page .auth-visual-content h1 { font-size: clamp(34px,4vw,56px); line-height: 1.1; max-width: 540px; }
+.auth-login-otp-page .auth-visual-content p { font-size: 17px; }
+.auth-login-otp-page .auth-form { gap: 20px; }
+.auth-login-otp-page .form-alert { padding: 13px 16px; font-size: 14px; line-height: 1.5; border-radius: 14px; margin-bottom: 18px; }
+.auth-login-otp-page .registration-otp-input { border: 1px solid #bfd8d2; border-radius: 16px; background: #f8fcfb; box-shadow: 0 3px 12px #063d3310; }
+.auth-login-otp-page .registration-otp-input:focus-within { outline: 3px solid #119c8d24; border-color: #0d9488; }
+.auth-login-otp-page .registration-otp-input input { min-width: 0; height: 64px; font-size: 28px; letter-spacing: .35em; padding: 10px; text-align: center; font-variant-numeric: tabular-nums; }
+.auth-login-otp-page .auth-form small { font-size: 12px; line-height: 1.5; margin-top: 8px; }
+.auth-login-otp-page .full-width-button { min-height: 50px; border-radius: 14px; font-size: 16px; }
+.auth-login-otp-page .sf-otp-resend-area { text-align: center; border-top: 1px solid #e2ece9; padding-top: 20px; font-size: 14px; color: #52716a; }
+.auth-login-otp-page .sf-otp-countdown { margin: 8px 0 0; font-size: 14px; }
+.auth-login-otp-page .sf-otp-countdown strong { color: #075e51; font-variant-numeric: tabular-nums; }
+.auth-login-otp-page .registration-otp-resend { width: 100%; min-height: 44px; margin-top: 10px; color: #087f73; border-radius: 12px; }
+.auth-login-otp-page .auth-switch-text { font-size: 12px; line-height: 1.5; display: flex; gap: 8px; justify-content: center; margin-top: 22px; }
+@media (max-width: 640px) {
+ .auth-login-otp-page .auth-form-panel { padding: 24px 18px; }
+ .auth-login-otp-page .registration-otp-input input { font-size: 25px; letter-spacing: .24em; }
+}

@@ -75,6 +75,7 @@ export default function MyBusinessesPage() {
         </button>
 
         <div className="business-workspaces-account">
+          {user?.isPlatformAdmin && <button type="button" className="business-workspaces-logout" onClick={() => navigate("/platform-admin")}><ShieldCheck size={17} />Platform admin</button>}
           <div>
             <span>Signed in as</span>
             <strong>{user?.name ?? user?.email ?? "StockFlow account"}</strong>
@@ -135,10 +136,11 @@ export default function MyBusinessesPage() {
             <span className="business-workspaces-empty-icon">
               <Store size={28} />
             </span>
-            <h2>Create your first business workspace</h2>
+            <h2>{user?.isPlatformAdmin ? "No business workspace linked to this account" : "Create your first business workspace"}</h2>
             <p>
-              This account does not have a business yet. Set up a workspace to
-              start managing stock, customers and sales.
+              {user?.isPlatformAdmin
+                ? "Use Platform admin above to manage StockFlow. Business creation is optional. To open an existing business workspace, sign in with its authorised account or ask its owner to add this account to its team."
+                : "This account does not have a business yet. Set up a workspace to start managing stock, customers and sales."}
             </p>
             <Button onClick={addBusiness}>
               <Plus size={18} />

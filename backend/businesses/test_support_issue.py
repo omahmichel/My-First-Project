@@ -71,6 +71,11 @@ class SupportIssueReportTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(mail.outbox), 1)
+        from platform_events.models import BugReport
+        report = BugReport.objects.get(source="support")
+        self.assertEqual(report.business_id, str(self.business.pk))
+        self.assertEqual(report.reporter_id, str(self.owner.pk))
+        self.assertEqual(report.description, self.payload["description"])
         message = mail.outbox[0]
         self.assertEqual(
             message.to,

@@ -1,0 +1,25 @@
+.app-sidebar .sidebar-business-navigation,
+.app-sidebar .sidebar-administration {
+  display: grid;
+  gap: 4px;
+}
+.app-sidebar .sidebar-administration {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid #ffffff22;
+  border-bottom: 0;
+}
+.app-sidebar .sidebar-group-title {
+  margin: 12px 16px 6px;
+  color: #a4c9bd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.app-sidebar .sidebar-workspace-help {
+  margin: 4px 16px 12px;
+  color: #a4c9bd;
+  font-size: 12px;
+  line-height: 1.6;
+}

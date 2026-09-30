@@ -8,6 +8,11 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     # Returns safe account details to the authenticated frontend.
 
+    is_platform_admin = serializers.SerializerMethodField()
+
+    def get_is_platform_admin(self, obj):
+        return bool(obj.is_active and obj.is_staff and obj.is_superuser)
+
     class Meta:
         model = User
         fields = (
@@ -17,12 +22,14 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "is_active",
             "date_joined",
+            "is_platform_admin",
         )
         read_only_fields = (
             "id",
             "email",
             "is_active",
             "date_joined",
+            "is_platform_admin",
         )
 
 

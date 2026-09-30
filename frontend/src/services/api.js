@@ -2,6 +2,27 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
 let activeRefreshRequest = null;
+let sessionGeneration = 0;
+export function invalidateAuthRequests() {
+  sessionGeneration += 1;
+  activeRefreshRequest = null;
+}
+const otpRequests = new Map();
+export function loginOtpRequest(path, payload) {
+  const key = /\/(deliver|resend)\/$/.test(path) ? `${path}:${payload.challengeId}` : Symbol(path);
+  if (otpRequests.has(key)) return otpRequests.get(key);
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 25000);
+  const request = apiRequest(path, {
+    method: "POST", body: JSON.stringify(payload),
+    skipAuthRefresh: true, anonymous: true, signal: controller.signal,
+  }).catch((error) => {
+    if (error.name === "AbortError") throw new Error("The request took too long. Check your connection. You can request a new code when the countdown ends.");
+    throw error;
+  }).finally(() => { window.clearTimeout(timer); otpRequests.delete(key); });
+  otpRequests.set(key, request);
+  return request;
+}
 
 // Returns true only when a JWT access token is already expired (or about to expire).
 // Malformed/opaque tokens fall back to the existing server-side 401 refresh path.
@@ -67,6 +88,7 @@ async function refreshAccessToken() {
     throw new Error("Your session has expired. Please sign in again.");
   }
 
+  const generation = sessionGeneration;
   if (!activeRefreshRequest) {
     activeRefreshRequest = fetch(`${API_BASE_URL}/auth/refresh/`, {
       method: "POST",
@@ -87,6 +109,7 @@ async function refreshAccessToken() {
           throw error;
         }
 
+        if (generation !== sessionGeneration) throw new Error("Sign-in changed.");
         window.localStorage.setItem(
           "stockflow_access_token",
           responseData.access,
@@ -103,13 +126,13 @@ async function refreshAccessToken() {
         return responseData.access;
       })
       .catch(() => {
-        clearExpiredSession();
+        if (generation === sessionGeneration) clearExpiredSession();
         throw new Error(
           "Your session has expired. Please sign in again.",
         );
       })
       .finally(() => {
-        activeRefreshRequest = null;
+        if (generation === sessionGeneration) activeRefreshRequest = null;
       });
   }
 
@@ -138,6 +161,7 @@ export async function apiRequest(path, options = {}) {
   const {
     responseType = "json",
     skipAuthRefresh = false,
+    anonymous = false,
     ...fetchOptions
   } = options;
 
@@ -147,12 +171,12 @@ export async function apiRequest(path, options = {}) {
       headers: buildRequestHeaders(fetchOptions, accessToken),
     });
 
-  let accessToken = window.localStorage.getItem(
+  let accessToken = anonymous ? null : window.localStorage.getItem(
     "stockflow_access_token",
   );
 
   const refreshAllowedForPath =
-    !skipAuthRefresh &&
+    !anonymous && !skipAuthRefresh &&
     path !== "/auth/login/" &&
     path !== "/auth/register/" &&
     path !== "/auth/refresh/";

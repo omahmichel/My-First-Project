@@ -1,6 +1,6 @@
 import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const adminLogin = params.get("mode") === "admin";
 
   function handleChange(event) {
     setForm((current) => ({
@@ -27,7 +29,7 @@ export default function LoginPage() {
 
     try {
       await login(form);
-      navigate("/verify-login", { replace: true });
+      navigate(adminLogin ? "/verify-login?mode=admin" : "/verify-login?mode=business", { replace: true });
     } catch (loginError) {
       setError(loginError.message);
     } finally {
@@ -68,8 +70,8 @@ export default function LoginPage() {
           </Link>
           <div className="auth-heading">
             <span>Secure account access</span>
-            <h2>Log in to StockFlow</h2>
-            <p>Enter your details to continue to your business workspace.</p>
+            <h2>{adminLogin ? "StockFlow admin login" : "Log in to StockFlow"}</h2>
+            <p>{adminLogin ? "Sign in with your authorised StockFlow staff account." : "Enter your details to continue to your business workspace."}</p>
           </div>
 
           {error ? <div className="form-alert form-alert-error">{error}</div> : null}

@@ -1,4 +1,5 @@
 import {
+  Activity, Bell, ShieldPlus,
   BarChart3,
   BrainCircuit,
   Building2,
@@ -30,6 +31,7 @@ import { useStore } from "../../context/StoreContext";
 import { businessTypeLabel } from "../../data/businessTypes";
 
 import "../../styles/sidebar-business-switcher.css";
+import "../../styles/sidebar-sections.css";
 
 const commonNavigation = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -87,7 +89,7 @@ const industryNavigation = {
 };
 
 export default function Sidebar({ open, onClose }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const {
     business,
     businesses,
@@ -133,7 +135,7 @@ export default function Sidebar({ open, onClose }) {
     "/app/subscription",
     "/app/report-issue",
   ]);
-  const navigation = business.hasSystemAccess
+  const navigation = !business.id ? [] : business.hasSystemAccess
     ? fullNavigation
     : fullNavigation.filter(
         (item) => expiredWorkspacePaths.has(item.to),
@@ -148,7 +150,7 @@ export default function Sidebar({ open, onClose }) {
 
       <aside className={`app-sidebar ${open ? "app-sidebar-open" : ""}`}>
         <div className="sidebar-brand-row">
-          <NavLink to="/app/dashboard" className="app-brand" onClick={onClose}>
+          <NavLink to={business.id ? "/app/dashboard" : "/businesses"} className="app-brand" onClick={onClose}>
             <span className="app-brand-mark">S</span>
             <span>
               Stock<strong>Flow</strong>
@@ -160,7 +162,7 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
 
-        <div className="sidebar-business-card sidebar-business-switcher">
+        {business.id && <div className="sidebar-business-card sidebar-business-switcher">
           <div className="sidebar-business-switcher-heading">
             <span className="sidebar-business-switcher-icon">
               <Building2 size={16} />
@@ -209,7 +211,10 @@ export default function Sidebar({ open, onClose }) {
           </p>
         </div>
 
+        }
         <nav className="sidebar-nav">
+          <section className="sidebar-business-navigation" aria-label="Business workspace">
+          <p className="sidebar-group-title">Business workspace</p>
           {/* Always lets the account return to its authorized business list. */}
           <NavLink
             to="/businesses"
@@ -221,6 +226,8 @@ export default function Sidebar({ open, onClose }) {
             <Building2 size={19} />
             <span>My businesses</span>
           </NavLink>
+
+          {!business.id && <p className="sidebar-workspace-help">Choose an authorised workspace from My businesses to open stock, sales and reports.</p>}
 
           {navigation.map(({ to, label, icon: Icon }) => (
             <NavLink
@@ -236,13 +243,13 @@ export default function Sidebar({ open, onClose }) {
             </NavLink>
           ))}
 
-          {business.hasSystemAccess && business.currentUserRole === "owner" ? (
+          {business.id && business.hasSystemAccess && business.currentUserRole === "owner" ? (
             <NavLink to="/app/online-shop" onClick={onClose} className={({ isActive }) => isActive ? "sidebar-link sidebar-link-active" : "sidebar-link"}>
               <ShoppingCart size={19} /><span>Online shop</span>
             </NavLink>
           ) : null}
 
-          {business.hasSystemAccess &&
+          {business.id && business.hasSystemAccess &&
           ["owner", "manager"].includes(business.currentUserRole) ? (
             <NavLink
               to="/intelligence/overview"
@@ -255,6 +262,11 @@ export default function Sidebar({ open, onClose }) {
               <span>Intelligence</span>
             </NavLink>
           ) : null}
+          </section>
+          {user?.isPlatformAdmin && <section className="sidebar-administration" aria-label="Administration">
+            <p className="sidebar-group-title">Administration</p>
+            {[["overview","Overview",LayoutDashboard],["users","Users",Users],["businesses","Businesses",Building2],["subscriptions","Subscriptions",CreditCard],["administrators","Add Admin",ShieldPlus],["bugs","Bugs",Bug],["activity","Activity log",Activity],["notifications","Notifications",Bell]].map(([key,label,Icon]) => <NavLink key={key} to={`/platform-admin/${key}`} onClick={onClose} className={({isActive})=>`sidebar-link ${isActive ? "sidebar-link-active" : ""}`}><Icon size={19}/><span>{label}</span></NavLink>)}
+          </section>}
         </nav>
 
         <button type="button" className="sidebar-logout" onClick={handleLogout}>

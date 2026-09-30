@@ -1,3 +1,4 @@
+from platform_events.capture import audited_job
 from django.core.management.base import BaseCommand
 
 from integrations.webhooks.service import process_due_webhook_deliveries
@@ -9,6 +10,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--limit", type=int, default=50)
 
+    @audited_job('process_webhook_deliveries')
     def handle(self, *args, **options):
         result = process_due_webhook_deliveries(
             limit=max(1, min(int(options["limit"]), 200))

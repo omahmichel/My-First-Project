@@ -1,3 +1,4 @@
+from platform_events.capture import audited_job
 import time
 
 from django.core.management.base import BaseCommand
@@ -30,6 +31,7 @@ class Command(BaseCommand):
             help="Maximum due rules processed per pass.",
         )
 
+    @audited_job('process_intelligence_automations')
     def handle(self, *args, **options):
         interval = max(10, int(options["interval"]))
         limit = max(1, min(int(options["limit"]), 500))

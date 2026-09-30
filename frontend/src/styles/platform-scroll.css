@@ -1,0 +1,56 @@
+/* Administration owns one bounded content scroller below the header. */
+.app-shell.platform-admin-shell {
+  height:100vh;
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
+}
+.platform-admin-shell > .app-main-column {
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  min-height:0;
+  min-width:0;
+  overflow:hidden;
+}
+.platform-admin-shell > .app-main-column > .app-topbar {
+  flex:0 0 auto;
+  position:relative;
+}
+.platform-admin-shell > .app-main-column > .app-content {
+  flex:1 1 0;
+  min-height:0;
+  min-width:0;
+  overflow-y:scroll;
+  overflow-x:hidden;
+  overscroll-behavior-y:contain;
+  scrollbar-gutter:stable;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:max(28px,env(safe-area-inset-bottom));
+}
+.platform-admin-shell .app-content,
+.platform-admin-shell .pa-dialog,
+.platform-admin-shell .pa-notification-panel {
+  scrollbar-width:auto;
+  scrollbar-color:#498c77 #e2eee8;
+}
+.platform-admin-shell .pa-dialog {
+  max-height:calc(100vh - 32px);
+  max-height:calc(100dvh - 32px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-gutter:stable;
+  overscroll-behavior:contain;
+}
+.platform-admin-shell :is(.app-content,.pa-dialog,.pa-notification-panel)::-webkit-scrollbar {
+  display:block;
+  width:12px;
+  height:12px;
+}
+.platform-admin-shell :is(.app-content,.pa-dialog,.pa-notification-panel)::-webkit-scrollbar-track { background:#e2eee8; }
+.platform-admin-shell :is(.app-content,.pa-dialog,.pa-notification-panel)::-webkit-scrollbar-thumb {
+  background:#498c77;
+  border:3px solid #e2eee8;
+  border-radius:10px;
+}
+.platform-admin-shell :is(.app-content,.pa-dialog,.pa-notification-panel)::-webkit-scrollbar-thumb:hover { background:#236a54; }

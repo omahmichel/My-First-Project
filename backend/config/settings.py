@@ -135,6 +135,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
 
     # Local applications.
+    'platform_events.apps.PlatformEventsConfig',
     'accounts',
     'businesses',
     'inventory',
@@ -146,6 +147,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'platform_events.middleware.PlatformEventMiddleware',
     'django.middleware.security.SecurityMiddleware',
     # Serves compressed Django static files safely in production.
     'whitenoise.middleware.WhiteNoiseMiddleware',

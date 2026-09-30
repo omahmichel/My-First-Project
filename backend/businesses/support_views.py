@@ -163,6 +163,9 @@ class SupportIssueReportAPIView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+        from platform_events.models import BugReport
+        BugReport.objects.create(source='support', title=payload['subject'], description=payload['description'], reporter_id=str(request.user.pk), business_id=str(business.pk))
+
         return Response(
             {
                 "detail": (

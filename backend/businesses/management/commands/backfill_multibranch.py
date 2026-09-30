@@ -1,3 +1,4 @@
+from platform_events.capture import audited_job
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -21,6 +22,7 @@ class Command(BaseCommand):
     help = "Backfill legacy StockFlow records into each business Main Branch."
 
     @transaction.atomic
+    @audited_job('backfill_multibranch')
     def handle(self, *args, **options):
         totals = {
             "businesses": 0,

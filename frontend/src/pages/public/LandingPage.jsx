@@ -1,3 +1,5 @@
+import LandingLoginChoice from '../../components/auth/LandingLoginChoice';
+import '../../styles/landing-login-choice.css';
 import {
   ArrowRight,
   BarChart3,
@@ -99,18 +101,18 @@ export default function LandingPage() {
         <div className="marketing-container marketing-nav">
           <Link to="/" className="marketing-brand">
             <span>S</span>
-            Stock<strong>Flow</strong>
+            <b className="sf-landing-wordmark">Stock<strong>Flow</strong></b>
           </Link>
 
-          <nav className={`marketing-links ${menuOpen ? "marketing-links-open" : ""}`}>
-            <a href="#solutions" onClick={() => setMenuOpen(false)}>Solutions</a>
-            <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
-            <a href="#devices" onClick={() => setMenuOpen(false)}>Devices</a>
-            <a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a>
+          <nav id="landing-navigation" aria-label="Main navigation" className={`marketing-links ${menuOpen ? "marketing-links-open" : ""}`}>
+            <a href="#solutions" className="sf-landing-nav-icon" aria-label="Solutions" title="Solutions" onClick={() => setMenuOpen(false)}><Store size={22} strokeWidth={2.2} aria-hidden="true" /></a>
+            <a href="#features" className="sf-landing-nav-icon" aria-label="Features" title="Features" onClick={() => setMenuOpen(false)}><Layers3 size={22} strokeWidth={2.2} aria-hidden="true" /></a>
+            <a href="#devices" className="sf-landing-nav-icon" aria-label="Devices" title="Devices" onClick={() => setMenuOpen(false)}><Laptop size={22} strokeWidth={2.2} aria-hidden="true" /></a>
+            <a href="#pricing" className="sf-landing-nav-icon" aria-label="Pricing" title="Pricing" onClick={() => setMenuOpen(false)}><ReceiptText size={22} strokeWidth={2.2} aria-hidden="true" /></a>
           </nav>
 
           <div className="marketing-actions">
-            <Link to="/login" className="marketing-login-link">Log in</Link>
+            <LandingLoginChoice navigationOpen={menuOpen} onOpen={() => setMenuOpen(false)} />
             <Link to="/register" className="marketing-primary-button">
               Start free <ArrowRight size={17} />
             </Link>
@@ -120,7 +122,9 @@ export default function LandingPage() {
             type="button"
             className="marketing-menu-button"
             onClick={() => setMenuOpen((current) => !current)}
-            aria-label="Toggle navigation"
+            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={menuOpen}
+            aria-controls="landing-navigation"
           >
             {menuOpen ? <X size={23} /> : <Menu size={23} />}
           </button>

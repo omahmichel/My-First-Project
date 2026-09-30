@@ -1,6 +1,6 @@
 import { NotificationActionsProvider } from "../notifications/NotificationRefresh";
 import { AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -8,17 +8,24 @@ import {
   useLocation,
 } from "react-router-dom";
 
+import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
 import "../../styles/subscription.css";
 import "../../styles/sidebar-pages-polish.css";
+import "../../styles/platform-scroll.css";
 
-export default function AppLayout() {
+export default function AppLayout({ platform = false }) {
+  const { user, isAuthenticated, isInitializing } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { business } = useStore();
   const location = useLocation();
+  const contentRef = useRef(null);
+  useEffect(() => {
+    if (platform && contentRef.current) contentRef.current.scrollTop = 0;
+  }, [platform, location.pathname]);
   const subscriptionPath = "/app/subscription";
   const supportPath = "/app/report-issue";
   const isBoutiqueBusiness = business.type === "boutique";
@@ -27,16 +34,19 @@ export default function AppLayout() {
     supportPath,
   ]);
 
+  if (platform && isInitializing) return <p role="status">Loading account…</p>;
+  if (platform && !isAuthenticated) return <Navigate to="/login" replace state={{from:location.pathname}}/>;
+  if (platform && !user?.isPlatformAdmin) return <main className="pa-root"><h1>Platform administrator access required</h1><Link to="/businesses">Return to my businesses</Link></main>;
   // Keeps expired workspaces limited to renewal and support.
   if (
-    business.id &&
+    !platform && business.id &&
     !business.hasSystemAccess &&
     !expiredWorkspaceAllowedPaths.has(location.pathname)
   ) {
     return <Navigate to={subscriptionPath} replace />;
   }
 
-  const showTrialReminder =
+  const showTrialReminder = !platform &&
     business.hasSystemAccess &&
     business.isTrialActive &&
     business.subscriptionReminderDue &&
@@ -45,7 +55,7 @@ export default function AppLayout() {
   return (
     <NotificationActionsProvider>
     <div
-      className={`app-shell ${isBoutiqueBusiness ? "stockflow-boutique-app" : ""}`}
+      className={`app-shell ${platform ? "platform-admin-shell" : ""} ${isBoutiqueBusiness ? "stockflow-boutique-app" : ""}`}
     >
       <Sidebar
         open={sidebarOpen}
@@ -53,7 +63,7 @@ export default function AppLayout() {
       />
 
       <div className="app-main-column">
-        <Topbar onOpenSidebar={() => setSidebarOpen(true)} />
+        <Topbar platform={platform} onOpenSidebar={() => setSidebarOpen(true)} />
 
         {showTrialReminder ? (
           <aside className="subscription-reminder" role="status">
@@ -76,7 +86,7 @@ export default function AppLayout() {
           </aside>
         ) : null}
 
-        <main className="app-content">
+        <main ref={contentRef} className="app-content" tabIndex={platform ? 0 : undefined} aria-label={platform ? "Administration page content" : undefined}>
           <Outlet />
         </main>
       </div>

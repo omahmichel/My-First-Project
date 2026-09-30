@@ -1,11 +1,13 @@
 import secrets
+import logging
+import math
 from dataclasses import dataclass
 
 from django.conf import settings
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.hashers import check_password
 from django.utils.crypto import constant_time_compare, salted_hmac
-from django.core.mail import send_mail
+from django.core.mail import send_mail, get_connection
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -51,9 +53,9 @@ def _otp_hash(*, challenge_token, otp):
     return f"{OTP_HASH_PREFIX}{digest}"
 
 
-def _pending_otp_hash():
+def _pending_otp_hash(*, retry=False):
     # Marks a password-verified challenge whose email code is not issued yet.
-    return f"{PENDING_OTP_PREFIX}{secrets.token_urlsafe(32)}"
+    return f"{PENDING_OTP_PREFIX}{'retry$' if retry else ''}{secrets.token_urlsafe(32)}"
 
 
 def _otp_matches(*, challenge_token, otp, stored_hash):
@@ -87,12 +89,12 @@ def _otp_expiry():
 
 def _resend_available_at():
     return timezone.now() + timezone.timedelta(
-        seconds=settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+        seconds=max(60, settings.LOGIN_OTP_RESEND_COOLDOWN_SECONDS),
     )
 
 
 def _send_otp_email(*, user, otp):
-    send_mail(
+    sent = send_mail(
         subject="Your StockFlow sign-in security code",
         message=(
             f"Hello {user.full_name or 'StockFlow user'},\n\n"
@@ -107,28 +109,11 @@ def _send_otp_email(*, user, otp):
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=(user.email,),
         fail_silently=False,
+        connection=get_connection(timeout=min(getattr(settings, "EMAIL_TIMEOUT", 10) or 10, 20)),
     )
 
-
-def _restore_challenge(challenge, snapshot):
-    # Restores the previous usable challenge if replacement delivery fails.
-    if snapshot is None:
-        challenge.delete()
-        return
-
-    for field_name, value in snapshot.items():
-        setattr(challenge, field_name, value)
-
-    challenge.save(
-        update_fields=(
-            "challenge_token",
-            "otp_hash",
-            "expires_at",
-            "resend_available_at",
-            "failed_attempts",
-            "updated_at",
-        )
-    )
+    if sent != 1:
+        raise LoginEmailDeliveryError("Mail backend did not accept the message.")
 
 
 @transaction.atomic
@@ -153,223 +138,71 @@ def issue_login_otp(user):
     challenge.challenge_token = _challenge_token()
     challenge.otp_hash = _pending_otp_hash()
     challenge.expires_at = _otp_expiry()
-    challenge.resend_available_at = now
+    challenge.resend_available_at = _resend_available_at()
     challenge.failed_attempts = 0
     challenge.save()
 
     return challenge, True
 
 
-def deliver_login_otp(challenge_token):
-    # Keeps the database lock short; SMTP runs only after the transaction commits.
+def challenge_timing(challenge):
     now = timezone.now()
+    return {
+        "expiresIn": max(0, math.ceil((challenge.expires_at - now).total_seconds())),
+        "resendCooldown": max(0, math.ceil((challenge.resend_available_at - now).total_seconds())),
+    }
 
-    with transaction.atomic():
-        challenge = (
-            PendingLoginChallenge.objects.select_for_update()
-            .select_related("user")
-            .filter(challenge_token=challenge_token)
-            .first()
-        )
 
-        if not challenge or challenge.expires_at <= now:
-            if challenge:
-                challenge.delete()
-            raise serializers.ValidationError(
-                {"challengeId": "This sign-in request is no longer valid."}
-            )
-
-        if not challenge.user.is_active:
-            challenge.delete()
-            raise serializers.ValidationError(
-                {"challengeId": "This sign-in request is no longer valid."}
-            )
-
-        if challenge.otp_hash.startswith(SENDING_OTP_PREFIX):
-            raise serializers.ValidationError(
-                {
-                    "challengeId": (
-                        "Security code delivery is already in progress."
-                    )
-                }
-            )
-
-        if not challenge.otp_hash.startswith(PENDING_OTP_PREFIX):
-            return challenge, False
-
-        snapshot = {
-            "challenge_token": challenge.challenge_token,
-            "otp_hash": challenge.otp_hash,
-            "expires_at": challenge.expires_at,
-            "resend_available_at": challenge.resend_available_at,
-            "failed_attempts": challenge.failed_attempts,
-        }
-
-        otp = _generate_otp()
-        final_otp_hash = _otp_hash(
-            challenge_token=challenge.challenge_token,
-            otp=otp,
-        )
-        sending_otp_hash = f"{SENDING_OTP_PREFIX}{final_otp_hash}"
-        challenge.otp_hash = sending_otp_hash
-        challenge.expires_at = _otp_expiry()
-        challenge.resend_available_at = _resend_available_at()
-        challenge.failed_attempts = 0
-        challenge.save(
-            update_fields=(
-                "otp_hash",
-                "expires_at",
-                "resend_available_at",
-                "failed_attempts",
-                "updated_at",
-            )
-        )
-        user = challenge.user
-
-    try:
-        _send_otp_email(user=user, otp=otp)
-    except Exception as error:
-        with transaction.atomic():
-            current = (
-                PendingLoginChallenge.objects.select_for_update()
-                .filter(challenge_token=challenge_token)
-                .first()
-            )
-            if current and current.otp_hash == sending_otp_hash:
-                _restore_challenge(current, snapshot)
-        raise LoginEmailDeliveryError from error
-
-    with transaction.atomic():
-        challenge = (
-            PendingLoginChallenge.objects.select_for_update()
-            .select_related("user")
-            .filter(challenge_token=challenge_token)
-            .first()
-        )
-        if not challenge:
-            raise serializers.ValidationError(
-                {"challengeId": "This sign-in request is no longer valid."}
-            )
-        if challenge.otp_hash == sending_otp_hash:
-            challenge.otp_hash = final_otp_hash
-            challenge.save(update_fields=("otp_hash", "updated_at"))
-
-    return challenge, True
+def deliver_login_otp(challenge_token):
+    return _deliver_code(challenge_token, replacement=False)
 
 
 def resend_login_otp(challenge_token):
-    # Replaces the active OTP while keeping SMTP outside the database lock.
+    challenge, _ = _deliver_code(challenge_token, replacement=True)
+    return challenge
+
+
+def _deliver_code(challenge_token, *, replacement):
+    # SMTP must never hold a database transaction open. The sending hash is
+    # a generation guard: a late delivery cannot overwrite a newer resend.
     now = timezone.now()
-
     with transaction.atomic():
-        challenge = (
-            PendingLoginChallenge.objects.select_for_update()
-            .select_related("user")
-            .filter(challenge_token=challenge_token)
-            .first()
-        )
-
-        if not challenge:
-            raise serializers.ValidationError(
-                {"challengeId": "This sign-in request is no longer valid."}
-            )
-
-        if not challenge.user.is_active:
-            challenge.delete()
-            raise serializers.ValidationError(
-                {"challengeId": "This sign-in request is no longer valid."}
-            )
-
-        if challenge.otp_hash.startswith(SENDING_OTP_PREFIX):
-            raise serializers.ValidationError(
-                {
-                    "challengeId": (
-                        "Security code delivery is already in progress."
-                    )
-                }
-            )
-
-        if challenge.otp_hash.startswith(PENDING_OTP_PREFIX):
-            raise serializers.ValidationError(
-                {
-                    "challengeId": (
-                        "The first security code has not been delivered yet."
-                    )
-                }
-            )
-
-        if challenge.resend_available_at > now:
-            wait_seconds = max(
-                1,
-                int((challenge.resend_available_at - now).total_seconds()),
-            )
-            raise serializers.ValidationError(
-                {
-                    "challengeId": (
-                        "Please wait before requesting another security code. "
-                        f"Try again in {wait_seconds} seconds."
-                    )
-                }
-            )
-
-        snapshot = {
-            "challenge_token": challenge.challenge_token,
-            "otp_hash": challenge.otp_hash,
-            "expires_at": challenge.expires_at,
-            "resend_available_at": challenge.resend_available_at,
-            "failed_attempts": challenge.failed_attempts,
-        }
-
+        challenge = (PendingLoginChallenge.objects.select_for_update()
+                     .select_related("user").filter(challenge_token=challenge_token).first())
+        if not challenge or challenge.expires_at <= now or not challenge.user.is_active:
+            raise serializers.ValidationError({"challengeId": "This sign-in request has expired. Please sign in again."})
+        pending = challenge.otp_hash.startswith(PENDING_OTP_PREFIX)
+        sending = challenge.otp_hash.startswith(SENDING_OTP_PREFIX)
+        if not replacement and not pending and not sending:
+            return challenge, False
+        initial_delivery = not replacement and pending and not challenge.otp_hash.startswith("pending$retry$")
+        if not initial_delivery and challenge.resend_available_at > now:
+            seconds = challenge_timing(challenge)["resendCooldown"]
+            raise serializers.ValidationError({"challengeId": f"Please wait {seconds} seconds before requesting another code."})
+        old_hash = challenge.otp_hash.removeprefix(SENDING_OTP_PREFIX)
         otp = _generate_otp()
-        final_otp_hash = _otp_hash(
-            challenge_token=challenge.challenge_token,
-            otp=otp,
-        )
-        sending_otp_hash = f"{SENDING_OTP_PREFIX}{final_otp_hash}"
-        challenge.otp_hash = sending_otp_hash
+        while _otp_matches(challenge_token=challenge_token, otp=otp, stored_hash=old_hash):
+            otp = _generate_otp()
+        final_hash = _otp_hash(challenge_token=challenge_token, otp=otp)
+        sending_hash = f"{SENDING_OTP_PREFIX}{final_hash}"
+        challenge.otp_hash = sending_hash
         challenge.expires_at = _otp_expiry()
         challenge.resend_available_at = _resend_available_at()
         challenge.failed_attempts = 0
-        challenge.save(
-            update_fields=(
-                "otp_hash",
-                "expires_at",
-                "resend_available_at",
-                "failed_attempts",
-                "updated_at",
-            )
-        )
+        challenge.save(update_fields=("otp_hash", "expires_at", "resend_available_at", "failed_attempts", "updated_at"))
         user = challenge.user
-
     try:
         _send_otp_email(user=user, otp=otp)
     except Exception as error:
-        with transaction.atomic():
-            current = (
-                PendingLoginChallenge.objects.select_for_update()
-                .filter(challenge_token=challenge_token)
-                .first()
-            )
-            if current and current.otp_hash == sending_otp_hash:
-                _restore_challenge(current, snapshot)
+        # Invalidate the failed generation, preserving its resend cooldown.
+        PendingLoginChallenge.objects.filter(challenge_token=challenge_token, otp_hash=sending_hash).update(otp_hash=_pending_otp_hash(retry=True))
+        logging.getLogger(__name__).warning("Login email delivery failed (%s).", type(error).__name__)
         raise LoginEmailDeliveryError from error
-
-    with transaction.atomic():
-        challenge = (
-            PendingLoginChallenge.objects.select_for_update()
-            .select_related("user")
-            .filter(challenge_token=challenge_token)
-            .first()
-        )
-        if not challenge:
-            raise serializers.ValidationError(
-                {"challengeId": "This sign-in request is no longer valid."}
-            )
-        if challenge.otp_hash == sending_otp_hash:
-            challenge.otp_hash = final_otp_hash
-            challenge.save(update_fields=("otp_hash", "updated_at"))
-
-    return challenge
+    updated = PendingLoginChallenge.objects.filter(challenge_token=challenge_token, otp_hash=sending_hash).update(otp_hash=final_hash)
+    if not updated:
+        raise serializers.ValidationError({"challengeId": "A newer code was requested. Use the most recently requested code."})
+    challenge.otp_hash = final_hash
+    return challenge, True
 
 
 def verify_login_otp(*, challenge_token, otp):

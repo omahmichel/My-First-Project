@@ -1,3 +1,4 @@
+from platform_events.capture import audited_job
 from datetime import date
 
 from django.core.management.base import BaseCommand, CommandError
@@ -27,6 +28,7 @@ class Command(BaseCommand):
             ),
         )
 
+    @audited_job('process_debt_reminders')
     def handle(self, *args, **options):
         limit = options["limit"]
 
