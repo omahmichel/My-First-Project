@@ -10,7 +10,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import PageHeader from "../../components/ui/PageHeader";
@@ -52,7 +52,10 @@ function RestockModalPortal({ children }) {
 }
 
 export default function RestockingPage() {
-  const { business, branch, activeBranchId, products, loadInventory } = useStore();
+  const { business, branch, activeBranchId, products, loadInventory, branchesLoading, branchesError, loadBranches } = useStore();
+  const requestVersion = useRef(0);
+  const [loadError, setLoadError] = useState("");
+  const [branchWaitLong, setBranchWaitLong] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [restocks, setRestocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,28 +78,52 @@ export default function RestockingPage() {
   const activeSuppliers = suppliers.filter((s) => s.isActive);
 
   async function loadData() {
-    if (!business.id) return;
+    if (!business.id || !activeBranchId || !business.hasSystemAccess || branchesLoading || branchesError) return;
+    const version = ++requestVersion.current;
+    const controller = new AbortController();
+    let timeout;
     setLoading(true);
+    setLoadError("");
     try {
-      const [supplierData, restockData] = await Promise.all([
-        apiRequest(`/businesses/${business.id}/suppliers/`),
+      const [supplierData, restockData] = await Promise.race([Promise.all([
+        apiRequest(`/businesses/${business.id}/suppliers/`, { signal: controller.signal }),
         apiRequest(
           `/businesses/${business.id}/restocks/?branchId=${encodeURIComponent(activeBranchId)}`,
+          { signal: controller.signal },
         ),
-      ]);
+      ]), new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error("Restocking did not respond within 30 seconds. Check the Django server, then retry."));
+          controller.abort();
+        }, 30000);
+      })]);
+      if (version !== requestVersion.current) return;
       setSuppliers(Array.isArray(supplierData) ? supplierData : []);
       setRestocks(Array.isArray(restockData) ? restockData : []);
     } catch (error) {
-      setNotice({ tone: "error", text: error.message });
+      if (version === requestVersion.current) setLoadError(error.message);
     } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (version === requestVersion.current) setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (business.id && activeBranchId && business.hasSystemAccess) loadData();
+    setSuppliers([]);
+    setRestocks([]);
+    setLoadError("");
+    setLoading(false);
+    if (business.id && activeBranchId && business.hasSystemAccess && !branchesLoading && !branchesError) loadData();
+    return () => { requestVersion.current += 1; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [business.id, activeBranchId, business.hasSystemAccess]);
+  }, [business.id, activeBranchId, business.hasSystemAccess, branchesLoading, branchesError]);
+
+  useEffect(() => {
+    setBranchWaitLong(false);
+    if (!branchesLoading) return;
+    const timer = setTimeout(() => setBranchWaitLong(true), 15000);
+    return () => clearTimeout(timer);
+  }, [branchesLoading, business.id]);
 
   const totals = useMemo(() => {
     const purchased = restocks.reduce(
@@ -262,6 +289,19 @@ export default function RestockingPage() {
     }
   }
 
+  if (!business.id || branchesLoading || branchesError || !activeBranchId) {
+    return <div className="page-stack restock-page">
+      <PageHeader eyebrow="Supply & inventory" title="Suppliers & restocking" description="Restocking records belong to the selected business branch." />
+      <div className="restock-notice" role={branchesError ? "alert" : "status"}>
+        <p>{!business.id ? "Select a business workspace first."
+          : branchesError ? `Branches could not be loaded: ${branchesError}`
+          : branchesLoading ? (branchWaitLong ? "Branch loading is taking longer than expected. Check the Django server terminal and your connection." : "Loading your authorised branches…")
+          : "No active branch is available. Select a branch in the sidebar, or ask the business owner to check your branch access."}</p>
+        {business.id && !branchesLoading && <button className="restock-btn secondary" onClick={() => loadBranches(business.id).catch(() => {})}>Retry branches</button>}
+      </div>
+    </div>;
+  }
+
   return (
     <div className="page-stack restock-page">
       <PageHeader
@@ -270,6 +310,7 @@ export default function RestockingPage() {
         description={`Record stock received for ${branch?.name || "the active branch"}, supplier purchases and outstanding balances.`}
       />
 
+      {loadError && <div className="restock-notice error" role="alert"><p>{loadError}</p><button className="restock-btn secondary" onClick={loadData} disabled={loading}>Retry records</button></div>}
       <div className="restock-actions">
         <button className="restock-btn secondary" onClick={() => openSupplier()}>
           <UserPlus size={17} /> Add supplier
@@ -318,7 +359,7 @@ export default function RestockingPage() {
               <th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th />
             </tr></thead>
             <tbody>
-              {!loading && !visibleRestocks.length && (
+              {!loading && !loadError && !visibleRestocks.length && (
                 <tr><td colSpan="8" className="restock-empty">No restocking records yet.</td></tr>
               )}
               {visibleRestocks.map((row) => (
@@ -372,7 +413,7 @@ export default function RestockingPage() {
               </div>
             </article>
           ))}
-          {!loading && !suppliers.length && <div className="restock-empty supplier-empty">Add your first supplier to begin recording restocks.</div>}
+          {!loading && !loadError && !suppliers.length && <div className="restock-empty supplier-empty">Add your first supplier to begin recording restocks.</div>}
         </div>
       </section>
 
