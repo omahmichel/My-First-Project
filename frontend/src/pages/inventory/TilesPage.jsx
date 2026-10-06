@@ -1,3 +1,4 @@
+import InventoryTable from "../../components/inventory/InventoryTable";
 import {
   AlertTriangle,
   Boxes,
@@ -375,7 +376,7 @@ const finishes = useMemo(() => {
         </div>
 
         <StickyTableScroll className="stockflow-inventory-table-wrapper tile-records-table-wrapper">
-<table className="data-table stockflow-premium-table stockflow-inventory-table tile-records-table">
+<InventoryTable className="tile-records-table">
             <thead>
               <tr>
                 <th>Product</th>
@@ -519,7 +520,7 @@ const finishes = useMemo(() => {
                 </tr>
               )}
             </tbody>
-          </table>
+          </InventoryTable>
         </StickyTableScroll>
 
         <div className="tile-records-pagination">

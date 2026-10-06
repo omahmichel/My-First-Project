@@ -1,0 +1,9 @@
+.payment-code-form { display: grid; gap: 12px; width: 100%; min-width: 0; text-align: left; padding: 20px; border: 1px solid #b9dcd6; border-radius: 18px; background: #f3faf8; box-sizing: border-box; }
+.payment-code-form label { color: #173d35; font-weight: 700; }
+.payment-code-form input { width: 100%; box-sizing: border-box; min-height: 52px; border: 1px solid #9dc9c1; border-radius: 12px; padding: 12px; font-size: 22px; letter-spacing: .15em; text-align: center; background: white; color: #153c34; }
+.payment-code-form input:focus { outline: 3px solid #b5e6df; border-color: #098f85; }
+.payment-code-form small { line-height: 1.5; color: #47655e; overflow-wrap: anywhere; }
+.payment-code-form button { width: 100%; white-space: normal; }
+@media(max-width: 480px) { .payment-code-form { padding: 14px; } }
+
+.payment-code-form input[type="url"] { font-size: 14px; letter-spacing: normal; text-align: left; min-width: 0; }

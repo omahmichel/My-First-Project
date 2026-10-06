@@ -1,16 +1,20 @@
-import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Fingerprint, LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
+import { useStore } from "../../context/StoreContext";
+import { passkeysSupported } from "../../services/passkeys";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { login } = useAuth();
+  const [passkeySubmitting, setPasskeySubmitting] = useState(false);
+  const { login, loginWithPasskey } = useAuth();
+  const { loadBusinesses } = useStore();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const adminLogin = params.get("mode") === "admin";
@@ -34,6 +38,31 @@ export default function LoginPage() {
       setError(loginError.message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handlePasskeyLogin() {
+    if (!form.email.trim()) {
+      setError("Enter your email address before using biometric sign-in.");
+      return;
+    }
+    setError("");
+    setPasskeySubmitting(true);
+    try {
+      const authenticatedUser = await loginWithPasskey(form.email);
+      if (adminLogin) {
+        navigate("/platform-admin", { replace: true });
+        return;
+      }
+      const businesses = await loadBusinesses();
+      navigate(
+        businesses.length > 0 || authenticatedUser?.isPlatformAdmin ? "/businesses" : "/onboarding",
+        { replace: true },
+      );
+    } catch (passkeyError) {
+      setError(passkeyError.message);
+    } finally {
+      setPasskeySubmitting(false);
     }
   }
 
@@ -135,6 +164,23 @@ export default function LoginPage() {
             >
               {submitting ? "Logging in..." : "Log in"}
             </Button>
+            {passkeysSupported() ? (
+              <>
+                <div className="auth-signin-divider"><span>or</span></div>
+                <button
+                  type="button"
+                  className="app-button app-button-secondary app-button-large full-width-button auth-passkey-button"
+                  onClick={handlePasskeyLogin}
+                  disabled={submitting || passkeySubmitting}
+                >
+                  <Fingerprint size={19} />
+                  {passkeySubmitting ? "Checking device security…" : "Sign in with biometrics"}
+                </button>
+                <small className="auth-passkey-help">
+                  Uses a registered passkey with fingerprint, Face ID, Windows Hello or device PIN.
+                </small>
+              </>
+            ) : null}
           </form>
 
           <p className="auth-switch-text">

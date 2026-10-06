@@ -157,7 +157,7 @@ class MobileMoneySaleInitializationTests(TestCase):
 
         client.create_mobile_money_charge.assert_called_once_with(
             email="ama.mobile@example.com",
-            amount_subunit=15000,
+            amount_subunit=15195,
             reference=payment.gateway_reference,
             phone="0241234567",
             provider="mtn",
@@ -277,12 +277,13 @@ class MobileMoneySaleInitializationTests(TestCase):
         *,
         payment,
         status="success",
-        amount=15000,
+        amount=15195,
         transaction_id=900001,
     ):
         # Returns a deterministic server-side Paystack verification.
         client = Mock()
         client.verify_transaction.return_value = {
+            "domain": "test",
             "id": transaction_id,
             "status": status,
             "reference": payment.gateway_reference,
@@ -556,7 +557,7 @@ class MobileMoneySaleInitializationTests(TestCase):
 
         client = self.verification_client(
             payment=payment,
-            amount=5000,
+            amount=5065,
             transaction_id=900002,
         )
 
@@ -680,12 +681,13 @@ class MobileMoneyDebtPaymentTests(TestCase):
         payment,
         *,
         status="success",
-        amount=6000,
+        amount=6078,
         transaction_id=700001,
     ):
         # Returns one deterministic server-side verification.
         client = Mock()
         client.verify_transaction.return_value = {
+            "domain": "test",
             "id": transaction_id,
             "status": status,
             "reference": payment.gateway_reference,
@@ -729,7 +731,7 @@ class MobileMoneyDebtPaymentTests(TestCase):
         self.assert_balances()
         client.create_mobile_money_charge.assert_called_once_with(
             email="ama.debt@example.com",
-            amount_subunit=6000,
+            amount_subunit=6078,
             reference=payment.gateway_reference,
             phone="0241234567",
             provider="mtn",
@@ -875,7 +877,7 @@ class MobileMoneyDebtPaymentTests(TestCase):
                 reference=payment.gateway_reference,
                 client=self.verification_client(
                     payment,
-                    amount=10000,
+                    amount=10130,
                     transaction_id=700004,
                 ),
             )
@@ -926,7 +928,7 @@ class MobileMoneyDebtPaymentTests(TestCase):
                 reference=reused.gateway_reference,
                 client=self.verification_client(
                     reused,
-                    amount=2000,
+                    amount=2026,
                     transaction_id=700004,
                 ),
             )

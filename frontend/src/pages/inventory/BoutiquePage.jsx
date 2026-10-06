@@ -1,3 +1,4 @@
+import InventoryTable from "../../components/inventory/InventoryTable";
 import {
   Boxes,
   Filter,
@@ -292,7 +293,7 @@ export default function BoutiquePage() {
     status !== "all";
 
   return (
-    <div className="page-stack stockflow-inventory-page boutique-records-page rounded-2xl bg-emerald-50/55 p-1.5">
+    <div className="page-stack stockflow-inventory-page boutique-records-page">
       <PageHeader
         eyebrow="Fashion inventory"
         title="Boutique Inventory"
@@ -425,7 +426,7 @@ export default function BoutiquePage() {
         </div>
 
         <StickyTableScroll className="stockflow-inventory-table-wrapper boutique-records-table-wrapper">
-          <table className="w-full min-w-[900px] table-fixed border-collapse font-sans text-left text-[12px] text-slate-800">
+          <InventoryTable className="boutique-shared-table stockflow-shared-records">
             <colgroup>
               <col className="w-[19%]" />
               <col className="w-[11%]" />
@@ -488,7 +489,7 @@ export default function BoutiquePage() {
                     key={product.id}
                     className="border-b border-slate-200 bg-white transition-colors last:border-b-0 hover:bg-slate-50"
                   >
-                    <td className="px-3 py-2 align-middle">
+                    <td data-label="Product" className="px-3 py-2 align-middle">
                       <div className="min-w-0">
                         <strong className="block truncate text-[13.5px] font-bold leading-5 text-slate-950">
                           {product.name}
@@ -501,7 +502,7 @@ export default function BoutiquePage() {
                       </div>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
+                    <td data-label="Style / Category" className="px-3 py-2 align-middle">
                       <strong className="block truncate text-[12.5px] font-bold text-slate-900">
                         {product.styleCode || "Not recorded"}
                       </strong>
@@ -510,7 +511,7 @@ export default function BoutiquePage() {
                       </small>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
+                    <td data-label="Variants" className="px-3 py-2 align-middle">
                       <div className="flex flex-wrap items-center gap-1">
                         <span className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2 py-1 text-[10.5px] font-semibold leading-none text-slate-700 ring-1 ring-inset ring-slate-200">
                           Size&nbsp;<strong className="truncate font-semibold">{product.size || "N/A"}</strong>
@@ -524,7 +525,7 @@ export default function BoutiquePage() {
                       </div>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
+                    <td data-label="Stock" className="px-3 py-2 align-middle">
                       <div className="flex items-center gap-1.5">
                         <strong className={`whitespace-nowrap text-[13.5px] font-bold ${lowStock ? "text-amber-800" : "text-slate-950"}`}>
                           {formatNumber(availableStock, 0)} units
@@ -546,30 +547,30 @@ export default function BoutiquePage() {
                       </small>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
+                    <td data-label="Selling price" className="px-3 py-2 align-middle">
                       <strong className="block whitespace-nowrap text-[13.5px] font-bold text-slate-950">
                         {formatCurrency(product.sellingPrice)}
                       </strong>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
+                    <td data-label="Cost price" className="px-3 py-2 align-middle">
                       <strong className="block whitespace-nowrap text-[12.5px] font-semibold text-slate-800">
                         {formatCurrency(product.costPrice)}
                       </strong>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
-                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-bold ring-1 ring-inset ${statusClassName}`}>
+                    <td data-label="Status" className="px-3 py-2 align-middle">
+                      <span className={`badge inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-bold ring-1 ring-inset ${statusClassName}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${statusDotClassName}`} aria-hidden="true" />
                         {statusLabel}
                       </span>
                     </td>
 
-                    <td className="px-3 py-2 align-middle">
-                      <div className="flex items-center justify-center gap-1">
+                    <td data-label="Actions" className="px-3 py-2 align-middle">
+                      <div className="stockflow-inventory-actions stockflow-icon-actions">
                         <button
                           type="button"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="stockflow-icon-action inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Edit ${product.name}`}
                           title="Edit product"
                           onClick={() => openEditProductModal(product)}
@@ -579,7 +580,7 @@ export default function BoutiquePage() {
 
                         <button
                           type="button"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="stockflow-icon-action inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Adjust stock for ${product.name}`}
                           title="Adjust stock"
                           onClick={() => setStockProduct(product)}
@@ -590,7 +591,7 @@ export default function BoutiquePage() {
 
                         <button
                           type="button"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="stockflow-icon-action inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={
                             statusProductId === product.id
                               ? `Updating ${product.name}`
@@ -613,7 +614,7 @@ export default function BoutiquePage() {
 
                         <button
                           type="button"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                          className="stockflow-icon-action inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                           aria-label={`Delete ${product.name}`}
                           title="Archive product"
                           onClick={() => {
@@ -642,7 +643,7 @@ export default function BoutiquePage() {
                 </tr>
               ) : null}
             </tbody>
-          </table>
+          </InventoryTable>
         </StickyTableScroll>
 
         <div className="boutique-records-pagination">

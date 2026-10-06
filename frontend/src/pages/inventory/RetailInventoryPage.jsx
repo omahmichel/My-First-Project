@@ -1,3 +1,4 @@
+import InventoryTable from "../../components/inventory/InventoryTable";
 import {
   Boxes,
   Car,
@@ -40,10 +41,6 @@ function detailValue(product, key) {
   return value === null || value === undefined || value === ""
     ? ""
     : String(value);
-}
-
-function recordCountLabel(count) {
-  return `${count} ${count === 1 ? "record" : "records"}`;
 }
 
 export default function RetailInventoryPage() {
@@ -243,7 +240,7 @@ export default function RetailInventoryPage() {
   }
 
   return (
-    <div className={`page-stack retail-inventory-page retail-inventory-${config.slug}`}>
+    <div className={`page-stack stockflow-inventory-page retail-inventory-page retail-inventory-${config.slug}`}>
       <section className="retail-inventory-hero">
         <div className="retail-inventory-hero-copy">
           <span className="retail-inventory-route-icon" aria-hidden="true">
@@ -278,7 +275,7 @@ export default function RetailInventoryPage() {
         </div>
       ) : null}
 
-      <section className="retail-inventory-summary">
+      <section className="stockflow-inventory-summary">
         <article>
           <span><Boxes size={20} /></span>
           <div><strong>{retailProducts.length}</strong><small>Product records</small></div>
@@ -297,10 +294,10 @@ export default function RetailInventoryPage() {
         </article>
       </section>
 
-      <section className="panel-card retail-inventory-panel">
-        <div className="retail-inventory-toolbar">
-          <div className="retail-inventory-search-row">
-            <label className="table-search retail-inventory-search">
+      <section className="panel-card stockflow-inventory-panel retail-inventory-panel">
+        <div className="stockflow-inventory-toolbar retail-inventory-toolbar">
+          <div className="stockflow-inventory-search-row">
+            <label className="table-search stockflow-inventory-search">
               <Search size={18} />
               <input
                 value={search}
@@ -308,8 +305,8 @@ export default function RetailInventoryPage() {
                 placeholder={config.searchPlaceholder}
               />
             </label>
-            <div className="retail-inventory-result-group">
-              <span>{recordCountLabel(filteredProducts.length)}</span>
+            <div className="stockflow-inventory-result-group">
+              <span>{filteredProducts.length} of {retailProducts.length} record(s)</span>
               {hasActiveFilters ? (
                 <button type="button" onClick={clearFilters}>
                   <Filter size={14} /> Clear filters
@@ -318,7 +315,7 @@ export default function RetailInventoryPage() {
             </div>
           </div>
 
-          <div className="retail-inventory-filters">
+          <div className="stockflow-inventory-filters">
             <select value={category} onChange={(event) => setCategory(event.target.value)}>
               <option value="all">All categories</option>
               {categories.map((item) => <option key={item}>{item}</option>)}
@@ -332,16 +329,14 @@ export default function RetailInventoryPage() {
           </div>
         </div>
 
-        <StickyTableScroll className="retail-inventory-table-wrapper">
-          <table className="retail-inventory-table">
+        <StickyTableScroll className="stockflow-inventory-table-wrapper">
+          <InventoryTable className="retail-inventory-table stockflow-shared-records">
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Category</th>
                 <th>{config.detailsHeading || "Product details"}</th>
                 <th>Stock</th>
-                <th>Selling price</th>
-                <th>Cost price</th>
+                <th>Price</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -365,39 +360,39 @@ export default function RetailInventoryPage() {
 
                 return (
                   <tr key={product.id}>
-                    <td>
+                    <td data-label="Product">
                       <strong>{product.name}</strong>
-                      <small>{product.brand || "Brand not recorded"} · {product.sku}</small>
+                      <small>{product.brand || "Brand not recorded"}</small>
+                      <small>SKU: {product.sku}</small>
+                      <small>{product.category || "Uncategorized"}</small>
                     </td>
-                    <td><strong>{product.category || "Uncategorized"}</strong><small>{product.unit}</small></td>
-                    <td>
+                    <td data-label="Product details">
                       <div className="retail-detail-list">
                         {detailEntries.length ? detailEntries.map((entry) => (
                           <span key={entry.label}><b>{entry.label}:</b> {entry.value}</span>
                         )) : <small>No specialist details recorded</small>}
                       </div>
                     </td>
-                    <td><strong>{formatNumber(available, 0)} {product.unit}</strong><small>Low at {formatNumber(product.lowStockLevel || 0, 0)}</small></td>
-                    <td><strong>{formatCurrency(product.sellingPrice)}</strong></td>
-                    <td><strong>{formatCurrency(product.costPrice || 0)}</strong></td>
-                    <td>
-                      <span className={`retail-status-pill ${product.status !== "active" ? "is-inactive" : lowStock ? "is-low" : "is-active"}`}>
+                    <td data-label="Stock"><strong>{formatNumber(available, 0)} {product.unit}</strong><small>Low at {formatNumber(product.lowStockLevel || 0, 0)}</small></td>
+                    <td data-label="Price"><strong>{formatCurrency(product.sellingPrice)}</strong><small>per {product.unit}</small><small>Cost: {formatCurrency(product.costPrice || 0)}</small></td>
+                    <td data-label="Status">
+                      <span className={`badge retail-status-pill ${product.status !== "active" ? "is-inactive" : lowStock ? "is-low" : "is-active"}`}>
                         {statusLabel}
                       </span>
                     </td>
-                    <td>
-                      <div className="retail-row-actions">
-                        <button type="button" title="Edit product" onClick={() => openEditProduct(product)}><Pencil size={15} /></button>
-                        <button type="button" title="Adjust stock" onClick={() => setStockProduct(product)}><PackagePlus size={15} /></button>
-                        <button type="button" title={product.status === "active" ? "Deactivate" : "Reactivate"} disabled={Boolean(statusProductId)} onClick={() => changeProductStatus(product)}><Power size={15} /></button>
-                        <button type="button" title="Archive product" onClick={() => setArchiveProduct(product)}><Trash2 size={15} /></button>
+                    <td data-label="Actions">
+                      <div className="stockflow-inventory-actions stockflow-icon-actions">
+                        <button type="button" className="stockflow-icon-action" aria-label="Edit product" title="Edit product" onClick={() => openEditProduct(product)}><Pencil size={15} /></button>
+                        <button type="button" className="stockflow-icon-action" aria-label="Adjust stock" title="Adjust stock" onClick={() => setStockProduct(product)}><PackagePlus size={15} /></button>
+                        <button type="button" className="stockflow-icon-action" aria-label={product.status === "active" ? "Deactivate product" : "Reactivate product"} title={product.status === "active" ? "Deactivate" : "Reactivate"} disabled={Boolean(statusProductId)} onClick={() => changeProductStatus(product)}><Power size={15} /></button>
+                        <button type="button" className="stockflow-icon-action" aria-label="Archive product" title="Archive product" onClick={() => setArchiveProduct(product)}><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
-          </table>
+          </InventoryTable>
         </StickyTableScroll>
 
         {!filteredProducts.length && !inventoryLoading ? (

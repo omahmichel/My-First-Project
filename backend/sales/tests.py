@@ -803,9 +803,10 @@ class SalesRegressionTests(APITestCase):
                 "id": 770001,
                 "status": "success",
                 "reference": payment.gateway_reference,
-                "amount": 15000,
+                "amount": 15195,
                 "currency": "GHS",
                 "channel": "mobile_money",
+                "domain": "test",
             }
             response = self.client.post(
                 verify_url,
@@ -888,9 +889,10 @@ class SalesRegressionTests(APITestCase):
                 "id": 770002,
                 "status": "pending",
                 "reference": payment.gateway_reference,
-                "amount": 15000,
+                "amount": 15195,
                 "currency": "GHS",
                 "channel": "mobile_money",
+                "domain": "test",
             }
             response = self.client.post(
                 verify_url,
@@ -1106,7 +1108,7 @@ class SalesRegressionTests(APITestCase):
         payment = Payment.objects.get(pk=first.data["id"])
         mock_charge.assert_called_once_with(
             email="ama.tests@example.com",
-            amount_subunit=6000,
+            amount_subunit=6078,
             reference=payment.gateway_reference,
             phone="0241234567",
             provider="mtn",
@@ -1163,9 +1165,10 @@ class SalesRegressionTests(APITestCase):
             "id": 810001,
             "status": "success",
             "reference": reference,
-            "amount": 6000,
+            "amount": 6078,
             "currency": "GHS",
             "channel": "mobile_money",
+                "domain": "test",
         }
         verify_url = (
             f"/api/businesses/{self.business.id}/customers/"

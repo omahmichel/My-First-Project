@@ -100,3 +100,54 @@ class PendingLoginChallenge(models.Model):
     def __str__(self):
         return self.user.email
 
+
+
+class PasskeyCredential(models.Model):
+    # Stores WebAuthn public-key material only; biometric data never leaves the device.
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="passkey_credentials",
+    )
+    credential_id = models.BinaryField(unique=True)
+    public_key = models.BinaryField()
+    sign_count = models.PositiveBigIntegerField(default=0)
+    transports = models.JSONField(default=list, blank=True)
+    device_type = models.CharField(max_length=30, blank=True)
+    backed_up = models.BooleanField(default=False)
+    label = models.CharField(max_length=80, default="Biometric sign-in")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = (models.Index(fields=("user", "created_at")),)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.label}"
+
+
+class PasskeyChallenge(models.Model):
+    # One-time WebAuthn ceremonies are short-lived and consumed after one verification attempt.
+
+    class Purpose(models.TextChoices):
+        REGISTRATION = "registration", "Registration"
+        AUTHENTICATION = "authentication", "Authentication"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="passkey_challenges",
+    )
+    challenge_token = models.CharField(max_length=64, unique=True, db_index=True)
+    purpose = models.CharField(max_length=20, choices=Purpose.choices)
+    challenge = models.BinaryField()
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.purpose}"

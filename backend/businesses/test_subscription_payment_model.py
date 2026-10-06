@@ -36,8 +36,8 @@ class SubscriptionPaymentModelTests(TestCase):
         # The model snapshots the agreed price, currency and access period.
         payment = self.create_payment()
 
-        self.assertEqual(payment.amount, Decimal("99.00"))
-        self.assertEqual(payment.amount_subunit, 9900)
+        self.assertEqual(payment.amount, Decimal("150.00"))
+        self.assertEqual(payment.amount_subunit, 15000)
         self.assertEqual(payment.currency, "GHS")
         self.assertEqual(payment.duration_days, 40)
         self.assertEqual(

@@ -1,3 +1,4 @@
+from .payment_modes import gateway_mode, require_mode, require_response_mode
 from datetime import timedelta
 
 from django.db import transaction
@@ -6,6 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .models import Business, SubscriptionPayment
+from .payment_fees import SUBSCRIPTION_FEE_PERCENT, payment_fee
 from .paystack_client import PaystackClient, PaystackError
 
 
@@ -45,7 +47,14 @@ def initialize_subscription_payment(
     )
     gateway_client = client or PaystackClient()
 
+    base_amount = SubscriptionPayment._meta.get_field("amount").get_default()
+    fee = payment_fee(base_amount, SUBSCRIPTION_FEE_PERCENT)
     payment = SubscriptionPayment.objects.create(
+        gateway_mode=gateway_mode(gateway_client),
+        amount=base_amount,
+        fee_percent=SUBSCRIPTION_FEE_PERCENT,
+        fee_amount=fee,
+        amount_subunit=int((base_amount + fee) * 100),
         business=business,
         initiated_by=user,
         initiated_by_email=user.email,
@@ -138,7 +147,9 @@ def verify_and_fulfill_subscription_payment(
         return existing_payment, existing_payment.business, False
 
     gateway_client = client or PaystackClient()
+    mode = require_mode(existing_payment.gateway_mode, gateway_client)
     verification = gateway_client.verify_transaction(reference)
+    require_response_mode(verification, mode)
     deferred_error = None
 
     with transaction.atomic():

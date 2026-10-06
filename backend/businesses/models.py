@@ -334,6 +334,7 @@ class BusinessPaymentAccount(models.Model):
 
     # Paystack recipient identifiers never expose the underlying wallet number.
     # They are safe server-side handles used for merchant payouts.
+    paystack_recipient_mode = models.CharField(max_length=4, blank=True, default="")
     paystack_recipient_code = models.CharField(max_length=80, blank=True)
     paystack_recipient_id = models.CharField(max_length=80, blank=True)
     paystack_recipient_synced_at = models.DateTimeField(blank=True, null=True)
@@ -378,7 +379,15 @@ class BusinessPaymentAccount(models.Model):
 
     @property
     def payout_ready(self):
+        from .payment_modes import gateway_mode
+        from .paystack_client import PaystackError
+        try:
+            mode = gateway_mode()
+        except PaystackError:
+            return False
         return (
+            self.paystack_recipient_mode == mode
+            and
             self.account_type == self.AccountType.MOBILE_MONEY
             and self.is_active
             and bool(self.paystack_recipient_code.strip())
@@ -390,13 +399,16 @@ class BusinessPaymentAccount(models.Model):
             return "not_applicable"
         if not self.is_active:
             return "inactive"
-        if self.paystack_recipient_code.strip():
+        if self.payout_ready:
             return "connected"
+        if self.paystack_recipient_code.strip():
+            return "pending"
         if self.paystack_recipient_last_error.strip():
             return "error"
         return "pending"
 
     def clear_paystack_recipient(self):
+        self.paystack_recipient_mode = ""
         self.paystack_recipient_code = ""
         self.paystack_recipient_id = ""
         self.paystack_recipient_synced_at = None
@@ -522,12 +534,21 @@ class SubscriptionPayment(models.Model):
     amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal("99.00"),
+        default=Decimal("150.00"),
     )
-    amount_subunit = models.PositiveIntegerField(default=9900)
+    # Stored at initiation; zero preserves pre-fee and manual payments.
+    fee_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    fee_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+
+    @property
+    def charged_amount(self):
+        return self.amount + self.fee_amount
+
+    amount_subunit = models.PositiveIntegerField(default=15000)
     currency = models.CharField(max_length=3, default="GHS")
     duration_days = models.PositiveSmallIntegerField(default=40)
 
+    gateway_mode = models.CharField(max_length=4, blank=True, default="")
     gateway = models.CharField(
         max_length=30,
         choices=Gateway.choices,

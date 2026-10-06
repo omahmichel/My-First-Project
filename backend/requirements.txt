@@ -16,3 +16,4 @@ requests==2.34.2
 cryptography>=44.0
 openpyxl==3.1.5
 -r requirements-product-photos.txt
+webauthn==3.0.1

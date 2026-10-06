@@ -17,6 +17,7 @@ from sales.mobile_money_service import (
 )
 
 from .models import SubscriptionPayment
+from .payment_fees import SUBSCRIPTION_FEE_PERCENT, payment_fee
 from .paystack_client import (
     PaystackConfigurationError,
     PaystackRequestError,
@@ -35,6 +36,9 @@ def _payment_response(payment, business=None, *, activated=None):
         "reference": payment.reference,
         "status": payment.status,
         "amount": str(payment.amount),
+        "feePercent": str(payment.fee_percent),
+        "feeAmount": str(payment.fee_amount),
+        "chargedAmount": str(payment.charged_amount),
         "currency": payment.currency,
         "durationDays": payment.duration_days,
         "authorizationUrl": payment.authorization_url,
@@ -96,6 +100,14 @@ class SubscriptionPaymentInitializeAPIView(APIView):
 
     permission_classes = (IsAuthenticated,)
     throttle_scope = "subscription_payment_initialize"
+
+    def get(self, request, business_id):
+        get_payable_business_for_owner(user=request.user, business_id=business_id)
+        base = SubscriptionPayment._meta.get_field("amount").get_default()
+        fee = payment_fee(base, SUBSCRIPTION_FEE_PERCENT)
+        return Response({"amount": str(base), "feePercent": str(SUBSCRIPTION_FEE_PERCENT),
+                         "feeAmount": str(fee), "chargedAmount": str(base + fee), "currency": "GHS",
+                         "durationDays": SubscriptionPayment._meta.get_field("duration_days").get_default()})
 
     def post(self, request, business_id):
         # Uses only the callback URL configured by the StockFlow server.

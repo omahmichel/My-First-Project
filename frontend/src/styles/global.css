@@ -886,3 +886,153 @@ p {
   background: #fff;
   box-shadow: inset 0 -1px 0 var(--line, #d9e3dd);
 }
+
+/* Payment summaries stay scoped to payment screens. */
+.payment-fee-breakdown { display:grid; gap:10px; padding:16px; margin:12px 0; border:1px solid #cfe5de; border-radius:14px; background:#f3faf7; color:#173f36; min-width:0; }
+.payment-fee-breakdown > div { display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap; }
+.payment-fee-breakdown > div:last-child { border-top:1px solid #cfe5de; padding-top:10px; font-weight:700; }
+.payment-fee-breakdown strong { white-space:nowrap; }
+
+.payment-confirmation-actions { display:flex; justify-content:flex-end; gap:12px; flex-wrap:wrap; margin-top:18px; }
+.payment-confirmation-actions > button { min-height:44px; max-width:100%; white-space:normal; }
+@media(max-width:600px) { .payment-confirmation-actions > button { flex:1 1 100%; } }
+
+
+/* STOCKFLOW PASSKEY ADDITIONS V3 — clean biometric action */
+.auth-signin-divider {
+  display:flex;
+  align-items:center;
+  gap:13px;
+  margin:4px 0 2px;
+  color:#91a098;
+  font-size:.60rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+}
+.auth-signin-divider::before,
+.auth-signin-divider::after {
+  content:"";
+  flex:1;
+  height:1px;
+  background:#e3ebe7;
+}
+.auth-signin-divider span {
+  display:inline-grid;
+  min-width:30px;
+  place-items:center;
+}
+
+/* Full touch target, but no visible button box. */
+.auth-form .auth-passkey-button {
+  display:flex;
+  width:100%;
+  min-height:48px;
+  margin:0;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:7px 12px !important;
+  border:0 !important;
+  border-radius:10px !important;
+  background:transparent !important;
+  color:#143b2f !important;
+  box-shadow:none !important;
+  font-size:.83rem !important;
+  font-weight:825 !important;
+  letter-spacing:-.012em;
+  transition:color .16s ease, opacity .16s ease, transform .16s ease;
+}
+.auth-form .auth-passkey-button::after {
+  content:none !important;
+}
+.auth-form .auth-passkey-button > svg {
+  box-sizing:content-box;
+  width:23px;
+  height:23px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#11967e;
+  stroke-width:2.05;
+  box-shadow:none;
+}
+.auth-form .auth-passkey-button:hover:not(:disabled) {
+  transform:translateY(-1px);
+  border:0 !important;
+  background:transparent !important;
+  color:#0f806c !important;
+  box-shadow:none !important;
+}
+.auth-form .auth-passkey-button:hover:not(:disabled) > svg {
+  color:#0f806c;
+}
+.auth-form .auth-passkey-button:focus-visible {
+  outline:2px solid rgba(17,150,126,.22);
+  outline-offset:2px;
+}
+.auth-form .auth-passkey-button:disabled {
+  transform:none;
+  opacity:.48;
+  box-shadow:none !important;
+}
+.auth-passkey-help {
+  display:block;
+  width:min(410px,100%);
+  margin:-3px auto 0;
+  padding:0 10px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#8a9991;
+  font-size:.61rem;
+  font-weight:600;
+  line-height:1.45;
+  text-align:center;
+}
+
+/* Keep the post-OTP setup screen polished without changing its behavior. */
+.auth-passkey-setup-page .auth-form-panel {
+  background:linear-gradient(180deg,#ffffff 0%,#fbfdfc 100%);
+}
+.auth-passkey-setup-page .auth-form-card {
+  padding:30px;
+  border:1px solid #dce8e2;
+  border-radius:20px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 22px 54px rgba(19,65,46,.09);
+}
+.auth-passkey-setup-actions {
+  display:grid;
+  gap:12px;
+  margin-top:25px;
+}
+.auth-passkey-setup-actions .app-button {
+  border-radius:13px;
+}
+.auth-passkey-setup-actions .app-button-primary {
+  box-shadow:0 10px 24px rgba(31,107,79,.16);
+}
+
+@media (max-width:600px) {
+  .auth-form .auth-passkey-button {
+    min-height:48px;
+    gap:9px;
+    padding:6px 8px !important;
+    font-size:.79rem !important;
+  }
+  .auth-form .auth-passkey-button > svg {
+    width:22px;
+    height:22px;
+  }
+  .auth-passkey-help {
+    width:100%;
+    padding:0 6px;
+    font-size:.59rem;
+  }
+  .auth-passkey-setup-page .auth-form-card {
+    padding:22px 18px;
+    border-radius:16px;
+  }
+}

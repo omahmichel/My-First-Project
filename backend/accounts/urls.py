@@ -1,4 +1,10 @@
 from django.urls import path
+from .passkey_views import (
+    PasskeyLoginOptionsAPIView,
+    PasskeyLoginVerifyAPIView,
+    PasskeyRegistrationOptionsAPIView,
+    PasskeyRegistrationVerifyAPIView,
+)
 from .password_reset_views import (
     PasswordResetConfirmAPIView,
     PasswordResetRequestAPIView,
@@ -45,6 +51,26 @@ urlpatterns = [
         "login/resend/",
         LoginOTPResendAPIView.as_view(),
         name="login-resend",
+    ),
+    path(
+        "passkeys/register/options/",
+        PasskeyRegistrationOptionsAPIView.as_view(),
+        name="passkey-register-options",
+    ),
+    path(
+        "passkeys/register/verify/",
+        PasskeyRegistrationVerifyAPIView.as_view(),
+        name="passkey-register-verify",
+    ),
+    path(
+        "passkeys/login/options/",
+        PasskeyLoginOptionsAPIView.as_view(),
+        name="passkey-login-options",
+    ),
+    path(
+        "passkeys/login/verify/",
+        PasskeyLoginVerifyAPIView.as_view(),
+        name="passkey-login-verify",
     ),
     path("refresh/", RefreshAPIView.as_view(), name="refresh"),
     path("me/", CurrentUserAPIView.as_view(), name="current-user"),

@@ -1,3 +1,4 @@
+import InventoryTable from "../../components/inventory/InventoryTable";
 import { Boxes, Filter, PackagePlus, Search, SlidersHorizontal } from "lucide-react";
 import { PackagePlus as StockActionIcon, Pencil, Power, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -198,7 +199,7 @@ export default function ProductsPage() {
         </div>
 
         <StickyTableScroll>
-<table className="data-table stockflow-premium-table stockflow-inventory-table products-table">
+<InventoryTable className="products-table">
             <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th>Stock</th><th><span className="stockflow-table-heading-stack"><span>Cost</span><span>price</span></span></th><th><span className="stockflow-table-heading-stack"><span>Selling</span><span>price</span></span></th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {paginatedProducts.map((product) => {
@@ -293,7 +294,7 @@ export default function ProductsPage() {
                 );
               })}
             </tbody>
-          </table>
+          </InventoryTable>
         </StickyTableScroll>
 
         <div className="products-pagination">

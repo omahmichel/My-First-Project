@@ -19,7 +19,7 @@ import "../../styles/payment-account-settings.css";
 
 function emptyPaymentAccountForm() {
   return {
-    accountType: "bank",
+    accountType: "mobile_money",
     displayName: "",
     bankName: "",
     accountName: "",
@@ -32,9 +32,9 @@ function emptyPaymentAccountForm() {
 
 function paymentAccountFormFromRecord(account) {
   return {
-    accountType: account?.accountType || "bank",
+    accountType: "mobile_money",
     displayName: account?.displayName || "",
-    bankName: account?.bankName || "",
+    bankName: "",
     accountName: account?.accountName || "",
     network: account?.network || "",
     accountNumber: "",
@@ -77,6 +77,8 @@ export default function SettingsPage() {
     deactivatePaymentAccount,
     reactivatePaymentAccount,
   } = useStore();
+
+  const mobileMoneyAccounts = paymentAccounts.filter((account) => account.accountType === "mobile_money");
 
   const [form, setForm] = useState(() =>
     formFromBusiness(business),
@@ -147,6 +149,7 @@ export default function SettingsPage() {
   }
 
   function startEditingPaymentAccount(account) {
+    if (account.accountType !== "mobile_money") return;
     setEditingPaymentAccountId(String(account.id));
     setPaymentAccountForm(paymentAccountFormFromRecord(account));
     setPaymentAccountMessage("");
@@ -171,17 +174,6 @@ export default function SettingsPage() {
     }
 
     if (
-      paymentAccountForm.accountType === "bank" &&
-      !paymentAccountForm.bankName.trim()
-    ) {
-      setPaymentAccountActionError(
-        "Enter the receiving bank name.",
-      );
-      return;
-    }
-
-    if (
-      paymentAccountForm.accountType === "mobile_money" &&
       !paymentAccountForm.network.trim()
     ) {
       setPaymentAccountActionError(
@@ -195,7 +187,7 @@ export default function SettingsPage() {
       !paymentAccountForm.accountNumber.trim()
     ) {
       setPaymentAccountActionError(
-        "Enter the receiving account or wallet number.",
+        "Enter the receiving Mobile Money number.",
       );
       return;
     }
@@ -566,7 +558,7 @@ export default function SettingsPage() {
             </header>
 
             <p className="settings-note">
-              Receiving accounts are isolated to the active business.
+              Add a Mobile Money wallet to receive payments for this business.
               StockFlow encrypts the full number and shows only the
               masked final four digits after saving.
             </p>
@@ -599,14 +591,14 @@ export default function SettingsPage() {
             ) : null}
 
             <div className="payment-account-list">
-              {!paymentAccountsLoading && !paymentAccounts.length ? (
+              {!paymentAccountsLoading && !mobileMoneyAccounts.length ? (
                 <div className="payment-account-empty">
-                  No receiving accounts have been added for this
+                  No Mobile Money wallets have been added for this
                   business yet.
                 </div>
               ) : null}
 
-              {paymentAccounts.map((account) => (
+              {mobileMoneyAccounts.map((account) => (
                 <article
                   className={`payment-account-card ${
                     account.isActive === false ? "is-inactive" : ""
@@ -617,9 +609,7 @@ export default function SettingsPage() {
                     <div>
                       <strong>{account.displayName}</strong>
                       <span>
-                        {account.accountType === "bank"
-                          ? account.bankName
-                          : account.network || "Mobile Money"}
+                        {account.network || "Mobile Money"}
                       </span>
                     </div>
 
@@ -631,9 +621,7 @@ export default function SettingsPage() {
 
                   <div className="payment-account-badges">
                     <span>
-                      {account.accountType === "bank"
-                        ? "Bank account"
-                        : "Mobile Money"}
+                      Mobile Money
                     </span>
                     {account.isDefault ? <strong>Default</strong> : null}
                     <span>
@@ -733,45 +721,17 @@ export default function SettingsPage() {
 
                 <div className="settings-form-grid payment-account-form-grid">
                   <label>
-                    Account type
-                    <select
-                      name="accountType"
-                      value={paymentAccountForm.accountType}
-                      onChange={handlePaymentAccountChange}
-                      disabled={paymentAccountSaving}
-                    >
-                      <option value="bank">Bank account</option>
-                      <option value="mobile_money">
-                        Mobile Money wallet
-                      </option>
-                    </select>
-                  </label>
-
-                  <label>
                     Display name
                     <input
                       name="displayName"
                       value={paymentAccountForm.displayName}
                       onChange={handlePaymentAccountChange}
-                      placeholder="e.g. Main GCB Account"
+                      placeholder="e.g. Main MTN Wallet"
                       maxLength="120"
                       disabled={paymentAccountSaving}
                     />
                   </label>
 
-                  {paymentAccountForm.accountType === "bank" ? (
-                    <label>
-                      Bank name
-                      <input
-                        name="bankName"
-                        value={paymentAccountForm.bankName}
-                        onChange={handlePaymentAccountChange}
-                        placeholder="e.g. GCB Bank"
-                        maxLength="120"
-                        disabled={paymentAccountSaving}
-                      />
-                    </label>
-                  ) : (
                     <label>
                       Mobile Money network
                       <select
@@ -792,15 +752,15 @@ export default function SettingsPage() {
                         </option>
                       </select>
                     </label>
-                  )}
+
 
                   <label>
-                    Account name
+                    Wallet holder name
                     <input
                       name="accountName"
                       value={paymentAccountForm.accountName}
                       onChange={handlePaymentAccountChange}
-                      placeholder="Name registered on the account"
+                      placeholder="Name registered on the wallet"
                       maxLength="150"
                       disabled={paymentAccountSaving}
                     />
@@ -808,16 +768,17 @@ export default function SettingsPage() {
 
                   <label>
                     {editingPaymentAccountId
-                      ? "Replace account number (optional)"
-                      : "Account or wallet number"}
+                      ? "Replace wallet number (optional)"
+                      : "Mobile Money number"}
                     <input
+                      type="tel"
                       name="accountNumber"
                       value={paymentAccountForm.accountNumber}
                       onChange={handlePaymentAccountChange}
                       placeholder={
                         editingPaymentAccountId
                           ? "Leave blank to keep the current number"
-                          : "Enter account or wallet number"
+                          : "Enter Mobile Money number"
                       }
                       maxLength="40"
                       autoComplete="off"

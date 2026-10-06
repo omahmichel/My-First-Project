@@ -792,6 +792,14 @@ class Payment(models.Model):
         decimal_places=2,
     )
 
+    # Stored at initiation; zero preserves pre-fee and manual payments.
+    fee_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    fee_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+
+    @property
+    def charged_amount(self):
+        return self.amount + self.fee_amount
+
     # The network remains flexible so additional providers need no migration.
     mobile_money_network = models.CharField(
         max_length=40,
@@ -802,6 +810,9 @@ class Payment(models.Model):
         blank=True,
     )
 
+    checkout_url = models.URLField(max_length=500, blank=True, default="")
+    gateway_charge_status = models.CharField(max_length=32, blank=True, default="")
+    gateway_mode = models.CharField(max_length=4, blank=True, default="")
     gateway = models.CharField(max_length=40, blank=True)
     gateway_reference = models.CharField(max_length=120, blank=True)
     provider_reference = models.CharField(max_length=180, blank=True)

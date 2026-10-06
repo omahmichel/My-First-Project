@@ -106,15 +106,21 @@ export default function LoginOTPPage() {
         challengeId: pendingLogin.challengeId,
         otp,
       });
+      let nextPath;
       if (adminLogin) {
-        // Existing platform route and backend permissions remain authoritative.
-        navigate("/platform-admin", { replace: true });
-        return;
+        nextPath = "/platform-admin";
+      } else {
+        const availableBusinesses = await loadBusinesses();
+        nextPath =
+          availableBusinesses.length > 0 || authenticatedUser?.isPlatformAdmin
+            ? "/businesses"
+            : "/onboarding";
       }
-      const availableBusinesses = await loadBusinesses();
+      const canOfferPasskey = Boolean(window.PublicKeyCredential && navigator.credentials);
+      const alreadyPrompted = window.localStorage.getItem("stockflow_passkey_setup_prompted") === "1";
       navigate(
-        availableBusinesses.length > 0 || authenticatedUser?.isPlatformAdmin ? "/businesses" : "/onboarding",
-        { replace: true },
+        canOfferPasskey && !alreadyPrompted ? "/setup-biometric" : nextPath,
+        { replace: true, state: canOfferPasskey && !alreadyPrompted ? { nextPath } : undefined },
       );
     } catch (verificationError) {
       setError(verificationError.message);

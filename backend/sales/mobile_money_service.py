@@ -1,6 +1,9 @@
+from businesses.payment_modes import gateway_mode, require_mode, require_response_mode
 from datetime import timedelta
+from businesses.payment_fees import CUSTOMER_FEE_PERCENT, customer_payment_fee
 from decimal import Decimal
 import uuid
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.db import transaction
@@ -271,9 +274,12 @@ def _create_pending_mobile_money_records(
         method=Payment.Method.MOBILE_MONEY,
         status=Payment.Status.PENDING,
         amount=payment_amount,
+        fee_percent=CUSTOMER_FEE_PERCENT,
+        fee_amount=customer_payment_fee(payment_amount),
         mobile_money_network=data["mobileMoneyNetwork"],
         mobile_money_number=data["mobileMoneyNumber"],
         gateway="paystack",
+        gateway_mode=gateway_mode(),
         gateway_reference=generate_sales_payment_reference(),
         idempotency_key=idempotency_key,
         note="Waiting for the Mobile Money prompt.",
@@ -399,8 +405,9 @@ def initialize_mobile_money_sale(
     idempotency_key,
     client=None,
     branch=None,
+    hosted_checkout=False,
 ):
-    # Creates one pending sale and sends exactly one Paystack phone prompt.
+    # The owner-facing API uses hosted checkout; legacy charges remain verifiable.
     existing_attempt = _existing_mobile_money_attempt(
         business=business,
         idempotency_key=idempotency_key,
@@ -408,6 +415,7 @@ def initialize_mobile_money_sale(
 
     if existing_attempt:
         sale, payment = existing_attempt
+        require_mode(payment.gateway_mode, client)
         return sale, payment, True
 
     sale, payment = _create_pending_mobile_money_records(
@@ -418,6 +426,7 @@ def initialize_mobile_money_sale(
         branch=branch,
     )
     gateway_client = client or PaystackClient()
+    require_mode(payment.gateway_mode, gateway_client)
     email = _payment_email(
         business=business,
         customer=sale.customer,
@@ -429,18 +438,33 @@ def initialize_mobile_money_sale(
         "payment_id": str(payment.id),
         "payment_type": Payment.PaymentType.SALE_PAYMENT,
     }
-    amount_subunit = int(payment.amount * 100)
+    amount_subunit = int(payment.charged_amount * 100)
 
     try:
-        response = gateway_client.create_mobile_money_charge(
-            email=email,
-            amount_subunit=amount_subunit,
-            reference=payment.gateway_reference,
-            phone=payment.mobile_money_number,
-            provider=payment.mobile_money_network,
-            currency="GHS",
-            metadata=metadata,
-        )
+        if hosted_checkout:
+            response = gateway_client.initialize_transaction(
+                email=email, amount_subunit=amount_subunit,
+                reference=payment.gateway_reference, currency="GHS",
+                metadata=metadata, channels=["mobile_money"],
+            )
+            url = str(response.get("authorization_url", ""))
+            parsed = urlsplit(url)
+            if (response.get("reference") != payment.gateway_reference
+                    or parsed.scheme != "https" or parsed.netloc != "checkout.paystack.com"
+                    or not parsed.path.strip("/") or len(url) > 500):
+                raise PaystackRequestError("Paystack returned an invalid checkout link.", code="paystack_invalid_response")
+            response = {**response, "status": "hosted_checkout",
+                        "display_text": "Share the payment link with the customer. They enter any payment code and approve privately on their phone."}
+        else:
+            response = gateway_client.create_mobile_money_charge(
+                email=email,
+                amount_subunit=amount_subunit,
+                reference=payment.gateway_reference,
+                phone=payment.mobile_money_number,
+                provider=payment.mobile_money_network,
+                currency="GHS",
+                metadata=metadata,
+            )
     except PaystackError as exc:
         if _gateway_error_is_definitive(exc):
             _release_failed_mobile_money_sale(
@@ -491,11 +515,17 @@ def initialize_mobile_money_sale(
         locked_payment.note = str(
             response.get("display_text", "")
         ).strip()
+        if provider_status == "send_otp":
+            locked_payment.note = 'Paystack requested an OTP instead of a direct phone approval. Do not ask the customer for their code or PIN. This payment needs additional customer authentication that the merchant screen cannot complete. Check its final status before attempting another payment.'
         locked_payment.failure_reason = ""
+        locked_payment.gateway_charge_status = provider_status[:32]
+        locked_payment.checkout_url = response.get("authorization_url", "") if hosted_checkout else ""
         locked_payment.save(
             update_fields=(
                 "note",
                 "failure_reason",
+                "gateway_charge_status",
+                "checkout_url",
                 "updated_at",
             )
         )
@@ -625,7 +655,7 @@ def _successful_verification_error(payment, verification):
     # Validates every value needed before StockFlow delivers the sale.
     expected_values = {
         "reference": payment.gateway_reference,
-        "amount": int(payment.amount * Decimal("100")),
+        "amount": int(payment.charged_amount * Decimal("100")),
         "currency": "GHS",
         "channel": "mobile_money",
     }
@@ -855,7 +885,9 @@ def verify_and_finalize_mobile_money_sale(
         return existing_payment, existing_sale, False
 
     gateway_client = client or PaystackClient()
+    mode = require_mode(existing_payment.gateway_mode, gateway_client)
     verification = gateway_client.verify_transaction(reference)
+    require_response_mode(verification, mode)
     deferred_error = None
 
     with transaction.atomic():
@@ -889,6 +921,23 @@ def verify_and_finalize_mobile_money_sale(
         ):
             return payment, sale, False
 
+        if (payment.checkout_url and sale.status != Sale.Status.PENDING_PAYMENT
+                and str(verification.get("status", "")).lower() == "success"):
+            error, _, _ = _successful_verification_error(payment, verification)
+            if error:
+                raise error
+            # A checkout link may be paid after its stock reservation was released.
+            # Record receipt of funds for reconciliation; never oversell or pay out automatically.
+            payment.status = Payment.Status.SUCCESSFUL
+            payment.receipt_number = payment.receipt_number or _next_receipt_number(sale.business)
+            payment.gateway_charge_status = "requires_review"
+            payment.provider_reference = str(verification["id"])
+            payment.verified_at = timezone.now()
+            payment.note = "Payment received after this sale closed. Review and arrange fulfillment or a refund before making a merchant payout."
+            payment.failure_reason = "late_checkout_payment"
+            payment.save(update_fields=("status", "receipt_number", "gateway_charge_status", "provider_reference", "verified_at", "note", "failure_reason", "updated_at"))
+            return payment, sale, False
+
         if sale.status != Sale.Status.PENDING_PAYMENT:
             raise MobileMoneyPaymentError(
                 "This Mobile Money sale is no longer pending.",
@@ -900,7 +949,9 @@ def verify_and_finalize_mobile_money_sale(
         ).strip().lower()
 
         if provider_status != "success":
-            if provider_status in {
+            checkout_waiting = (bool(payment.checkout_url) and provider_status == "abandoned"
+                                and sale.reservation_expires_at and sale.reservation_expires_at > timezone.now())
+            if not checkout_waiting and provider_status in {
                 "failed",
                 "abandoned",
                 "cancelled",
@@ -1072,9 +1123,12 @@ def _create_pending_mobile_money_debt_payment(
         method=Payment.Method.MOBILE_MONEY,
         status=Payment.Status.PENDING,
         amount=amount,
+        fee_percent=CUSTOMER_FEE_PERCENT,
+        fee_amount=customer_payment_fee(amount),
         mobile_money_network=data["mobileMoneyNetwork"],
         mobile_money_number=data["mobileMoneyNumber"],
         gateway="paystack",
+        gateway_mode=gateway_mode(),
         gateway_reference=generate_debt_payment_reference(),
         idempotency_key=idempotency_key,
         reference=data.get("reference", ""),
@@ -1123,6 +1177,7 @@ def initialize_mobile_money_debt_payment(
         idempotency_key=idempotency_key,
     )
     if existing:
+        require_mode(existing.gateway_mode, client)
         return existing, True
 
     payment = _create_pending_mobile_money_debt_payment(
@@ -1134,6 +1189,7 @@ def initialize_mobile_money_debt_payment(
         branch=branch,
     )
     gateway_client = client or PaystackClient()
+    require_mode(payment.gateway_mode, gateway_client)
     metadata = {
         "business_id": str(business.id),
         "sale_id": str(payment.sale_id),
@@ -1148,7 +1204,7 @@ def initialize_mobile_money_debt_payment(
                 customer=payment.customer,
                 user=user,
             ),
-            amount_subunit=int(payment.amount * Decimal("100")),
+            amount_subunit=int(payment.charged_amount * Decimal("100")),
             reference=payment.gateway_reference,
             phone=payment.mobile_money_number,
             provider=payment.mobile_money_network,
@@ -1298,7 +1354,10 @@ def verify_and_finalize_mobile_money_debt_payment(*, reference, client=None):
     if existing.status == Payment.Status.SUCCESSFUL:
         return existing, existing.sale, existing.customer, False
 
-    verification = (client or PaystackClient()).verify_transaction(reference)
+    gateway_client = client or PaystackClient()
+    mode = require_mode(existing.gateway_mode, gateway_client)
+    verification = gateway_client.verify_transaction(reference)
+    require_response_mode(verification, mode)
     deferred_error = None
     with transaction.atomic():
         payment = Payment.objects.select_for_update().select_related(

@@ -5,6 +5,7 @@ import {
   Printer,
   Search,
   ShoppingBag,
+  ShieldCheck,
   Trash2,
   UserPlus,
 } from "lucide-react";
@@ -18,8 +19,10 @@ import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
 import { formatCurrency } from "../../utils/formatters";
+import PaymentFeeBreakdown from "../../components/ui/PaymentFeeBreakdown";
 
 import "../../styles/sales-product-navigator.css";
+import "../../styles/payment-code.css";
 
 const MOBILE_MONEY_NETWORK_LABELS = {
   mtn: "MTN Mobile Money",
@@ -157,6 +160,7 @@ function productVariantSummary(product) {
 export default function NewSalePage() {
   const navigate = useNavigate();
   const {
+    business,
     products,
     customers,
     inventoryLoading,
@@ -184,6 +188,8 @@ export default function NewSalePage() {
   const [debtDueDate, setDebtDueDate] = useState("");
   const [error, setError] = useState("");
   const [saleSaving, setSaleSaving] = useState(false);
+  const [feeConfirmationOpen, setFeeConfirmationOpen] = useState(false);
+  useEffect(() => { setFeeConfirmationOpen(false); }, [business.id]);
   const [completedSale, setCompletedSale] = useState(null);
   const [mobileMoneyNetwork, setMobileMoneyNetwork] = useState("");
   const [mobileMoneyNumber, setMobileMoneyNumber] = useState("");
@@ -464,13 +470,23 @@ export default function NewSalePage() {
     }
   }
 
-  async function handleCompleteSale() {
+  async function handleCompleteSale(feeConfirmed = false) {
     if (saleSaving) return;
 
     if (pendingMobileMoneySale) {
       setMobileMoneyModalOpen(true);
       return;
     }
+
+    if (paymentMethod === "mobile_money" && feeConfirmed !== true) {
+      if (!cart.length || !mobileMoneyNetwork || !mobileMoneyNumber.trim()) {
+        setError("Select products, a Mobile Money network and the customer's number first.");
+        return;
+      }
+      setFeeConfirmationOpen(true);
+      return;
+    }
+    setFeeConfirmationOpen(false);
 
     if (usesBankTransfer) {
       if (paymentAccountsLoading) {
@@ -559,13 +575,13 @@ export default function NewSalePage() {
 
         if (!pendingRecord) {
           throw new Error(
-            "The Mobile Money prompt started, but its payment reference is missing.",
+            "The payment checkout started, but its reference is missing.",
           );
         }
 
         setPendingMobileMoneySale(pendingRecord);
         setPaymentStatusMessage(
-          "Ask the customer to approve the prompt on their phone, then verify the payment.",
+          pendingRecord.payment.note || "Follow the payment instructions, then check payment status.",
         );
         setMobileMoneyModalOpen(true);
       } else {
@@ -591,6 +607,12 @@ export default function NewSalePage() {
     }
   }
 
+  useEffect(() => {
+    if (!mobileMoneyModalOpen || !pendingMobileMoneySale?.reference || paymentVerifying) return;
+    const timer = window.setTimeout(() => handleVerifyMobileMoneySale(), 15000);
+    return () => window.clearTimeout(timer);
+  }, [mobileMoneyModalOpen, pendingMobileMoneySale, paymentVerifying]);
+
   async function handleVerifyMobileMoneySale() {
     if (!pendingMobileMoneySale || paymentVerifying) return;
 
@@ -602,16 +624,25 @@ export default function NewSalePage() {
       const sale = await verifyMobileMoneySale(
         pendingMobileMoneySale.reference,
       );
-
-      setPendingMobileMoneySale(null);
-      setMobileMoneyModalOpen(false);
-      setCompletedSale(sale);
+      const pending = resolvePendingMobileMoneySale(sale);
+      setPendingMobileMoneySale(pending);
+      if (pending) {
+        setPaymentStatusMessage(pending.payment.note || "Payment is awaiting confirmation.");
+      } else {
+        setMobileMoneyModalOpen(false);
+        if (["completed", "partially_paid"].includes(sale.status)) {
+          setCompletedSale(sale);
+        } else {
+          const review = sale.payments?.find((payment) => payment.gatewayChargeStatus === "requires_review");
+          setError(review?.note || ("This payment did not complete. The sale is " + sale.status.replaceAll("_", " ") + "."));
+        }
+      }
     } catch (verificationError) {
       const errorCode = verificationError.data?.code;
 
       if (errorCode === "mobile_money_payment_pending") {
         setPaymentStatusMessage(
-          "Payment is still waiting for approval. Approve the prompt on the customer's phone, then verify again.",
+          "The customer should complete payment on their own phone. StockFlow is waiting for verified payment.",
         );
       } else {
         setError(verificationError.message);
@@ -655,7 +686,7 @@ export default function NewSalePage() {
       {pendingMobileMoneySale ? (
         <section className="mobile-money-pending-banner">
           <div>
-            <strong>Mobile Money approval pending</strong>
+            <strong>Customer payment pending</strong>
             <span>
               {pendingMobileMoneySale.networkLabel} -{" "}
               {pendingMobileMoneySale.payment.mobileMoneyNumber}
@@ -967,7 +998,6 @@ export default function NewSalePage() {
               {[
                 ["cash", "Cash"],
                 ["mobile_money", "Mobile Money"],
-                ["bank_transfer", "Bank transfer"],
                 ["credit", "Credit / part payment"],
               ].map(([value, label]) => (
                 <button
@@ -1021,9 +1051,8 @@ export default function NewSalePage() {
                 </label>
 
                 <div className="mobile-money-payment-note">
-                  The customer approves the secure Paystack prompt on
-                  their phone. Stock is reduced only after backend
-                  verification succeeds.
+                  Request approval on the customer's phone. The customer enters their PIN only on their phone.
+                  {" "}StockFlow completes the sale only after verifying payment.
                 </div>
               </div>
             ) : null}
@@ -1130,9 +1159,6 @@ export default function NewSalePage() {
                       disabled={saleSaving}
                     >
                       <option value="cash">Cash</option>
-                      <option value="bank_transfer">
-                        Bank transfer
-                      </option>
                     </select>
                   </label>
                 ) : null}
@@ -1232,10 +1258,10 @@ export default function NewSalePage() {
             >
               {saleSaving
                 ? paymentMethod === "mobile_money"
-                  ? "Sending Mobile Money prompt..."
+                  ? "Requesting phone approval..."
                   : "Completing sale..."
                 : paymentMethod === "mobile_money"
-                  ? "Send Mobile Money prompt"
+                  ? "Review Mobile Money payment"
                   : "Complete sale and invoice"}
               <Check size={18} />
             </Button>
@@ -1243,25 +1269,38 @@ export default function NewSalePage() {
         </aside>
       </section>
 
+      <Modal open={feeConfirmationOpen} onClose={() => setFeeConfirmationOpen(false)}
+        title="Confirm customer payment" description="Review the full amount before requesting approval on the customer’s phone.">
+        <p>Customer number: {mobileMoneyNumber}</p>
+        <PaymentFeeBreakdown amount={total} percent={1.3} maxFee={20} />
+        <div className="payment-confirmation-actions">
+          <button type="button" onClick={() => setFeeConfirmationOpen(false)}>Cancel</button>
+          <Button disabled={saleSaving} onClick={() => handleCompleteSale(true)}>Confirm and request phone approval</Button>
+        </div>
+      </Modal>
       <Modal
         open={
           Boolean(pendingMobileMoneySale) && mobileMoneyModalOpen
         }
         onClose={() => {
-          if (!paymentVerifying) setMobileMoneyModalOpen(false);
+          if (!paymentVerifying) { setMobileMoneyModalOpen(false); }
         }}
-        title="Mobile Money approval pending"
+        title="Customer payment"
         description="The sale is not complete until StockFlow verifies Paystack."
       >
         {pendingMobileMoneySale ? (
           <div className="mobile-money-pending-content">
             <div className="mobile-money-pending-icon">
-              <ShoppingBag size={28} />
+              <ShieldCheck size={28} />
             </div>
 
             <strong>
-              {formatCurrency(pendingMobileMoneySale.sale.total)}
+              {formatCurrency(pendingMobileMoneySale.payment.chargedAmount ?? pendingMobileMoneySale.payment.amount)}
             </strong>
+            <PaymentFeeBreakdown amount={pendingMobileMoneySale.payment.amount}
+              percent={pendingMobileMoneySale.payment.feePercent ?? 0}
+              feeAmount={pendingMobileMoneySale.payment.feeAmount ?? 0}
+              chargedAmount={pendingMobileMoneySale.payment.chargedAmount ?? pendingMobileMoneySale.payment.amount} />
             <span>{pendingMobileMoneySale.networkLabel}</span>
             <small>
               {pendingMobileMoneySale.payment.mobileMoneyNumber}
@@ -1284,6 +1323,10 @@ export default function NewSalePage() {
               </div>
             </div>
 
+            {pendingMobileMoneySale.payment.note && !paymentStatusMessage ? (
+              <div className="form-alert" role="status">{pendingMobileMoneySale.payment.note}</div>
+            ) : null}
+            <div className="form-alert">Customers approve payments privately on their own phones. StockFlow checks payment status automatically while this window is open. Never collect their OTP or MoMo PIN.</div>
             {paymentStatusMessage ? (
               <div className="form-alert">
                 {paymentStatusMessage}
@@ -1293,18 +1336,18 @@ export default function NewSalePage() {
             <div className="success-action-grid">
               <Button
                 variant="secondary"
-                onClick={() => setMobileMoneyModalOpen(false)}
+                onClick={() => { setMobileMoneyModalOpen(false); }}
                 disabled={paymentVerifying}
               >
                 Close for now
               </Button>
               <Button
-                onClick={handleVerifyMobileMoneySale}
+                onClick={() => handleVerifyMobileMoneySale()}
                 disabled={paymentVerifying}
               >
                 {paymentVerifying
                   ? "Verifying payment..."
-                  : "Verify payment"}
+                  : "Check payment status"}
               </Button>
             </div>
           </div>

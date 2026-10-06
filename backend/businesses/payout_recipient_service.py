@@ -1,3 +1,4 @@
+from .payment_modes import gateway_mode, require_response_mode
 from django.db import transaction
 from django.utils import timezone
 
@@ -28,6 +29,7 @@ def paystack_mobile_money_bank_code(network):
 
 def _save_sync_error(account, message):
     BusinessPaymentAccount.objects.filter(pk=account.pk).update(
+        paystack_recipient_mode="",
         paystack_recipient_code="",
         paystack_recipient_id="",
         paystack_recipient_synced_at=None,
@@ -67,6 +69,8 @@ def sync_mobile_money_payout_recipient(account, client=None):
         _save_sync_error(account, str(exc))
         raise
 
+    mode = gateway_mode(gateway_client)
+    require_response_mode(response, mode)
     recipient_code = str(response.get("recipient_code", "")).strip()
     recipient_id = str(response.get("id", "")).strip()
     if not recipient_code:
@@ -84,12 +88,14 @@ def sync_mobile_money_payout_recipient(account, client=None):
                 "The receiving account changed while Paystack was connecting it. Try again.",
                 code="paystack_payout_account_changed",
             )
+        locked.paystack_recipient_mode = mode
         locked.paystack_recipient_code = recipient_code
         locked.paystack_recipient_id = recipient_id
         locked.paystack_recipient_synced_at = timezone.now()
         locked.paystack_recipient_last_error = ""
         locked.save(
             update_fields=(
+                "paystack_recipient_mode",
                 "paystack_recipient_code",
                 "paystack_recipient_id",
                 "paystack_recipient_synced_at",

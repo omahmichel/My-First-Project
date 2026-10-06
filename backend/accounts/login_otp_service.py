@@ -1,6 +1,7 @@
 import secrets
 import logging
 import math
+import time
 from dataclasses import dataclass
 
 from django.conf import settings
@@ -94,26 +95,49 @@ def _resend_available_at():
 
 
 def _send_otp_email(*, user, otp):
-    sent = send_mail(
-        subject="Your StockFlow sign-in security code",
-        message=(
-            f"Hello {user.full_name or 'StockFlow user'},\n\n"
-            "Use this six-digit security code to finish signing in to "
-            "StockFlow:\n\n"
-            f"{otp}\n\n"
-            "The code expires in 10 minutes and can be used only for this "
-            "sign-in. Do not share it with anyone.\n\n"
-            "If you did not try to sign in, ignore this email and consider "
-            "changing your password."
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=(user.email,),
-        fail_silently=False,
-        connection=get_connection(timeout=min(getattr(settings, "EMAIL_TIMEOUT", 10) or 10, 20)),
-    )
-
-    if sent != 1:
-        raise LoginEmailDeliveryError("Mail backend did not accept the message.")
+    # Keep socket waits below the browser delivery timeout. Log only safe metadata.
+    timeout = min(getattr(settings, "EMAIL_TIMEOUT", 10) or 10, 20)
+    connection = get_connection(timeout=timeout)
+    started = time.monotonic()
+    stage = "connect_auth"
+    try:
+        connection.open()
+        stage = "send_message"
+        sent = send_mail(
+            subject="Your StockFlow sign-in security code",
+            message=(
+                f"Hello {user.full_name or 'StockFlow user'},\n\n"
+                "Use this six-digit security code to finish signing in to "
+                "StockFlow:\n\n"
+                f"{otp}\n\n"
+                "The code expires in 10 minutes and can be used only for this "
+                "sign-in. Do not share it with anyone.\n\n"
+                "If you did not try to sign in, ignore this email and consider "
+                "changing your password."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=(user.email,),
+            fail_silently=False,
+            connection=connection,
+        )
+        if sent != 1:
+            raise LoginEmailDeliveryError("Mail backend did not accept the message.")
+    except Exception as error:
+        logging.getLogger(__name__).warning(
+            "OTP mail failure stage=%s error=%s smtp_code=%s elapsed=%.1fs timeout=%ss",
+            stage, type(error).__name__,
+            getattr(error, "smtp_code", None) if isinstance(getattr(error, "smtp_code", None), int) else None,
+            time.monotonic() - started, timeout,
+        )
+        raise
+    finally:
+        # Once accepted, a failed SMTP QUIT must not invalidate a delivered code.
+        try:
+            connection.close()
+        except Exception as error:
+            logging.getLogger(__name__).warning(
+                "OTP mail close failure error=%s", type(error).__name__,
+            )
 
 
 @transaction.atomic
@@ -179,6 +203,9 @@ def _deliver_code(challenge_token, *, replacement):
         if not initial_delivery and challenge.resend_available_at > now:
             seconds = challenge_timing(challenge)["resendCooldown"]
             raise serializers.ValidationError({"challengeId": f"Please wait {seconds} seconds before requesting another code."})
+        previous_hash = challenge.otp_hash
+        previous_expiry = challenge.expires_at
+        previous_attempts = challenge.failed_attempts
         old_hash = challenge.otp_hash.removeprefix(SENDING_OTP_PREFIX)
         otp = _generate_otp()
         while _otp_matches(challenge_token=challenge_token, otp=otp, stored_hash=old_hash):
@@ -194,8 +221,15 @@ def _deliver_code(challenge_token, *, replacement):
     try:
         _send_otp_email(user=user, otp=otp)
     except Exception as error:
-        # Invalidate the failed generation, preserving its resend cooldown.
-        PendingLoginChallenge.objects.filter(challenge_token=challenge_token, otp_hash=sending_hash).update(otp_hash=_pending_otp_hash(retry=True))
+        # Restore only a previously issued code, with its original expiry and
+        # attempt count. Never restore pending/in-flight or superseded generations.
+        fallback = {"otp_hash": _pending_otp_hash(retry=True)}
+        if not previous_hash.startswith((PENDING_OTP_PREFIX, SENDING_OTP_PREFIX)):
+            fallback = {"otp_hash": previous_hash, "expires_at": previous_expiry,
+                        "failed_attempts": previous_attempts}
+        PendingLoginChallenge.objects.filter(
+            challenge_token=challenge_token, otp_hash=sending_hash,
+        ).update(**fallback)
         logging.getLogger(__name__).warning("Login email delivery failed (%s).", type(error).__name__)
         raise LoginEmailDeliveryError from error
     updated = PendingLoginChallenge.objects.filter(challenge_token=challenge_token, otp_hash=sending_hash).update(otp_hash=final_hash)

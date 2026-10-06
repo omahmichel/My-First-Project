@@ -328,3 +328,59 @@
     white-space: nowrap !important;
   }
 }
+
+/* Shared Shoprite inventory layout for configured current and future routes. */
+.stockflow-inventory-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
+.stockflow-inventory-summary article { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 17px 18px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg,#fff,#fbfdfc); box-shadow: 0 10px 28px rgba(20,54,38,.045); }
+.stockflow-inventory-summary article > span { display: grid; flex: 0 0 42px; height: 42px; place-items: center; border-radius: 12px; background: var(--primary-light); color: var(--primary); }
+.stockflow-inventory-summary strong { display: block; color: var(--ink); font-size: 1.12rem; letter-spacing: -.025em; }
+.stockflow-inventory-summary small { display: block; margin-top: 3px; color: var(--muted); font-size: .7rem; }
+.stockflow-inventory-toolbar { display: grid; gap: 13px; padding: 17px 18px; }
+.stockflow-inventory-search-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
+.stockflow-inventory-search { width: min(560px,100%); min-width: 0; }
+.stockflow-inventory-result-group { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: .72rem; font-weight: 700; }
+.stockflow-inventory-result-group button { border: 0; border-radius: 8px; padding: 7px 9px; background: var(--primary-soft); color: var(--primary-dark); cursor: pointer; }
+.stockflow-inventory-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 9px; }
+.stockflow-inventory-filters select { min-width: 0; width: 100%; min-height: 39px; font-size: .72rem; }
+.stockflow-inventory-page .stockflow-shared-records { width: 100%; min-width: 0 !important; max-width: 100%; table-layout: fixed; }
+.stockflow-inventory-page .stockflow-shared-records td,
+.stockflow-inventory-page .stockflow-shared-records td * { white-space: normal; overflow-wrap: anywhere; }
+.stockflow-inventory-page .stockflow-shared-records td > strong { display: block; color: var(--ink); font-size: .76rem; font-weight: 850; }
+.stockflow-inventory-page .stockflow-shared-records td > small,
+.stockflow-inventory-page .stockflow-shared-records .retail-detail-list { color: #586b61; font-size: .61rem; font-weight: 700; line-height: 1.35; }
+.stockflow-inventory-page .stockflow-shared-records td > small { display: block; margin-top: 3px; }
+.stockflow-inventory-page .stockflow-shared-records td[data-label="Status"],
+.stockflow-inventory-page .stockflow-shared-records th:last-child { text-align: center; }
+.stockflow-inventory-page .stockflow-shared-records .badge { max-width: 100%; border-radius: 999px; }
+.stockflow-inventory-page .stockflow-inventory-actions button:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+@media (min-width: 701px) {
+  .stockflow-inventory-page .stockflow-shared-records th { padding: 11px 14px !important; line-height: 1.25; }
+  .stockflow-inventory-page .stockflow-shared-records td { padding: 12px 14px !important; line-height: 1.35; }
+}
+@media (max-width: 1100px) {
+  .stockflow-inventory-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 700px) {
+  .stockflow-inventory-summary { grid-template-columns: 1fr; }
+  .stockflow-inventory-search-row { flex-direction: column; align-items: stretch; }
+  .stockflow-inventory-search { width: 100%; }
+  .stockflow-inventory-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stockflow-inventory-page .stockflow-shared-records,
+  .stockflow-inventory-page .stockflow-shared-records tbody { display: block; width: 100%; }
+  .stockflow-inventory-page .stockflow-shared-records thead,
+  .stockflow-inventory-page .stockflow-shared-records colgroup { display: none; }
+  .stockflow-inventory-page .stockflow-shared-records tr { display: block; margin: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 8px 24px rgba(20,54,38,.045); }
+  .stockflow-inventory-page .stockflow-shared-records td { display: grid; grid-template-columns: 90px minmax(0,1fr); column-gap: 12px; padding: 11px 13px !important; border: 0; border-top: 1px solid var(--line-soft); text-align: left; }
+  .stockflow-inventory-page .stockflow-shared-records td:first-child { border-top: 0; }
+  .stockflow-inventory-page .stockflow-shared-records td::before { content: attr(data-label); grid-column: 1; grid-row: 1 / span 8; color: var(--muted); font-size: .61rem; font-weight: 800; text-transform: uppercase; }
+  .stockflow-inventory-page .stockflow-shared-records td > * { grid-column: 2; }
+  .stockflow-inventory-page .stockflow-shared-records .stockflow-icon-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .stockflow-inventory-page .stockflow-shared-records .stockflow-icon-action { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--primary-dark); background: #fff; }
+  .stockflow-inventory-page .stockflow-shared-records .badge { justify-self: start; padding: 6px 11px; font-size: .7rem; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  .stockflow-inventory-page .stockflow-shared-records { min-width: 820px !important; }
+}
+.stockflow-inventory-page .stockflow-shared-records .badge { min-width: 0 !important; }
+.stockflow-inventory-page .stockflow-shared-records td[colspan] { display: table-cell; text-align: center; }
+.stockflow-inventory-page .stockflow-shared-records td[colspan]::before { display: none; }

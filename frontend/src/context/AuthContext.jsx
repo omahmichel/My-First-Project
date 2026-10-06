@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { apiRequest, invalidateAuthRequests, loginOtpRequest } from "../services/api";
+import { authenticateWithStockFlowPasskey, registerStockFlowPasskey } from "../services/passkeys";
 import { loadStoredValue, saveStoredValue } from "../services/storage";
 
 const AuthContext = createContext(null);
@@ -251,6 +252,26 @@ export function AuthProvider({ children }) {
   const deliverLoginOtp = useCallback((id) => sendLoginCode(id, false), [sendLoginCode]);
   const resendLoginOtp = useCallback((id) => sendLoginCode(id, true), [sendLoginCode]);
 
+  // Authenticates with a previously registered WebAuthn credential.
+  async function loginWithPasskey(email) {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) throw new Error("Enter your email address first.");
+    clearAuthentication();
+    setPendingLogin(null);
+    savePendingLogin(null);
+    const response = await authenticateWithStockFlowPasskey(normalizedEmail);
+    window.localStorage.setItem("stockflow_access_token", response.access);
+    window.localStorage.setItem("stockflow_refresh_token", response.refresh);
+    const nextUser = normalizeUser(response.user);
+    setUser(nextUser);
+    saveStoredValue("auth_user", nextUser);
+    return nextUser;
+  }
+
+  async function registerPasskey(label) {
+    return registerStockFlowPasskey(label);
+  }
+
   // Starts registration by sending an OTP without creating the account yet.
   async function register(payload) {
     if (
@@ -364,6 +385,8 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(user) && !pendingLogin,
       isInitializing,
       login,
+      loginWithPasskey,
+      registerPasskey,
       verifyLoginOtp,
       deliverLoginOtp,
       resendLoginOtp,

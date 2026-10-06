@@ -90,7 +90,7 @@ class SubscriptionPaymentAPITests(APITestCase):
             status.HTTP_201_CREATED,
             response.data,
         )
-        self.assertEqual(response.data["amount"], "99.00")
+        self.assertEqual(response.data["amount"], "150.00")
         self.assertEqual(response.data["currency"], "GHS")
         self.assertEqual(response.data["durationDays"], 40)
         self.assertNotIn("accessCode", response.data)
@@ -101,6 +101,17 @@ class SubscriptionPaymentAPITests(APITestCase):
                 "http://localhost:5173/app/subscription"
             ),
         )
+
+    def test_quote_is_read_only_and_owner_only(self):
+        self.authenticate(self.owner)
+        response = self.client.get(self.initialize_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["amount"], "150.00")
+        self.assertEqual(response.data["feeAmount"], "3.75")
+        self.assertEqual(response.data["chargedAmount"], "153.75")
+        self.assertFalse(SubscriptionPayment.objects.exists())
+        self.authenticate(self.other_user)
+        self.assertEqual(self.client.get(self.initialize_url).status_code, 404)
 
     def test_non_owner_cannot_initialize_payment(self):
         # Unauthorized users receive no information about the business.

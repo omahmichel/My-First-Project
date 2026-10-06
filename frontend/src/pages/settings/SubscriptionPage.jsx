@@ -1,3 +1,6 @@
+import Modal from "../../components/ui/Modal";
+import { formatCurrency } from "../../utils/formatters";
+import PaymentFeeBreakdown from "../../components/ui/PaymentFeeBreakdown";
 import {
   useCallback,
   useEffect,
@@ -21,7 +24,7 @@ import { apiRequest } from "../../services/api";
 
 const PENDING_PAYMENT_STORAGE_KEY =
   "stockflow_pending_subscription_payment";
-const SUBSCRIPTION_PRICE_LABEL = "\u20B599";
+const SUBSCRIPTION_PRICE_LABEL = "GH₵150";
 const SUBSCRIPTION_DURATION_DAYS = 40;
 
 function formatAccessDate(value) {
@@ -117,6 +120,19 @@ export default function SubscriptionPage() {
     loadPendingPayment,
   );
   const [initializing, setInitializing] = useState(false);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [quote, setQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState("");
+  const quoteVersion = useRef(0);
+  const paymentStarting = useRef(false);
+  useEffect(() => {
+    quoteVersion.current += 1;
+    setConfirmationOpen(false);
+    setQuote(null);
+    setQuoteLoading(false);
+    return () => { quoteVersion.current += 1; };
+  }, [business.id]);
   const [verifying, setVerifying] = useState(false);
   const [paymentNotice, setPaymentNotice] = useState(null);
   const autoVerificationReference = useRef("");
@@ -245,8 +261,27 @@ export default function SubscriptionPage() {
     verifyPayment,
   ]);
 
+  async function openPaymentConfirmation() {
+    if (!business.id || !isOwner || initializing || quoteLoading) return;
+    const version = ++quoteVersion.current;
+    setConfirmationOpen(true);
+    setQuote(null);
+    setQuoteError("");
+    setQuoteLoading(true);
+    try {
+      const result = await apiRequest(`/businesses/${business.id}/subscription/payments/initialize/`);
+      if (version === quoteVersion.current) setQuote(result);
+    } catch (error) {
+      if (version === quoteVersion.current) setQuoteError(error.message || "Could not load payment total. Please try again.");
+    } finally {
+      if (version === quoteVersion.current) setQuoteLoading(false);
+    }
+  }
+
   async function handleStartPayment() {
-    if (!business.id || !isOwner) return;
+    if (!business.id || !isOwner || !quote || paymentStarting.current) return;
+    paymentStarting.current = true;
+    setConfirmationOpen(false);
 
     setInitializing(true);
     setPaymentNotice(null);
@@ -289,6 +324,7 @@ export default function SubscriptionPage() {
         canRetry: false,
       });
       setInitializing(false);
+      paymentStarting.current = false;
     }
   }
 
@@ -443,7 +479,7 @@ export default function SubscriptionPage() {
                 <button
                   type="button"
                   className="subscription-pay-button"
-                  onClick={handleStartPayment}
+                  onClick={openPaymentConfirmation}
                   disabled={
                     initializing ||
                     verifying ||
@@ -475,6 +511,22 @@ export default function SubscriptionPage() {
           )}
         </div>
       </article>
+      <Modal open={confirmationOpen} onClose={() => {
+        if (!initializing) { quoteVersion.current += 1; setConfirmationOpen(false); setQuoteLoading(false); }
+      }} title="Confirm your subscription" description="Review the final total before continuing to Paystack.">
+        {quoteLoading && <p role="status">Loading payment total…</p>}
+        {quoteError && <p role="alert">{quoteError}</p>}
+        {quote && <>
+          <p>{quote.durationDays} days of StockFlow access</p>
+          <PaymentFeeBreakdown amount={quote.amount} percent={quote.feePercent}
+            feeAmount={quote.feeAmount} chargedAmount={quote.chargedAmount} />
+        </>}
+        <div className="payment-confirmation-actions">
+          <button type="button" onClick={() => { quoteVersion.current += 1; setConfirmationOpen(false); setQuoteLoading(false); }}>Cancel</button>
+          <button type="button" className="subscription-pay-button" disabled={!quote || quoteLoading || initializing}
+            onClick={handleStartPayment}>{quote ? `Continue to Paystack · ${formatCurrency(quote.chargedAmount)}` : "Continue to Paystack"}</button>
+        </div>
+      </Modal>
     </section>
   );
 }

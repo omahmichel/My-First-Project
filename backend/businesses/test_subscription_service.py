@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 from django.http import Http404
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from accounts.models import User
@@ -14,6 +14,7 @@ from businesses.subscription_service import (
 )
 
 
+@override_settings(PAYMENT_GATEWAY="paystack", PAYMENT_GATEWAY_SECRET_KEY="sk_test_stockflow")
 class SubscriptionPaymentServiceTests(TestCase):
     """Protects secure initialization and one-time subscription value."""
 
@@ -81,6 +82,7 @@ class SubscriptionPaymentServiceTests(TestCase):
     def successful_verification(self, payment, **overrides):
         # Builds a verified Paystack response matching the payment record.
         response = {
+            "domain": "test",
             "id": 123456,
             "status": "success",
             "reference": payment.reference,
@@ -107,7 +109,7 @@ class SubscriptionPaymentServiceTests(TestCase):
         self.client.initialize_transaction.assert_not_called()
 
     def test_initialize_uses_fixed_stockflow_terms(self):
-        # The server sends ₵99, GHS and protected ownership metadata.
+        # The server sends ₵153.75 including the fee, GHS and protected ownership metadata.
         payment = self.initialize_payment()
 
         self.assertEqual(
@@ -117,7 +119,7 @@ class SubscriptionPaymentServiceTests(TestCase):
         self.assertTrue(payment.authorization_url)
         self.client.initialize_transaction.assert_called_once_with(
             email=self.owner.email,
-            amount_subunit=9900,
+            amount_subunit=15375,
             reference=payment.reference,
             currency="GHS",
             callback_url=(

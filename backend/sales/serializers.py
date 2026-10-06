@@ -55,6 +55,10 @@ class CreateSaleSerializer(serializers.Serializer):
         allow_blank=True,
         default="",
     )
+    # Reject stale clients requesting the removed payment-link flow.
+    mobileMoneyFlow = serializers.ChoiceField(
+        choices=("direct",), required=False, default="direct",
+    )
     mobileMoneyNetwork = serializers.CharField(
         max_length=40,
         required=False,
@@ -366,6 +370,11 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
+    gatewayChargeStatus = serializers.CharField(source="gateway_charge_status", read_only=True)
+    feePercent = serializers.DecimalField(source="fee_percent", max_digits=5, decimal_places=2, read_only=True)
+    feeAmount = serializers.DecimalField(source="fee_amount", max_digits=14, decimal_places=2, read_only=True)
+    chargedAmount = serializers.DecimalField(source="charged_amount", max_digits=16, decimal_places=2, read_only=True)
+
     # Exposes payment status without exposing private gateway credentials.
 
     businessId = serializers.UUIDField(
@@ -577,8 +586,10 @@ class PaymentSerializer(serializers.ModelSerializer):
             "amount",
             "mobileMoneyNetwork",
             "mobileMoneyNumber",
+            "feePercent", "feeAmount", "chargedAmount",
             "gateway",
             "gatewayReference",
+            "gatewayChargeStatus",
             "providerReference",
             "receiptNumber",
             "reference",

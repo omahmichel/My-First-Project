@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
@@ -262,6 +263,41 @@ if not FRONTEND_BASE_URL:
         "FRONTEND_BASE_URL must contain the React application URL."
     )
 
+# WebAuthn/passkey relying-party identity. Production should use StockFlow's stable HTTPS domain.
+_frontend_hostname = urlparse(FRONTEND_BASE_URL).hostname or ""
+_default_webauthn_rp_id = (
+    "localhost" if _frontend_hostname in {"localhost", "127.0.0.1"}
+    else _frontend_hostname
+)
+WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", _default_webauthn_rp_id).strip().lower()
+WEBAUTHN_RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "StockFlow").strip() or "StockFlow"
+_default_webauthn_origin = (
+    "http://localhost:5173" if WEBAUTHN_RP_ID == "localhost"
+    else FRONTEND_BASE_URL
+)
+WEBAUTHN_ORIGINS = get_env_list(
+    "WEBAUTHN_ORIGINS",
+    default=_default_webauthn_origin,
+)
+WEBAUTHN_CHALLENGE_TTL_SECONDS = get_env_positive_int(
+    "WEBAUTHN_CHALLENGE_TTL_SECONDS",
+    default=300,
+)
+if not WEBAUTHN_RP_ID or "://" in WEBAUTHN_RP_ID or "/" in WEBAUTHN_RP_ID:
+    raise ImproperlyConfigured("WEBAUTHN_RP_ID must be a hostname without a scheme or path.")
+if not WEBAUTHN_ORIGINS:
+    raise ImproperlyConfigured("WEBAUTHN_ORIGINS must contain at least one trusted frontend origin.")
+for _webauthn_origin in WEBAUTHN_ORIGINS:
+    _parsed_webauthn_origin = urlparse(_webauthn_origin)
+    _local_webauthn_origin = (
+        _parsed_webauthn_origin.scheme == "http"
+        and _parsed_webauthn_origin.hostname == "localhost"
+    )
+    if _parsed_webauthn_origin.scheme != "https" and not _local_webauthn_origin:
+        raise ImproperlyConfigured(
+            "WEBAUTHN_ORIGINS must use HTTPS except for http://localhost development."
+        )
+
 # Permanent public React base used for customer-facing StockFlow storefront links.
 # Leave blank during local-only development; production should use the real HTTPS domain.
 STOCKFLOW_PUBLIC_BASE_URL = os.getenv(
@@ -385,6 +421,9 @@ REST_FRAMEWORK = {
         ),
         "auth_refresh": os.getenv("THROTTLE_RATE_REFRESH", "30/min"),
         "auth_logout": os.getenv("THROTTLE_RATE_LOGOUT", "20/min"),
+        "auth_passkey_login": os.getenv("THROTTLE_RATE_PASSKEY_LOGIN", "10/min"),
+        "auth_passkey_verify": os.getenv("THROTTLE_RATE_PASSKEY_VERIFY", "10/min"),
+        "auth_passkey_register": os.getenv("THROTTLE_RATE_PASSKEY_REGISTER", "10/hour"),
         "auth_password_reset_request": os.getenv(
             "THROTTLE_RATE_PASSWORD_RESET_REQUEST",
             "5/hour",

@@ -4,6 +4,7 @@ from .views import (
     BusinessCustomerDebtPaymentAPIView,
     BusinessMobileMoneyDebtPaymentVerifyAPIView,
     BusinessMobileMoneySaleVerifyAPIView,
+    BusinessMobileMoneySaleAuthAPIView,
     BusinessSaleDetailAPIView,
     BusinessSaleListCreateAPIView,
     BusinessSaleWaybillAPIView,
@@ -13,6 +14,8 @@ from .views import (
 app_name = "sales"
 
 urlpatterns = [
+    path("businesses/<uuid:business_id>/sales/mobile-money/<str:reference>/authenticate/",
+         BusinessMobileMoneySaleAuthAPIView.as_view(), name="business-mobile-money-sale-auth"),
     path(
         "businesses/<uuid:business_id>/customers/"
         "<uuid:customer_id>/payments/",

@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from integrations.messaging.provider import MessagingProviderError
@@ -321,12 +321,13 @@ class BusinessSaleListCreateAPIView(
 
         try:
             if uses_mobile_money:
-                sale, _, replayed = initialize_mobile_money_sale(
+                sale, checkout_payment, replayed = initialize_mobile_money_sale(
                     business=business,
                     user=request.user,
                     data=serializer.validated_data,
                     idempotency_key=idempotency_key,
                     branch=branch,
+                    hosted_checkout=False,
                 )
             else:
                 sale, replayed = create_completed_sale(
@@ -375,6 +376,40 @@ class BusinessSaleListCreateAPIView(
         return response
 
 
+class PaymentCodeThrottle(UserRateThrottle):
+    rate = "6/min"
+    scope = "payment_code"
+
+
+class BusinessMobileMoneySaleAuthAPIView(BusinessSaleAccessMixin, APIView):
+    permission_classes = (IsAuthenticated,)
+    throttle_scope = "mobile_money_sale_verify"
+    throttle_classes = (PaymentCodeThrottle,)
+
+    def post(self, request, business_id, reference):
+        from .mobile_money_auth import advance_sale_charge
+        business, _, denied_response = self.require_sales_access()
+        if denied_response:
+            return denied_response
+        payment = get_object_or_404(
+            Payment, business=business, gateway="paystack", gateway_reference=reference,
+            method=Payment.Method.MOBILE_MONEY,
+            payment_type=Payment.PaymentType.SALE_PAYMENT,
+            sale__in=self.branch_scoped_sales(Sale.objects.all()),
+        )
+        try:
+            if "otp" in request.data or "pin" in request.data:
+                raise MobileMoneyPaymentError("Customer OTPs and PINs must not be submitted through the merchant screen.", code="customer_checkout_required")
+            if request.data.get("resendSms") is True:
+                raise MobileMoneyPaymentError("Payment-link SMS has been removed. Check payment status instead.", code="payment_link_removed")
+            sale = advance_sale_charge(reference=reference)
+        except (PaystackConfigurationError, PaystackRequestError) as exc:
+            return _mobile_money_gateway_error_response(exc)
+        except MobileMoneyPaymentError as exc:
+            return _mobile_money_service_error_response(exc)
+        return Response(SaleSerializer(sale, context=self.get_serializer_context()).data)
+
+
 class BusinessMobileMoneySaleVerifyAPIView(
     BusinessSaleAccessMixin,
     APIView,
@@ -413,7 +448,10 @@ class BusinessMobileMoneySaleVerifyAPIView(
         ) as exc:
             return _mobile_money_gateway_error_response(exc)
         except MobileMoneyPaymentError as exc:
-            return _mobile_money_service_error_response(exc)
+            response = _mobile_money_service_error_response(exc)
+            payment = Payment.objects.select_related("sale").get(business=business, gateway_reference=reference)
+            response.data["sale"] = SaleSerializer(payment.sale, context=self.get_serializer_context()).data
+            return response
 
         response = Response(
             SaleSerializer(

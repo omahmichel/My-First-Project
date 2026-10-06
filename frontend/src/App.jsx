@@ -11,6 +11,7 @@ import RoleRoute from "./routes/RoleRoute";
 import LandingPage from "./pages/public/LandingPage";
 import LoginPage from "./pages/auth/LoginPage";
 import LoginOTPPage from "./pages/auth/LoginOTPPage";
+import PasskeySetupPage from "./pages/auth/PasskeySetupPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -75,6 +76,7 @@ export default function App() {
       <Route path="/onboarding" element={<OnboardingPage />} />
 
       <Route element={<ProtectedRoute />}>
+        <Route path="/setup-biometric" element={<PasskeySetupPage />} />
         {/* Account-level home for only the businesses this user can access. */}
         <Route path="/businesses" element={<MyBusinessesPage />} />
 

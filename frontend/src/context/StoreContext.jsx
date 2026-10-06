@@ -1870,9 +1870,10 @@ export function StoreProvider({ children }) {
     const response = await apiRequest(
       `/businesses/${business.id}/sales/mobile-money/${encodeURIComponent(
         safeReference,
-      )}/verify/`,
+      )}/authenticate/`,
       {
         method: "POST",
+        body: JSON.stringify({}),
       },
     );
     const nextSale = normalizeSale(response);

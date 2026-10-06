@@ -1,3 +1,4 @@
+from businesses.payment_modes import gateway_mode, require_mode, require_response_mode
 from decimal import Decimal
 import uuid
 
@@ -159,6 +160,10 @@ def process_merchant_payout(payout_id, client=None):
     }:
         return payout
 
+    try:
+        mode = require_mode(payout.payment.gateway_mode, client)
+    except PaystackError as exc:
+        return _mark_blocked(payout.id, str(exc))
     account = payout.receiving_account
     if (
         account is None
@@ -173,7 +178,7 @@ def process_merchant_payout(payout_id, client=None):
             "No active Mobile Money receiving account is configured for this business.",
         )
 
-    if not account.payout_ready:
+    if not account.payout_ready or account.paystack_recipient_mode != mode:
         try:
             account = sync_mobile_money_payout_recipient(account, client=client)
         except PaystackError as exc:
@@ -211,6 +216,7 @@ def process_merchant_payout(payout_id, client=None):
         if exc.status_code != 404:
             return _mark_retry(payout.id, str(exc))
     else:
+        require_response_mode(existing, mode)
         return _apply_provider_state(payout.id, existing)
 
     try:
@@ -223,6 +229,7 @@ def process_merchant_payout(payout_id, client=None):
     except PaystackError as exc:
         return _mark_retry(payout.id, str(exc))
 
+    require_response_mode(response, mode)
     return _apply_provider_state(payout.id, response)
 
 
@@ -235,6 +242,11 @@ def handle_paystack_transfer_webhook(*, event_name, event_data):
     if payout is None:
         return False
 
+    try:
+        mode = require_mode(payout.payment.gateway_mode)
+        require_response_mode(event_data, mode)
+    except PaystackError:
+        return False
     amount = event_data.get("amount")
     if amount is not None and int(amount) != _amount_subunit(payout.amount):
         _mark_retry(

@@ -84,6 +84,7 @@ class PaystackClient:
         currency="GHS",
         callback_url="",
         metadata=None,
+        channels=None,
     ):
         # Sends server-controlled price and ownership metadata to Paystack.
         if not email:
@@ -103,6 +104,9 @@ class PaystackClient:
             "reference": reference,
             "currency": currency,
         }
+
+        if channels is not None:
+            payload["channels"] = channels
 
         if callback_url:
             payload["callback_url"] = callback_url
@@ -292,6 +296,17 @@ class PaystackClient:
             raise ValueError("A merchant payout reference is required.")
         encoded_reference = quote(reference, safe="")
         return self._request("GET", f"/transfer/verify/{encoded_reference}")
+
+    def check_pending_charge(self, reference):
+        if not reference:
+            raise ValueError("A payment reference is required.")
+        return self._request("GET", f"/charge/{quote(reference, safe='')}")
+
+    def submit_charge_otp(self, *, reference, otp):
+        # The code is sent directly to Paystack, never stored in StockFlow.
+        return self._request("POST", "/charge/submit_otp", json={
+            "reference": reference, "otp": otp,
+        })
 
     def verify_transaction(self, reference):
         # Encodes the reference safely before using it in the URL path.

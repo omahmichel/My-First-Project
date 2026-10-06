@@ -252,9 +252,10 @@ class DebtOverdueServiceTests(TestCase):
             "id": 800001,
             "status": "success",
             "reference": payment.gateway_reference,
-            "amount": 6000,
+            "amount": 6078,
             "currency": "GHS",
             "channel": "mobile_money",
+                "domain": "test",
         }
         verified, sale, customer, finalized = (
             verify_and_finalize_mobile_money_debt_payment(

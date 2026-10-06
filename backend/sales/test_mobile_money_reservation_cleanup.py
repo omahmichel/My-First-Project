@@ -113,11 +113,12 @@ class MobileMoneyReservationCleanupTests(TestCase):
         *,
         payment,
         provider_status,
-        amount=15000,
+        amount=15195,
         transaction_id=700001,
     ):
         client = Mock()
         client.verify_transaction.return_value = {
+            "domain": "test",
             "id": transaction_id,
             "status": provider_status,
             "reference": payment.gateway_reference,
