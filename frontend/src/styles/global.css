@@ -1036,3 +1036,16 @@ p {
     border-radius:16px;
   }
 }
+
+/* STOCKFLOW_SHARED_DIALOG_VIEWPORT_V1 */
+body > .modal-backdrop {
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+body > .modal-backdrop > .modal-card {
+  box-sizing: border-box;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overscroll-behavior: contain;
+}

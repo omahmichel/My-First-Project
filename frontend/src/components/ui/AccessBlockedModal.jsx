@@ -1,4 +1,5 @@
 import { LockKeyhole, ShieldAlert, X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 import "../../styles/access-blocked-modal.css";
 
@@ -21,7 +22,7 @@ export default function AccessBlockedModal({
   const isRoleRestriction = variant === "role";
   const Icon = isRoleRestriction ? ShieldAlert : LockKeyhole;
 
-  return (
+  return createPortal(
     <div
       className="access-blocked-backdrop"
       role="presentation"
@@ -103,6 +104,7 @@ export default function AccessBlockedModal({
           {isRoleRestriction ? "Return to dashboard" : "Back to My businesses"}
         </button>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -162,3 +162,26 @@
     right: 14px;
   }
 }
+
+/* STOCKFLOW_PERMISSION_DIALOG_VIEWPORT_V1 */
+body > .access-blocked-backdrop {
+  box-sizing: border-box;
+  z-index: 3000;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+body > .access-blocked-backdrop > .access-blocked-modal {
+  box-sizing: border-box;
+  min-width: 0;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  body > .access-blocked-backdrop > .access-blocked-modal {
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+  }
+}
