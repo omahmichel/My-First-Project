@@ -38,7 +38,7 @@ const BUSINESS_TYPE_ICONS = {
 };
 
 export default function OnboardingPage() {
-  const { user, pendingRegistration, completeOnboarding } = useAuth();
+  const { isInitializing, user, pendingRegistration, completeOnboarding } = useAuth();
   const { loadBusinesses } = useStore();
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
@@ -74,6 +74,14 @@ export default function OnboardingPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [error]);
+
+  if (isInitializing) {
+    return <p role="status">Loading account…</p>;
+  }
+
+  if (user?.isPlatformAdmin) {
+    return <Navigate to="/platform-admin/overview" replace />;
+  }
 
   if (!pendingRegistration && !user) {
     return <Navigate to="/register" replace />;

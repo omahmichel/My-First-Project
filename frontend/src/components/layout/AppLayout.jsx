@@ -35,8 +35,9 @@ export default function AppLayout({ platform = false }) {
   ]);
 
   if (platform && isInitializing) return <p role="status">Loading account…</p>;
-  if (platform && !isAuthenticated) return <Navigate to="/login" replace state={{from:location.pathname}}/>;
-  if (platform && !user?.isPlatformAdmin) return <main className="pa-root"><h1>Platform administrator access required</h1><Link to="/businesses">Return to my businesses</Link></main>;
+  if (platform && !isAuthenticated) return <Navigate to="/admin-login" replace state={{from:location.pathname}}/>;
+  if (platform && !user?.isPlatformAdmin) return <Navigate to="/businesses" replace />;
+  if (!platform && user?.isPlatformAdmin) return <Navigate to="/platform-admin/overview" replace />;
   // Keeps expired workspaces limited to renewal and support.
   if (
     !platform && business.id &&

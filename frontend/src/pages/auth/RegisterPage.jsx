@@ -8,7 +8,7 @@ import {
   User,
 } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
@@ -23,8 +23,21 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { register } = useAuth();
+  const { isAuthenticated, isInitializing, register, user } = useAuth();
   const navigate = useNavigate();
+
+  if (isInitializing) {
+    return <p role="status">Loading account…</p>;
+  }
+
+  if (isAuthenticated) {
+    return (
+      <Navigate
+        to={user?.isPlatformAdmin ? "/platform-admin/overview" : "/businesses"}
+        replace
+      />
+    );
+  }
 
   function handleChange(event) {
     setForm((current) => ({

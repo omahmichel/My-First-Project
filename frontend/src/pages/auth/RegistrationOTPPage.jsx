@@ -22,6 +22,8 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export default function RegistrationOTPPage() {
   const {
     isAuthenticated,
+    isInitializing,
+    user,
     pendingRegistration,
     resendRegistrationOtp,
     verifyRegistrationOtp,
@@ -49,12 +51,21 @@ export default function RegistrationOTPPage() {
     return () => window.clearInterval(timer);
   }, [secondsRemaining]);
 
-  if (!pendingRegistration) {
-    return <Navigate to="/register" replace />;
+  if (isInitializing) {
+    return <p role="status">Loading account…</p>;
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/onboarding" replace />;
+    return (
+      <Navigate
+        to={user?.isPlatformAdmin ? "/platform-admin/overview" : "/onboarding"}
+        replace
+      />
+    );
+  }
+
+  if (!pendingRegistration) {
+    return <Navigate to="/register" replace />;
   }
 
   function handleOtpChange(event) {

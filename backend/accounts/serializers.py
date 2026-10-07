@@ -112,6 +112,12 @@ class LoginSerializer(serializers.Serializer):
         write_only=True,
         trim_whitespace=False,
     )
+    login_mode = serializers.ChoiceField(
+        choices=("business", "admin"),
+        default="business",
+        required=False,
+        write_only=True,
+    )
 
     def validate_email(self, value):
         return value.strip().lower()
@@ -125,6 +131,21 @@ class LoginSerializer(serializers.Serializer):
 
         if user is None:
             raise AuthenticationFailed("Invalid email or password.")
+
+        is_platform_admin = bool(
+            user.is_active and user.is_staff and user.is_superuser
+        )
+        login_mode = attrs.get("login_mode", "business")
+
+        if login_mode == "admin" and not is_platform_admin:
+            raise AuthenticationFailed(
+                "This account is not authorised for StockFlow administration."
+            )
+
+        if login_mode == "business" and is_platform_admin:
+            raise AuthenticationFailed(
+                "Administrator accounts must use the StockFlow admin login."
+            )
 
         attrs["user"] = user
         return attrs

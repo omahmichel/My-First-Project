@@ -17,7 +17,14 @@ export default function PasskeySetupPage() {
   const supported = passkeysSupported();
 
   if (isInitializing) return <p role="status">Loading account…</p>;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to={nextPath.startsWith("/platform-admin") ? "/admin-login" : "/login"}
+        replace
+      />
+    );
+  }
 
   function continueToStockFlow() {
     window.localStorage.setItem("stockflow_passkey_setup_prompted", "1");

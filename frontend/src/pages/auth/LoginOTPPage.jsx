@@ -19,7 +19,7 @@ function remainingSeconds(timestamp) {
   return Math.max(0, Math.ceil((Number(timestamp) - Date.now()) / 1000));
 }
 
-export default function LoginOTPPage() {
+export default function LoginOTPPage({ mode = "business" }) {
   const {
     isAuthenticated,
     user,
@@ -27,6 +27,7 @@ export default function LoginOTPPage() {
     deliverLoginOtp,
     resendLoginOtp,
     verifyLoginOtp,
+    logout,
   } = useAuth();
   const { loadBusinesses } = useStore();
   const [otp, setOtp] = useState("");
@@ -41,25 +42,34 @@ export default function LoginOTPPage() {
     Boolean(pendingLogin?.emailDeliveryRequired),
   );
   const [resending, setResending] = useState(false);
-  const [resendAt, setResendAt] = useState(() => pendingLogin?.resendAvailableAt || Date.now() + 60000);
+  const [resendAt, setResendAt] = useState(
+    () => pendingLogin?.resendAvailableAt || Date.now() + 60000,
+  );
   const [secondsRemaining, setSecondsRemaining] = useState(() =>
     remainingSeconds(pendingLogin?.resendAvailableAt),
   );
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const adminLogin = params.get("mode") === "admin";
-  const loginPath = adminLogin ? "/login?mode=admin" : "/login?mode=business";
+  const adminLogin = mode === "admin";
+  const loginPath = adminLogin ? "/admin-login" : "/login";
+  const pendingMode = pendingLogin?.loginMode ?? "business";
 
   useEffect(() => {
     const tick = () => setSecondsRemaining(remainingSeconds(resendAt));
     tick();
     const timer = window.setInterval(tick, 1000);
     window.addEventListener("focus", tick);
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", tick); };
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", tick);
+    };
   }, [resendAt]);
 
   useEffect(() => {
-    if (!pendingLogin?.challengeId || !pendingLogin.emailDeliveryRequired) return undefined;
+    if (!pendingLogin?.challengeId || !pendingLogin.emailDeliveryRequired) {
+      return undefined;
+    }
+
     let active = true;
     setDelivering(true);
     setMessage("Sending your security code…");
@@ -69,16 +79,44 @@ export default function LoginOTPPage() {
         setResendAt(next.resendAvailableAt);
         setMessage("Code submitted for delivery. Check your inbox and spam folder.");
       })
-      .catch((err) => { if (active) { setMessage(""); setError(err.message); } })
-      .finally(() => { if (active) setDelivering(false); });
-    return () => { active = false; };
+      .catch((err) => {
+        if (active) {
+          setMessage("");
+          setError(err.message);
+        }
+      })
+      .finally(() => {
+        if (active) setDelivering(false);
+      });
+
+    return () => {
+      active = false;
+    };
     // One shared request per challenge; completion must survive provider updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliverLoginOtp, pendingLogin?.challengeId]);
 
-  // A new login challenge must complete before reusing an older session.
+  // Keeps old bookmarked ?mode=admin links safe after the routes were separated.
+  if (mode === "business" && params.get("mode") === "admin") {
+    return <Navigate to="/admin-verify-login" replace />;
+  }
+
+  if (pendingLogin && pendingMode !== mode) {
+    return (
+      <Navigate
+        to={pendingMode === "admin" ? "/admin-verify-login" : "/verify-login"}
+        replace
+      />
+    );
+  }
+
   if (isAuthenticated && !pendingLogin) {
-    return <Navigate to={adminLogin ? "/platform-admin" : "/businesses"} replace />;
+    return (
+      <Navigate
+        to={user?.isPlatformAdmin ? "/platform-admin/overview" : "/businesses"}
+        replace
+      />
+    );
   }
 
   if (!pendingLogin) {
@@ -106,21 +144,42 @@ export default function LoginOTPPage() {
         challengeId: pendingLogin.challengeId,
         otp,
       });
+
+      if (adminLogin && !authenticatedUser?.isPlatformAdmin) {
+        await logout();
+        setError(
+          "This account is not authorised for StockFlow administration. Use the business login instead.",
+        );
+        return;
+      }
+
+      if (!adminLogin && authenticatedUser?.isPlatformAdmin) {
+        await logout();
+        setError("Administrator accounts must use the StockFlow admin login.");
+        return;
+      }
+
       let nextPath;
       if (adminLogin) {
-        nextPath = "/platform-admin";
+        nextPath = "/platform-admin/overview";
       } else {
         const availableBusinesses = await loadBusinesses();
-        nextPath =
-          availableBusinesses.length > 0 || authenticatedUser?.isPlatformAdmin
-            ? "/businesses"
-            : "/onboarding";
+        nextPath = availableBusinesses.length > 0 ? "/businesses" : "/onboarding";
       }
-      const canOfferPasskey = Boolean(window.PublicKeyCredential && navigator.credentials);
-      const alreadyPrompted = window.localStorage.getItem("stockflow_passkey_setup_prompted") === "1";
+
+      const canOfferPasskey = Boolean(
+        window.PublicKeyCredential && navigator.credentials,
+      );
+      const alreadyPrompted =
+        window.localStorage.getItem("stockflow_passkey_setup_prompted") === "1";
+
       navigate(
         canOfferPasskey && !alreadyPrompted ? "/setup-biometric" : nextPath,
-        { replace: true, state: canOfferPasskey && !alreadyPrompted ? { nextPath } : undefined },
+        {
+          replace: true,
+          state:
+            canOfferPasskey && !alreadyPrompted ? { nextPath } : undefined,
+        },
       );
     } catch (verificationError) {
       setError(verificationError.message);
@@ -131,14 +190,21 @@ export default function LoginOTPPage() {
 
   async function handleResend() {
     if (secondsRemaining > 0 || resending || delivering || submitting) return;
-    setError(""); setMessage(""); setOtp(""); setResending(true);
+    setError("");
+    setMessage("");
+    setOtp("");
+    setResending(true);
     setResendAt(Date.now() + 60000);
+
     try {
       const next = await resendLoginOtp(pendingLogin.challengeId);
       setResendAt(next.resendAvailableAt);
       setMessage("New code submitted for delivery. Use the latest code only.");
-    } catch (err) { setError(err.message); }
-    finally { setResending(false); }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResending(false);
+    }
   }
 
   return (
@@ -149,8 +215,12 @@ export default function LoginOTPPage() {
         </Link>
 
         <div className="auth-visual-content">
-          <span>Two-factor authentication</span>
-          <h1>Your account. One secure step away.</h1>
+          <span>{adminLogin ? "Administrator verification" : "Two-factor authentication"}</span>
+          <h1>
+            {adminLogin
+              ? "Verify the administrator account before the control centre opens."
+              : "Your account. One secure step away."}
+          </h1>
           <p>
             Your password has been accepted. StockFlow now requires the
             one-time code sent to your registered email address.
@@ -158,7 +228,11 @@ export default function LoginOTPPage() {
           <ul className="auth-benefit-list">
             <li>The security code expires after 10 minutes</li>
             <li>Five incorrect attempts are allowed per code</li>
-            <li>Your workspace opens after successful verification</li>
+            <li>
+              {adminLogin
+                ? "Platform administration opens only for authorised administrators"
+                : "Your business workspace opens after successful verification"}
+            </li>
           </ul>
         </div>
       </section>
@@ -173,11 +247,10 @@ export default function LoginOTPPage() {
           </Link>
 
           <div className="auth-heading">
-            <span>Secure sign-in</span>
-            <h2>Verify your sign-in</h2>
+            <span>{adminLogin ? "Admin secure sign-in" : "Secure sign-in"}</span>
+            <h2>{adminLogin ? "Verify administrator sign-in" : "Verify your sign-in"}</h2>
             <p>
-              Enter the six-digit code for 
-              <strong>{pendingLogin.email}</strong>.
+              Enter the six-digit code for <strong>{pendingLogin.email}</strong>.
             </p>
           </div>
 
@@ -228,9 +301,16 @@ export default function LoginOTPPage() {
             <div className="sf-otp-resend-area">
               <span>Haven’t received your code?</span>
               {secondsRemaining > 0 ? (
-                <p className="sf-otp-countdown">Request a new code in <strong>{String(Math.floor(secondsRemaining / 60)).padStart(2, "0")}:{String(secondsRemaining % 60).padStart(2, "0")}</strong></p>
+                <p className="sf-otp-countdown">
+                  Request a new code in <strong>{String(Math.floor(secondsRemaining / 60)).padStart(2, "0")}:{String(secondsRemaining % 60).padStart(2, "0")}</strong>
+                </p>
               ) : (
-                <button type="button" className="registration-otp-resend" onClick={handleResend} disabled={delivering || resending || submitting}>
+                <button
+                  type="button"
+                  className="registration-otp-resend"
+                  onClick={handleResend}
+                  disabled={delivering || resending || submitting}
+                >
                   <RefreshCw size={16} /> {resending ? "Sending new code…" : "Resend code"}
                 </button>
               )}
@@ -238,7 +318,10 @@ export default function LoginOTPPage() {
           </form>
 
           <p className="auth-switch-text">
-            <MailCheck size={15} /> Your workspace stays locked until your code is verified.
+            <MailCheck size={15} />
+            {adminLogin
+              ? "The administration area stays locked until this code is verified."
+              : "Your business workspace stays locked until your code is verified."}
           </p>
         </div>
       </section>

@@ -81,6 +81,51 @@ class LoginOTPAPITests(APITestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertTrue(challenge.otp_hash.startswith("pending$"))
 
+    def test_business_account_cannot_start_admin_login(self):
+        response = self.client.post(
+            self.login_url,
+            {**self.payload, "login_mode": "admin"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(PendingLoginChallenge.objects.exists())
+        self.assertIn("authorised", str(response.data).lower())
+
+    def test_platform_admin_must_use_admin_login_lane(self):
+        admin = User.objects.create_superuser(
+            email="platform.admin@stockflow.local",
+            password="StrongPass123!",
+            full_name="Platform Admin",
+        )
+
+        business_response = self.client.post(
+            self.login_url,
+            {
+                "email": admin.email,
+                "password": "StrongPass123!",
+                "login_mode": "business",
+            },
+            format="json",
+        )
+        self.assertEqual(
+            business_response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+        self.assertFalse(PendingLoginChallenge.objects.filter(user=admin).exists())
+
+        admin_response = self.client.post(
+            self.login_url,
+            {
+                "email": admin.email,
+                "password": "StrongPass123!",
+                "login_mode": "admin",
+            },
+            format="json",
+        )
+        self.assertEqual(admin_response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertTrue(PendingLoginChallenge.objects.filter(user=admin).exists())
+
     def test_wrong_password_returns_401_without_creating_challenge(self):
         response = self.client.post(
             self.login_url,

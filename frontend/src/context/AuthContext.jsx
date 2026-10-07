@@ -56,6 +56,7 @@ function sanitizePendingLogin(pendingLogin) {
     expiresAt,
     resendAvailableAt: Number(pendingLogin.resendAvailableAt) || 0,
     emailDeliveryRequired: Boolean(pendingLogin.emailDeliveryRequired),
+    loginMode: pendingLogin.loginMode === "admin" ? "admin" : "business",
   };
 }
 
@@ -180,7 +181,7 @@ export function AuthProvider({ children }) {
   }, [clearAuthentication]);
 
   // Validates the password and stores only the short-lived 2FA challenge.
-  async function login({ email, password }) {
+  async function login({ email, password, loginMode = "business" }) {
     if (!email?.trim() || !password?.trim()) {
       throw new Error("Enter your email and password.");
     }
@@ -190,7 +191,12 @@ export function AuthProvider({ children }) {
     savePendingLogin(null);
     const version = authVersion.current;
     const normalizedEmail = email.trim().toLowerCase();
-    const response = await loginOtpRequest("/auth/login/", { email: normalizedEmail, password });
+    const safeLoginMode = loginMode === "admin" ? "admin" : "business";
+    const response = await loginOtpRequest("/auth/login/", {
+      email: normalizedEmail,
+      password,
+      login_mode: safeLoginMode,
+    });
     if (version !== authVersion.current) throw new Error("Sign-in changed. Please try again.");
 
     const now = Date.now();
@@ -201,6 +207,7 @@ export function AuthProvider({ children }) {
       resendAvailableAt:
         now + Math.max(60, Number(response.resendCooldown ?? 60)) * 1000,
       emailDeliveryRequired: Boolean(response.emailDeliveryRequired),
+      loginMode: safeLoginMode,
     });
 
     if (!nextPendingLogin) {

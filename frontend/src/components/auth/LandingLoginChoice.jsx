@@ -18,8 +18,8 @@ export default function LandingLoginChoice({ navigationOpen = false, onOpen }) {
   return <details className="sf-landing-login-choice" ref={ref} onToggle={(event) => { if (event.currentTarget.open) onOpen?.(); }}>
     <summary className="sf-landing-nav-icon" aria-label="Log in" title="Log in"><LogIn size={22} strokeWidth={2.2} aria-hidden="true" /></summary>
     <div className="sf-landing-login-options">
-      <Link to="/login?mode=business" onClick={() => { ref.current.open = false; }}><span className="sf-login-option-icon"><Building2 size={22} strokeWidth={2.1} aria-hidden="true" /></span><span>Business owner login</span></Link>
-      <Link to="/login?mode=admin" onClick={() => { ref.current.open = false; }}><span className="sf-login-option-icon"><ShieldCheck size={22} strokeWidth={2.1} aria-hidden="true" /></span><span>StockFlow admin login</span></Link>
+      <Link to="/login" onClick={() => { ref.current.open = false; }}><span className="sf-login-option-icon"><Building2 size={22} strokeWidth={2.1} aria-hidden="true" /></span><span>Business owner login</span></Link>
+      <Link to="/admin-login" onClick={() => { ref.current.open = false; }}><span className="sf-login-option-icon"><ShieldCheck size={22} strokeWidth={2.1} aria-hidden="true" /></span><span>StockFlow admin login</span></Link>
     </div>
   </details>;
 }

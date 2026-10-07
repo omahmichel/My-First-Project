@@ -1,23 +1,44 @@
 import { ArrowLeft, Eye, EyeOff, Fingerprint, LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
 import { passkeysSupported } from "../../services/passkeys";
 
-export default function LoginPage() {
+export default function LoginPage({ mode = "business" }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [passkeySubmitting, setPasskeySubmitting] = useState(false);
-  const { login, loginWithPasskey } = useAuth();
+  const {
+    isAuthenticated,
+    isInitializing,
+    user,
+    login,
+    loginWithPasskey,
+    logout,
+  } = useAuth();
   const { loadBusinesses } = useStore();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const adminLogin = params.get("mode") === "admin";
+  const adminLogin = mode === "admin";
+
+  // Keeps old bookmarked ?mode=admin links safe after the routes were separated.
+  if (mode === "business" && params.get("mode") === "admin") {
+    return <Navigate to="/admin-login" replace />;
+  }
+
+  if (!isInitializing && isAuthenticated) {
+    return (
+      <Navigate
+        to={user?.isPlatformAdmin ? "/platform-admin/overview" : "/businesses"}
+        replace
+      />
+    );
+  }
 
   function handleChange(event) {
     setForm((current) => ({
@@ -32,8 +53,10 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      await login(form);
-      navigate(adminLogin ? "/verify-login?mode=admin" : "/verify-login?mode=business", { replace: true });
+      await login({ ...form, loginMode: mode });
+      navigate(adminLogin ? "/admin-verify-login" : "/verify-login", {
+        replace: true,
+      });
     } catch (loginError) {
       setError(loginError.message);
     } finally {
@@ -46,19 +69,36 @@ export default function LoginPage() {
       setError("Enter your email address before using biometric sign-in.");
       return;
     }
+
     setError("");
     setPasskeySubmitting(true);
+
     try {
       const authenticatedUser = await loginWithPasskey(form.email);
+
+      if (adminLogin && !authenticatedUser?.isPlatformAdmin) {
+        await logout();
+        throw new Error(
+          "This account is not authorised for StockFlow administration. Use the business login instead.",
+        );
+      }
+
+      if (!adminLogin && authenticatedUser?.isPlatformAdmin) {
+        await logout();
+        throw new Error(
+          "Administrator accounts must use the StockFlow admin login.",
+        );
+      }
+
       if (adminLogin) {
-        navigate("/platform-admin", { replace: true });
+        navigate("/platform-admin/overview", { replace: true });
         return;
       }
+
       const businesses = await loadBusinesses();
-      navigate(
-        businesses.length > 0 || authenticatedUser?.isPlatformAdmin ? "/businesses" : "/onboarding",
-        { replace: true },
-      );
+      navigate(businesses.length > 0 ? "/businesses" : "/onboarding", {
+        replace: true,
+      });
     } catch (passkeyError) {
       setError(passkeyError.message);
     } finally {
@@ -73,17 +113,23 @@ export default function LoginPage() {
           <ArrowLeft size={18} /> Back to website
         </Link>
         <div className="auth-visual-content">
-          <span>Welcome back</span>
-          <h1>Your business records are ready when you are.</h1>
+          <span>{adminLogin ? "Platform administration" : "Welcome back"}</span>
+          <h1>
+            {adminLogin
+              ? "Secure access to the StockFlow control centre."
+              : "Your business records are ready when you are."}
+          </h1>
           <p>
-            Continue managing stock, sales, invoices, customer credit and
-            staff activity.
+            {adminLogin
+              ? "Authorised StockFlow administrators can manage platform users, businesses, subscriptions and system activity."
+              : "Continue managing stock, sales, invoices, customer credit and staff activity."}
           </p>
           <div className="auth-testimonial">
-            <strong>Secure account access</strong>
+            <strong>{adminLogin ? "Administrator access only" : "Secure account access"}</strong>
             <p>
-              Sign in with the email address and password registered for your
-              StockFlow account.
+              {adminLogin
+                ? "Business-owner accounts cannot enter the platform administration area."
+                : "Sign in with the email address and password registered for your StockFlow business account."}
             </p>
           </div>
         </div>
@@ -98,9 +144,13 @@ export default function LoginPage() {
             </span>
           </Link>
           <div className="auth-heading">
-            <span>Secure account access</span>
+            <span>{adminLogin ? "Secure administrator access" : "Secure account access"}</span>
             <h2>{adminLogin ? "StockFlow admin login" : "Log in to StockFlow"}</h2>
-            <p>{adminLogin ? "Sign in with your authorised StockFlow staff account." : "Enter your details to continue to your business workspace."}</p>
+            <p>
+              {adminLogin
+                ? "Sign in with an authorised StockFlow administrator account."
+                : "Enter your details to continue to your business workspace."}
+            </p>
           </div>
 
           {error ? <div className="form-alert form-alert-error">{error}</div> : null}
@@ -164,6 +214,7 @@ export default function LoginPage() {
             >
               {submitting ? "Logging in..." : "Log in"}
             </Button>
+
             {passkeysSupported() ? (
               <>
                 <div className="auth-signin-divider"><span>or</span></div>
@@ -184,7 +235,11 @@ export default function LoginPage() {
           </form>
 
           <p className="auth-switch-text">
-            New to StockFlow? <Link to="/register">Create an account</Link>
+            {adminLogin ? (
+              <>Business account? <Link to="/login">Business owner login</Link></>
+            ) : (
+              <>New to StockFlow? <Link to="/register">Create an account</Link></>
+            )}
           </p>
         </div>
       </section>

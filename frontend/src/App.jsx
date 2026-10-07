@@ -8,6 +8,7 @@ import IntelligenceLayout from "./components/intelligence/IntelligenceLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import IndustryRoute from "./routes/IndustryRoute";
 import RoleRoute from "./routes/RoleRoute";
+import AccountLaneRoute from "./routes/AccountLaneRoute";
 import LandingPage from "./pages/public/LandingPage";
 import LoginPage from "./pages/auth/LoginPage";
 import LoginOTPPage from "./pages/auth/LoginOTPPage";
@@ -50,16 +51,20 @@ import PolicyPage from "./pages/public/PolicyPage";
 export default function App() {
   return (
     <Routes>
-      <Route path="/platform-admin" element={<AppLayout platform />}>
-        <Route index element={<Navigate to="overview" replace />} />
-        <Route path=":section" element={<PlatformAdminPage />} />
+      <Route element={<AccountLaneRoute lane="admin" />}>
+        <Route path="/platform-admin" element={<AppLayout platform />}>
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path=":section" element={<PlatformAdminPage />} />
+        </Route>
       </Route>
       <Route path="/terms" element={<PolicyPage kind="terms" />} />
       <Route path="/privacy" element={<PolicyPage kind="privacy" />} />
       <Route path="/shops/:slug" element={<ShopPage />} />
       <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/verify-login" element={<LoginOTPPage />} />
+      <Route path="/login" element={<LoginPage mode="business" />} />
+      <Route path="/admin-login" element={<LoginPage mode="admin" />} />
+      <Route path="/verify-login" element={<LoginOTPPage mode="business" />} />
+      <Route path="/admin-verify-login" element={<LoginOTPPage mode="admin" />} />
       <Route
         path="/forgot-password"
         element={<ForgotPasswordPage />}
@@ -77,10 +82,12 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/setup-biometric" element={<PasskeySetupPage />} />
-        {/* Account-level home for only the businesses this user can access. */}
-        <Route path="/businesses" element={<MyBusinessesPage />} />
 
-        <Route
+        <Route element={<AccountLaneRoute lane="business" />}>
+          {/* Account-level home for only the businesses this user can access. */}
+          <Route path="/businesses" element={<MyBusinessesPage />} />
+
+          <Route
           element={
             <RoleRoute
               allowedRoles={["owner", "manager"]}
@@ -221,6 +228,7 @@ export default function App() {
 
           <Route path="report-issue" element={<ReportIssuePage />} />
           <Route path="subscription" element={<SubscriptionPage />} />
+        </Route>
         </Route>
       </Route>
 
