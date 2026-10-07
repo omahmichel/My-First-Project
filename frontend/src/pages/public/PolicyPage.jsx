@@ -5,10 +5,7 @@ const policies = {"terms": [["About StockFlow", "StockFlow is operated by Michae
 export default function PolicyPage({ kind }) {
   const title = kind === "terms" ? "Terms of Service" : "Privacy Policy";
   useEffect(() => {
-    const previous = document.title;
-    document.title = `${title} | StockFlow`;
     window.scrollTo(0, 0);
-    return () => { document.title = previous; };
   }, [title]);
   return <main className="sf-policy-page">
     <header className="sf-policy-header"><Link to="/" className="sf-policy-brand">StockFlow</Link><Link to="/login">Log in</Link></header>

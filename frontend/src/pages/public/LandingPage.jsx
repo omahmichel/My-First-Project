@@ -148,8 +148,9 @@ export default function LandingPage() {
               </h1>
 
               <p>
-                StockFlow helps building materials shops and boutiques manage products,
-                issue invoices, track customer debt and understand daily performance from one place.
+                StockFlow helps Ghanaian shops manage inventory, record sales, issue invoices
+                and track customer debt. Built for building materials, boutiques, mini marts,
+                phone accessories, electrical shops, auto parts and beauty businesses.
               </p>
 
               <div className="marketing-hero-actions">

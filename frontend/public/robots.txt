@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Account pages use noindex metadata; allow crawling so crawlers can read it.
+Sitemap: https://stockflow-web-btlh.onrender.com/sitemap.xml
