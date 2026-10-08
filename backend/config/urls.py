@@ -31,3 +31,6 @@ urlpatterns = [
     path("api/", include("integrations.urls")),
     path("api/", include("storefront.urls")),
 ]
+
+# Business-owner SMS preferences and phone verification.
+urlpatterns += [path("api/", include("owner_alerts.urls"))]

@@ -144,6 +144,7 @@ INSTALLED_APPS = [
     'sales',
     'intelligence',
     'integrations',
+    'owner_alerts.apps.OwnerAlertsConfig',
     'storefront',
 ]
 

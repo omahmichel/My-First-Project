@@ -1,0 +1,21 @@
+.owner-sms-panel { margin-top: 24px; scroll-margin-top: 110px; min-width: 0; }
+.owner-sms-panel .panel-heading { display: flex; align-items: flex-start; gap: 12px; }
+.owner-sms-panel p { line-height: 1.6; }
+.owner-sms-controls { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 16px; }
+.owner-sms-controls input { flex: 1 1 180px; min-width: 0; padding: 12px; border: 1px solid #b7d3cf; border-radius: 10px; background: #fff; color: #163c37; }
+.owner-sms-panel button { padding: 12px 18px; border: 0; border-radius: 10px; background: #107f75; color: #fff; font-weight: 600; cursor: pointer; }
+.owner-sms-panel button:disabled { opacity: .55; cursor: not-allowed; }
+.owner-sms-panel :focus-visible { outline: 3px solid #32bcb0; outline-offset: 3px; }
+.owner-sms-options { border: 1px solid #d6e5e2; border-radius: 12px; padding: 16px; margin: 20px 0; display: grid; gap: 16px; }
+.owner-sms-options legend { padding: 0 8px; font-weight: 700; }
+.owner-sms-option { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.owner-sms-option input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 4px; accent-color: #107f75; }
+.owner-sms-option small { display: block; margin-top: 4px; color: #516964; line-height: 1.5; }
+.owner-sms-error { padding: 12px; background: #fff1f1; color: #9b2424; border-radius: 10px; }
+.owner-sms-notice { padding: 12px; background: #edf9f4; color: #205d45; border-radius: 10px; }
+.owner-sms-history { margin-top: 24px; }
+.owner-sms-history summary { cursor: pointer; font-weight: 700; }
+.owner-sms-history ul { padding: 0; list-style: none; }
+.owner-sms-history li { padding: 16px 0; border-top: 1px solid #d6e5e2; overflow-wrap: anywhere; }
+.owner-sms-history time { display: block; margin-top: 4px; font-size: .85rem; color: #516964; }
+@media (max-width: 600px) { .owner-sms-controls { flex-direction: column; } .owner-sms-controls input { flex: auto; width: 100%; box-sizing: border-box; } .owner-sms-controls button { width: 100%; } }

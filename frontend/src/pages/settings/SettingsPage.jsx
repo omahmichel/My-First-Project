@@ -1,3 +1,4 @@
+import OwnerSmsPanel from "./OwnerSmsPanel";
 import {
   BadgePercent,
   Building2,
@@ -338,6 +339,7 @@ export default function SettingsPage() {
             <CreditCard size={18} />
             Receiving accounts
           </a>
+          {business?.currentUserRole === "owner" && <a href="#owner-sms"><ShieldCheck size={18} /> SMS alerts</a>}
           <a href="#security">
             <ShieldCheck size={18} />
             Security
@@ -860,6 +862,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </form>
+      {business?.currentUserRole === "owner" && <OwnerSmsPanel key={business.id} businessId={business.id} />}
     </div>
   );
 }
