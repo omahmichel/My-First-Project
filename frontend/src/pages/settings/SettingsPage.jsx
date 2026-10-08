@@ -862,7 +862,13 @@ export default function SettingsPage() {
           </div>
         </div>
       </form>
-      {business?.currentUserRole === "owner" && <OwnerSmsPanel key={business.id} businessId={business.id} />}
+
+      {business?.currentUserRole === "owner" ? (
+        <div className="settings-layout owner-sms-layout">
+          <div className="owner-sms-layout-spacer" aria-hidden="true" />
+          <OwnerSmsPanel key={business.id} businessId={business.id} />
+        </div>
+      ) : null}
     </div>
   );
 }
