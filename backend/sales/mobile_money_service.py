@@ -296,12 +296,10 @@ def _release_failed_mobile_money_sale(
     message,
 ):
     # Releases stock only while the sale is still genuinely pending.
-    payment = (
-        Payment.objects.select_for_update()
-        .select_related("sale")
-        .get(pk=payment_id)
-    )
-    sale = Sale.objects.select_for_update().select_related("branch").get(pk=payment.sale_id)
+    # Keep row locks on base tables only. PostgreSQL rejects FOR UPDATE
+    # across nullable outer joins such as Payment.sale or Sale.branch.
+    payment = Payment.objects.select_for_update().get(pk=payment_id)
+    sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
 
     if sale.status != Sale.Status.PENDING_PAYMENT:
         return payment, sale
@@ -892,25 +890,13 @@ def verify_and_finalize_mobile_money_sale(
     deferred_error = None
 
     with transaction.atomic():
-        payment = (
-            Payment.objects.select_for_update()
-            .select_related(
-                "business",
-                "sale",
-                "customer",
-                "initiated_by",
-            )
-            .get(pk=existing_payment.pk)
+        # Lock only the Payment and Sale rows themselves. Several related
+        # foreign keys are nullable, and PostgreSQL does not allow FOR UPDATE
+        # on the nullable side of the LEFT OUTER JOIN produced by select_related.
+        payment = Payment.objects.select_for_update().get(
+            pk=existing_payment.pk
         )
-        sale = (
-            Sale.objects.select_for_update()
-            .select_related(
-                "business",
-                "customer",
-                "cashier",
-            )
-            .get(pk=payment.sale_id)
-        )
+        sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
 
         if (
             payment.status == Payment.Status.SUCCESSFUL
@@ -1362,10 +1348,9 @@ def verify_and_finalize_mobile_money_debt_payment(*, reference, client=None):
     require_response_mode(verification, mode)
     deferred_error = None
     with transaction.atomic():
-        payment = Payment.objects.select_for_update().select_related(
-            "business", "sale", "customer", "initiated_by"
-        ).get(pk=existing.pk)
-        sale = Sale.objects.select_for_update().select_related("branch").get(pk=payment.sale_id)
+        # Keep nullable relations out of FOR UPDATE joins on PostgreSQL.
+        payment = Payment.objects.select_for_update().get(pk=existing.pk)
+        sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
         customer = Customer.objects.select_for_update().get(pk=payment.customer_id)
 
         if payment.status == Payment.Status.SUCCESSFUL:
@@ -1458,12 +1443,10 @@ def _expire_stale_mobile_money_sale(
     checked_at,
 ):
     # Releases one expired reservation only while it is still pending.
-    payment = (
-        Payment.objects.select_for_update()
-        .select_related("sale")
-        .get(pk=payment_id)
-    )
-    sale = Sale.objects.select_for_update().select_related("branch").get(pk=payment.sale_id)
+    # Keep row locks on base tables only. PostgreSQL rejects FOR UPDATE
+    # across nullable outer joins such as Payment.sale or Sale.branch.
+    payment = Payment.objects.select_for_update().get(pk=payment_id)
+    sale = Sale.objects.select_for_update().get(pk=payment.sale_id)
 
     if (
         payment.status != Payment.Status.PENDING
