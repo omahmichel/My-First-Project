@@ -1900,6 +1900,44 @@ export function StoreProvider({ children }) {
   }
 
 
+  async function cancelMobileMoneySale(reference) {
+    const safeReference = String(reference || "").trim();
+
+    if (!safeReference) {
+      throw new Error("The Mobile Money payment reference is missing.");
+    }
+
+    const response = await apiRequest(
+      `/businesses/${business.id}/sales/mobile-money/${encodeURIComponent(
+        safeReference,
+      )}/cancel/`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    );
+    const nextSale = normalizeSale(response);
+
+    setSales((current) =>
+      upsertBusinessRecord(current, nextSale),
+    );
+    setPayments((current) =>
+      (nextSale.payments ?? []).reduce(
+        (records, payment) =>
+          upsertBusinessRecord(records, payment),
+        current,
+      ),
+    );
+
+    await Promise.allSettled([
+      loadInventory(business.id, activeBranchId),
+      loadCustomers(business.id),
+    ]);
+
+    return nextSale;
+  }
+
+
   async function addTeamMember(member) {
     const response = await apiRequest(
       `/businesses/${business.id}/team/`,
@@ -2064,6 +2102,7 @@ export function StoreProvider({ children }) {
       saveWaybill,
       completeSale,
       verifyMobileMoneySale,
+      cancelMobileMoneySale,
       addTeamMember,
       deleteTeamMember,
     }),

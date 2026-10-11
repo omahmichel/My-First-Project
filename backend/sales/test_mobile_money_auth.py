@@ -91,12 +91,70 @@ class ChargeAuthenticationTests(TestCase):
         with self.assertRaises(MobileMoneyPaymentError): self.run_action(otp="123456")
         c.submit_charge_otp.assert_not_called()
 
+    def test_expired_status_check_releases_still_pending_attempt(self):
+        c = self.start()
+        self.sale.reservation_expires_at = timezone.now() - timedelta(seconds=1)
+        self.sale.save(update_fields=("reservation_expires_at", "updated_at"))
+        c.verify_transaction.return_value["status"] = "pending"
+        sale = self.run_action()
+        self.assertEqual(sale.status, Sale.Status.FAILED)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.reserved_stock, 0)
+        c.check_pending_charge.assert_not_called()
+
     def test_failed_charge_returns_cancelled_sale_and_releases_stock(self):
         c=self.start(); c.check_pending_charge.return_value={"status":"abandoned"}; c.verify_transaction.return_value["status"]="abandoned"
         sale=self.run_action()
         self.assertEqual(sale.status,"cancelled")
         self.product.refresh_from_db(); self.assertEqual(self.product.reserved_stock,0)
         self.assertFalse(MerchantPayout.objects.exists())
+
+    def test_timeout_status_is_terminal_and_releases_stock(self):
+        c = self.start()
+        c.check_pending_charge.return_value = {"status": "timeout"}
+        c.verify_transaction.return_value["status"] = "timeout"
+        sale = self.run_action()
+        self.assertEqual(sale.status, Sale.Status.FAILED)
+        self.payment.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.FAILED)
+        self.assertEqual(self.product.reserved_stock, 0)
+
+    def test_cancel_endpoint_releases_expired_pending_attempt(self):
+        c = self.start()
+        self.sale.reservation_expires_at = timezone.now() - timedelta(seconds=1)
+        self.sale.save(update_fields=("reservation_expires_at", "updated_at"))
+        c.verify_transaction.return_value["status"] = "pending"
+        api = APIClient()
+        api.force_authenticate(self.owner)
+        url = (
+            f"/api/businesses/{self.business.id}/sales/mobile-money/"
+            f"{self.payment.gateway_reference}/cancel/"
+        )
+        with patch("sales.mobile_money_service.PaystackClient", return_value=c):
+            response = api.post(url, {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["status"], "failed")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.reserved_stock, 0)
+
+    def test_cancel_endpoint_does_not_release_active_pending_attempt(self):
+        c = self.start()
+        c.verify_transaction.return_value["status"] = "pending"
+        api = APIClient()
+        api.force_authenticate(self.owner)
+        url = (
+            f"/api/businesses/{self.business.id}/sales/mobile-money/"
+            f"{self.payment.gateway_reference}/cancel/"
+        )
+        with patch("sales.mobile_money_service.PaystackClient", return_value=c):
+            response = api.post(url, {}, format="json")
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertEqual(response.data["code"], "mobile_money_cancellation_wait")
+        self.sale.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(self.sale.status, Sale.Status.PENDING_PAYMENT)
+        self.assertEqual(self.product.reserved_stock, 1)
 
     def test_rejected_otp_keeps_pending_for_retry(self):
         c=self.start(); c.submit_charge_otp.side_effect=PaystackRequestError("Invalid payment code")

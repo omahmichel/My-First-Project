@@ -175,6 +175,7 @@ export default function NewSalePage() {
     paymentAccountsError,
     completeSale,
     verifyMobileMoneySale,
+    cancelMobileMoneySale,
   } = useStore();
 
   const [search, setSearch] = useState("");
@@ -202,6 +203,7 @@ export default function NewSalePage() {
   const [mobileMoneyModalOpen, setMobileMoneyModalOpen] =
     useState(false);
   const [paymentVerifying, setPaymentVerifying] = useState(false);
+  const [paymentCancelling, setPaymentCancelling] = useState(false);
   const [paymentStatusMessage, setPaymentStatusMessage] =
     useState("");
   const checkoutKeyRef = useRef(null);
@@ -447,7 +449,15 @@ export default function NewSalePage() {
   }
 
   function choosePaymentMethod(method) {
-    if (saleSaving || pendingMobileMoneySale) return;
+    if (saleSaving) return;
+
+    if (method === "mobile_money" && pendingMobileMoneySale) {
+      setError(
+        "A Mobile Money request is already pending. Review or cancel it before starting another Mobile Money payment.",
+      );
+      setMobileMoneyModalOpen(true);
+      return;
+    }
 
     resetCheckoutKey();
     setError("");
@@ -473,7 +483,10 @@ export default function NewSalePage() {
   async function handleCompleteSale(feeConfirmed = false) {
     if (saleSaving) return;
 
-    if (pendingMobileMoneySale) {
+    if (pendingMobileMoneySale && paymentMethod === "mobile_money") {
+      setError(
+        "Resolve the current Mobile Money request before starting another one. Cash and credit sales can continue normally.",
+      );
       setMobileMoneyModalOpen(true);
       return;
     }
@@ -608,10 +621,20 @@ export default function NewSalePage() {
   }
 
   useEffect(() => {
-    if (!mobileMoneyModalOpen || !pendingMobileMoneySale?.reference || paymentVerifying) return;
-    const timer = window.setTimeout(() => handleVerifyMobileMoneySale(), 15000);
+    if (
+      !pendingMobileMoneySale?.reference ||
+      paymentVerifying ||
+      paymentCancelling
+    ) return;
+
+    // Reconcile in the background even when the review window is closed so a
+    // failed/expired phone prompt cannot leave the POS permanently blocked.
+    const timer = window.setTimeout(
+      () => handleVerifyMobileMoneySale(),
+      15000,
+    );
     return () => window.clearTimeout(timer);
-  }, [mobileMoneyModalOpen, pendingMobileMoneySale, paymentVerifying]);
+  }, [pendingMobileMoneySale, paymentVerifying, paymentCancelling]);
 
   async function handleVerifyMobileMoneySale() {
     if (!pendingMobileMoneySale || paymentVerifying) return;
@@ -662,6 +685,49 @@ export default function NewSalePage() {
     }
   }
 
+  async function handleCancelMobileMoneySale() {
+    if (!pendingMobileMoneySale || paymentCancelling) return;
+
+    setError("");
+    setPaymentStatusMessage("");
+    setPaymentCancelling(true);
+
+    try {
+      const sale = await cancelMobileMoneySale(
+        pendingMobileMoneySale.reference,
+      );
+      const pending = resolvePendingMobileMoneySale(sale);
+      setPendingMobileMoneySale(pending);
+
+      if (pending) {
+        setPaymentStatusMessage(
+          pending.payment.note ||
+            "This payment is still active and cannot be released safely yet.",
+        );
+        return;
+      }
+
+      setMobileMoneyModalOpen(false);
+      if (["completed", "partially_paid"].includes(sale.status)) {
+        setCompletedSale(sale);
+      } else {
+        setPaymentStatusMessage("");
+        setError(
+          "The pending Mobile Money attempt was closed and its reserved stock was released. You can continue with a new sale.",
+        );
+      }
+    } catch (cancelError) {
+      if (cancelError.data?.code === "mobile_money_cancellation_wait") {
+        setPaymentStatusMessage(cancelError.message);
+      } else {
+        setError(cancelError.message);
+        setPaymentStatusMessage(cancelError.message);
+      }
+    } finally {
+      setPaymentCancelling(false);
+    }
+  }
+
   return (
     <ProductPhotoSessionProvider>
     <div className="page-stack sale-page-stack">
@@ -695,12 +761,21 @@ export default function NewSalePage() {
               Stock is reserved until the payment is verified or expires.
             </small>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => setMobileMoneyModalOpen(true)}
-          >
-            Review payment
-          </Button>
+          <div className="mobile-money-pending-actions">
+            <Button
+              variant="secondary"
+              onClick={() => handleCancelMobileMoneySale()}
+              disabled={paymentCancelling || paymentVerifying}
+            >
+              {paymentCancelling ? "Checking..." : "Cancel payment"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setMobileMoneyModalOpen(true)}
+            >
+              Review payment
+            </Button>
+          </div>
         </section>
       ) : null}
 
@@ -1009,7 +1084,10 @@ export default function NewSalePage() {
                   }
                   onClick={() => choosePaymentMethod(value)}
                   key={value}
-                  disabled={saleSaving || Boolean(pendingMobileMoneySale)}
+                  disabled={
+                    saleSaving ||
+                    (value === "mobile_money" && Boolean(pendingMobileMoneySale))
+                  }
                 >
                   {label}
                 </button>
@@ -1253,7 +1331,8 @@ export default function NewSalePage() {
                 !cart.length ||
                 saleSaving ||
                 pageLoading ||
-                Boolean(pendingMobileMoneySale)
+                (paymentMethod === "mobile_money" &&
+                  Boolean(pendingMobileMoneySale))
               }
             >
               {saleSaving
@@ -1336,14 +1415,16 @@ export default function NewSalePage() {
             <div className="success-action-grid">
               <Button
                 variant="secondary"
-                onClick={() => { setMobileMoneyModalOpen(false); }}
-                disabled={paymentVerifying}
+                onClick={() => handleCancelMobileMoneySale()}
+                disabled={paymentVerifying || paymentCancelling}
               >
-                Close for now
+                {paymentCancelling
+                  ? "Checking cancellation..."
+                  : "Cancel payment"}
               </Button>
               <Button
                 onClick={() => handleVerifyMobileMoneySale()}
-                disabled={paymentVerifying}
+                disabled={paymentVerifying || paymentCancelling}
               >
                 {paymentVerifying
                   ? "Verifying payment..."

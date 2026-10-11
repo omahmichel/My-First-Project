@@ -66,6 +66,25 @@ class DirectPromptTests(TestCase):
         self.gateway.submit_charge_otp.assert_not_called()
         self.assertEqual(Payment.objects.count(),1)
 
+    def test_timeout_prompt_releases_stock_and_allows_retry(self):
+        self.prepare("timeout")
+        with patch("sales.mobile_money_service.PaystackClient", return_value=self.gateway):
+            response = self.api.post(
+                self.url,
+                self.data,
+                format="json",
+                HTTP_IDEMPOTENCY_KEY="direct-timeout",
+            )
+        self.assertEqual(response.status_code, 400, response.data)
+        sale = Sale.objects.get()
+        payment = Payment.objects.get()
+        sale.refresh_from_db()
+        payment.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(sale.status, Sale.Status.FAILED)
+        self.assertEqual(payment.status, Payment.Status.FAILED)
+        self.assertEqual(self.product.reserved_stock, 0)
+
     def test_verified_direct_success_completes_once(self):
         self.prepare();self.create()
         gateway=self.verification_client(payment=self.payment)

@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     BusinessCustomerDebtPaymentAPIView,
     BusinessMobileMoneyDebtPaymentVerifyAPIView,
+    BusinessMobileMoneySaleCancelAPIView,
     BusinessMobileMoneySaleVerifyAPIView,
     BusinessMobileMoneySaleAuthAPIView,
     BusinessSaleDetailAPIView,
@@ -33,6 +34,12 @@ urlpatterns = [
         "businesses/<uuid:business_id>/sales/",
         BusinessSaleListCreateAPIView.as_view(),
         name="business-sale-list-create",
+    ),
+    path(
+        "businesses/<uuid:business_id>/sales/mobile-money/"
+        "<str:reference>/cancel/",
+        BusinessMobileMoneySaleCancelAPIView.as_view(),
+        name="business-mobile-money-sale-cancel",
     ),
     path(
         "businesses/<uuid:business_id>/sales/mobile-money/"

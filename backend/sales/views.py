@@ -25,6 +25,7 @@ from businesses.paystack_client import (
 )
 from .mobile_money_service import (
     MobileMoneyPaymentError,
+    cancel_pending_mobile_money_sale,
     initialize_mobile_money_debt_payment,
     initialize_mobile_money_sale,
     verify_and_finalize_mobile_money_debt_payment,
@@ -75,6 +76,7 @@ def _mobile_money_service_error_response(exc):
         "mobile_money_debt_balance_changed",
         "mobile_money_transaction_reused",
         "mobile_money_reservation_invalid",
+        "mobile_money_cancellation_wait",
     }:
         status_code = status.HTTP_409_CONFLICT
 
@@ -467,6 +469,61 @@ class BusinessMobileMoneySaleVerifyAPIView(
         return response
 
 
+
+
+class BusinessMobileMoneySaleCancelAPIView(
+    BusinessSaleAccessMixin,
+    APIView,
+):
+    """Safely resolves or expires one pending Mobile Money sale."""
+
+    permission_classes = (IsAuthenticated,)
+    throttle_scope = "mobile_money_sale_verify"
+
+    def post(self, request, business_id, reference):
+        business, _, denied_response = self.require_sales_access()
+
+        if denied_response:
+            return denied_response
+
+        get_object_or_404(
+            Payment.objects.select_related("sale"),
+            business=business,
+            gateway="paystack",
+            gateway_reference=reference,
+            method=Payment.Method.MOBILE_MONEY,
+            payment_type=Payment.PaymentType.SALE_PAYMENT,
+            sale__in=self.branch_scoped_sales(Sale.objects.all()),
+        )
+
+        try:
+            _, sale, _ = cancel_pending_mobile_money_sale(
+                reference=reference,
+            )
+        except (
+            PaystackConfigurationError,
+            PaystackRequestError,
+        ) as exc:
+            return _mobile_money_gateway_error_response(exc)
+        except MobileMoneyPaymentError as exc:
+            response = _mobile_money_service_error_response(exc)
+            payment = Payment.objects.select_related("sale").get(
+                business=business,
+                gateway_reference=reference,
+            )
+            response.data["sale"] = SaleSerializer(
+                payment.sale,
+                context=self.get_serializer_context(),
+            ).data
+            return response
+
+        return Response(
+            SaleSerializer(
+                sale,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class BusinessMobileMoneyDebtPaymentVerifyAPIView(

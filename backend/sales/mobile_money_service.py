@@ -494,6 +494,7 @@ def initialize_mobile_money_sale(
         "abandoned",
         "cancelled",
         "reversed",
+        "timeout",
     }:
         message = (
             str(response.get("display_text", "")).strip()
@@ -956,6 +957,7 @@ def verify_and_finalize_mobile_money_sale(
                 "abandoned",
                 "cancelled",
                 "reversed",
+                "timeout",
             }:
                 reason = (
                     "Paystack verification returned the final status "
@@ -1537,6 +1539,69 @@ def _expire_stale_mobile_money_sale(
     )
 
     return payment, sale, True
+
+
+def cancel_pending_mobile_money_sale(
+    *,
+    reference,
+    client=None,
+    checked_at=None,
+):
+    """Safely closes one pending sale after authoritative Paystack checks.
+
+    Active phone-approval windows are never guessed or force-released. Once
+    the StockFlow reservation has expired, a still-pending Paystack result is
+    treated the same way as the existing reservation-cleanup workflow.
+    """
+    checked_at = checked_at or timezone.now()
+    existing_payment = _get_mobile_money_sale_payment(reference)
+    existing_sale = existing_payment.sale
+
+    if (
+        existing_payment.status != Payment.Status.PENDING
+        or existing_sale.status != Sale.Status.PENDING_PAYMENT
+    ):
+        return existing_payment, existing_sale, False
+
+    try:
+        payment, sale, _ = verify_and_finalize_mobile_money_sale(
+            reference=reference,
+            client=client,
+        )
+        # A successful verification finalizes the sale instead of cancelling it.
+        return payment, sale, False
+    except MobileMoneyPaymentError as exc:
+        sale, payment = _reload_sale_and_payment(
+            sale_id=existing_sale.id,
+            payment_id=existing_payment.id,
+        )
+
+        if exc.code in {
+            "mobile_money_payment_failed",
+            "mobile_money_sale_not_pending",
+        }:
+            return payment, sale, (
+                sale.status in {Sale.Status.FAILED, Sale.Status.CANCELLED}
+            )
+
+        if exc.code != "mobile_money_payment_pending":
+            raise
+
+        if (
+            sale.reservation_expires_at is not None
+            and sale.reservation_expires_at <= checked_at
+        ):
+            return _expire_stale_mobile_money_sale(
+                payment_id=payment.id,
+                checked_at=checked_at,
+            )
+
+        raise MobileMoneyPaymentError(
+            "This Mobile Money request is still inside the customer approval "
+            "window. You can continue with another cash or credit sale, or "
+            "cancel this request after its reservation expires.",
+            code="mobile_money_cancellation_wait",
+        ) from exc
 
 
 def _expired_mobile_money_payment_ids(*, checked_at, batch_size):

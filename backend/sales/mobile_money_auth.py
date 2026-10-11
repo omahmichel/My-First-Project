@@ -10,7 +10,9 @@ from businesses.payment_modes import require_mode, require_response_mode
 from businesses.paystack_client import PaystackClient, PaystackRequestError
 from .models import Payment, Sale
 from .mobile_money_service import (
-    MobileMoneyPaymentError, _get_mobile_money_sale_payment,
+    MobileMoneyPaymentError,
+    _get_mobile_money_sale_payment,
+    cancel_pending_mobile_money_sale,
     verify_and_finalize_mobile_money_sale,
 )
 
@@ -49,7 +51,7 @@ def _trace_request(func):
     return wrapped
 
 
-TERMINAL = {"failed", "abandoned", "cancelled", "reversed"}
+TERMINAL = {"failed", "abandoned", "cancelled", "reversed", "timeout"}
 
 
 @_trace_request
@@ -71,6 +73,20 @@ def advance_sale_charge(*, reference, otp=None, client=None):
             return Sale.objects.get(pk=payment.sale_id)
     gateway = client or PaystackClient()
     mode = require_mode(payment.gateway_mode, gateway)
+
+    if (
+        otp is None
+        and payment.sale.reservation_expires_at
+        and payment.sale.reservation_expires_at <= timezone.now()
+    ):
+        # A background/status check can safely reconcile an expired request.
+        # This prevents an old prompt from holding the POS indefinitely.
+        _, sale, _ = cancel_pending_mobile_money_sale(
+            reference=reference,
+            client=gateway,
+        )
+        return sale
+
     if otp is not None and (not isinstance(otp, str) or not re.fullmatch(r"[0-9]{4,10}", otp)):
         raise MobileMoneyPaymentError("Enter the payment code using 4 to 10 digits.", code="payment_code_invalid")
     # Do not poll or submit again while another request is sending the code.
