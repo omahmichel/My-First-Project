@@ -53,7 +53,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             self.fail("invalid_link")
 
-        if not default_token_generator.check_token(user, attrs["token"]):
+        if (user.registration_verified_channel == "sms" and not user.email_verified_at) or not default_token_generator.check_token(user, attrs["token"]):
             self.fail("invalid_link")
 
         password_validation.validate_password(attrs["password"], user=user)

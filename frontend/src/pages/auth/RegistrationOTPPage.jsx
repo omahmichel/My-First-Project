@@ -31,14 +31,16 @@ export default function RegistrationOTPPage() {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState(
-    "Enter the six-digit code sent to your email.",
+    "Enter the six-digit code sent to your selected contact.",
   );
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(
-    RESEND_COOLDOWN_SECONDS,
+    Math.max(0, Math.ceil(((Date.parse(pendingRegistration?.resendAvailableAt) || Date.now()) - Date.now()) / 1000)),
   );
   const navigate = useNavigate();
+  const channel = pendingRegistration?.channel ?? "email";
+  const [selectedChannel, setSelectedChannel] = useState(channel);
 
   // Counts down locally before the resend action becomes available.
   useEffect(() => {
@@ -103,17 +105,17 @@ export default function RegistrationOTPPage() {
   }
 
   async function handleResend() {
-    if (secondsRemaining > 0 || resending) return;
+    if (secondsRemaining > 0 || resending || submitting) return;
 
     setError("");
     setMessage("");
     setResending(true);
 
     try {
-      await resendRegistrationOtp(pendingRegistration.email);
+      const delivery = await resendRegistrationOtp(pendingRegistration.email, selectedChannel);
       setOtp("");
       setSecondsRemaining(RESEND_COOLDOWN_SECONDS);
-      setMessage("A new verification code was sent to your email.");
+      setMessage(delivery.message);
     } catch (resendError) {
       setError(resendError.message);
     } finally {
@@ -129,8 +131,8 @@ export default function RegistrationOTPPage() {
         </Link>
 
         <div className="auth-visual-content">
-          <span>Email verification</span>
-          <h1>Confirm that this email belongs to you.</h1>
+          <span>Contact verification</span>
+          <h1>Verify your contact. Keep your account secure.</h1>
           <p>
             StockFlow creates your account only after the verification code is
             accepted.
@@ -153,11 +155,11 @@ export default function RegistrationOTPPage() {
           </Link>
 
           <div className="auth-heading">
-            <span>Verify your email</span>
+            <span>Verify your {channel === "sms" ? "phone number" : "email"}</span>
             <h2>Enter your six-digit code</h2>
             <p>
               We sent the code to{" "}
-              <strong>{pendingRegistration.email}</strong>.
+              <strong>{pendingRegistration.destination || pendingRegistration.email}</strong>.
             </p>
           </div>
 
@@ -188,7 +190,7 @@ export default function RegistrationOTPPage() {
                 />
               </div>
               <small>
-                Check your inbox and spam folder for the StockFlow email.
+                {channel === "sms" ? "Check your phone for the StockFlow SMS." : "Check your inbox and spam folder for the StockFlow email."}
               </small>
             </label>
 
@@ -196,24 +198,32 @@ export default function RegistrationOTPPage() {
               type="submit"
               size="large"
               className="full-width-button"
-              disabled={submitting || otp.length !== 6}
+              disabled={submitting || resending || otp.length !== 6}
             >
               <MailCheck size={18} />
               {submitting ? "Verifying code..." : "Verify and create account"}
             </Button>
 
+            <label>
+              Code not arriving? Choose a delivery method
+              <select value={selectedChannel} onChange={(event) => setSelectedChannel(event.target.value)} disabled={submitting || resending}>
+                <option value="email">Email</option>
+                <option value="sms" disabled={!pendingRegistration.phone || !pendingRegistration.challengeId}>SMS</option>
+              </select>
+              <small>A new code replaces the previous code. Your registration details are kept.</small>
+            </label>
             <button
               type="button"
               className="registration-otp-resend"
               onClick={handleResend}
-              disabled={secondsRemaining > 0 || resending}
+              disabled={secondsRemaining > 0 || resending || submitting}
             >
               <RefreshCw size={16} />
               {resending
                 ? "Sending new code..."
                 : secondsRemaining > 0
                   ? `Resend available in ${secondsRemaining}s`
-                  : "Resend verification code"}
+                  : selectedChannel !== channel ? `Send code by ${selectedChannel === "sms" ? "SMS" : "email"}` : "Resend verification code"}
             </button>
           </form>
 

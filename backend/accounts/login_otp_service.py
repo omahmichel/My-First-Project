@@ -303,6 +303,9 @@ def verify_login_otp(*, challenge_token, otp):
                 }
         else:
             user = challenge.user
+            if user.email_verified_at is None:
+                user.email_verified_at = timezone.now()
+                user.save(update_fields=("email_verified_at",))
             challenge.delete()
 
             refresh = RefreshToken.for_user(user)

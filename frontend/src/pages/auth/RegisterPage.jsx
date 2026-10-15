@@ -19,6 +19,8 @@ export default function RegisterPage() {
     businessName: "",
     email: "",
     password: "",
+    phone: "",
+    channel: "email",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -145,6 +147,23 @@ export default function RegisterPage() {
               </div>
             </label>
 
+            <div className="form-two-column">
+              <label>
+                Phone number
+                <input name="phone" type="tel" autoComplete="tel" placeholder="024 123 4567"
+                  value={form.phone} onChange={handleChange} required maxLength={30} />
+                <small>Use a number you can access for SMS verification.</small>
+              </label>
+              <label>
+                Send verification code by
+                <select name="channel" value={form.channel} onChange={handleChange} disabled={submitting}>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                </select>
+                <small>You can switch methods on the next screen.</small>
+              </label>
+            </div>
+
             <label>
               Password
               <div className="input-with-icon input-with-action">
@@ -180,7 +199,7 @@ export default function RegisterPage() {
               className="full-width-button"
               disabled={submitting}
             >
-              {submitting ? "Sending verification code..." : "Verify email address"}
+              {submitting ? "Sending verification code..." : "Send verification code"}
             </Button>
           </form>
 

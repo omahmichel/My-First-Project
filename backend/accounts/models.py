@@ -1,6 +1,7 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+import uuid
 
 
 class UserManager(BaseUserManager):
@@ -48,6 +49,10 @@ class User(AbstractUser):
     full_name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30, blank=True)
 
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    registration_verified_channel = models.CharField(max_length=10, blank=True)
+    registration_verified_contact = models.CharField(max_length=254, blank=True)
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
@@ -58,7 +63,10 @@ class User(AbstractUser):
 
 
 class PendingRegistration(models.Model):
-    # Stores only hashed credentials until an email address is verified.
+    # Keeps hashed credentials until the selected contact is verified.
+
+    challenge_token = models.UUIDField(default=uuid.uuid4, editable=False)
+    delivery_channel = models.CharField(max_length=10, default="email")
 
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=150)

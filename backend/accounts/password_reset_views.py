@@ -40,7 +40,7 @@ class PasswordResetRequestAPIView(APIView):
             is_active=True,
         ).first()
 
-        if user:
+        if user and (user.registration_verified_channel != "sms" or user.email_verified_at):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
             reset_url = (

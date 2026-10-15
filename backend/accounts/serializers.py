@@ -34,6 +34,8 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    channel = serializers.ChoiceField(choices=("email", "sms"), default="email", write_only=True)
+
     # Creates a new account using email and a confirmed password.
 
     password = serializers.CharField(
@@ -55,6 +57,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             "phone",
             "password",
             "password_confirm",
+            "channel",
         )
 
     def validate_email(self, value):
@@ -68,11 +71,18 @@ class RegisterSerializer(serializers.ModelSerializer):
                 {"password_confirm": "The passwords do not match."}
             )
 
+        if attrs.get("channel") == "sms":
+            from sales.debt_reminder_service import normalize_ghana_phone
+            try:
+                attrs["phone"] = normalize_ghana_phone(attrs.get("phone", ""))
+            except ValueError:
+                raise serializers.ValidationError({"phone": "Enter a valid Ghana phone number to receive an SMS code."})
         return attrs
 
     def create(self, validated_data):
         # Uses the custom manager so the password is hashed safely.
         validated_data.pop("password_confirm")
+        validated_data.pop("channel", None)
         password = validated_data.pop("password")
 
         return User.objects.create_user(
@@ -82,6 +92,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class RegistrationOTPVerifySerializer(serializers.Serializer):
+    challengeId = serializers.UUIDField(required=False)
+
     # Validates the submitted email and six-digit verification code.
 
     email = serializers.EmailField()
@@ -96,6 +108,9 @@ class RegistrationOTPVerifySerializer(serializers.Serializer):
 
 
 class RegistrationOTPResendSerializer(serializers.Serializer):
+    challengeId = serializers.UUIDField(required=False)
+    channel = serializers.ChoiceField(choices=("email", "sms"), required=False)
+
     # Normalizes the email used to request a replacement code.
 
     email = serializers.EmailField()

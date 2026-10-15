@@ -1,4 +1,7 @@
 import secrets
+import uuid
+from django.core.cache import cache
+from django.utils.crypto import salted_hmac
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -77,6 +80,45 @@ def _send_otp_email(*, email, full_name, otp):
     )
 
 
+def _send_registration_code(*, pending, otp):
+    if pending.delivery_channel == "email":
+        return _send_otp_email(email=pending.email, full_name=pending.full_name, otp=otp)
+    from sales.debt_reminder_service import normalize_ghana_phone
+    from .registration_sms import send_registration_sms
+    try:
+        phone = normalize_ghana_phone(pending.phone)
+    except ValueError:
+        raise serializers.ValidationError({"phone": "Add a valid Ghana phone number to your registration before choosing SMS."})
+    # Per-recipient budget supplements the endpoint/IP limits and resend cooldown.
+    key = "registration-sms:" + salted_hmac("registration-sms", phone).hexdigest()
+    if cache.add(key, 1, 3600):
+        count = 1
+    else:
+        count = cache.incr(key)
+    if count > 5:
+        raise serializers.ValidationError({"detail": "SMS request limit reached. Please use email or try again later."})
+    send_registration_sms(recipient=phone, message=(
+        f"Your StockFlow registration code is {otp}. "
+        f"Expires in {settings.REGISTRATION_OTP_EXPIRY_SECONDS // 60} minutes. Do not share this code."
+    ))
+
+
+def _check_challenge(pending, challenge_id, channel=None):
+    # Legacy email-only clients remain compatible; SMS always requires the session token.
+    if challenge_id is not None and str(challenge_id) != str(pending.challenge_token):
+        raise serializers.ValidationError({"detail": "This registration session changed. Please register again."})
+    if (pending.delivery_channel == "sms" or channel == "sms") and not challenge_id:
+        raise serializers.ValidationError({"detail": "Please restart registration to use SMS verification."})
+
+
+def registration_delivery_response(pending):
+    return {"email": pending.email, "channel": pending.delivery_channel,
+            "challengeId": str(pending.challenge_token),
+            "destination": ("••••" + pending.phone[-4:] if pending.delivery_channel == "sms" else pending.email),
+            "resendAvailableAt": pending.resend_available_at.isoformat(),
+            "message": "Verification code sent by " + ("SMS." if pending.delivery_channel == "sms" else "email.")}
+
+
 def _restore_pending_registration(pending, snapshot):
     # Restores the previous valid code when replacement delivery fails.
     if snapshot is None:
@@ -88,6 +130,8 @@ def _restore_pending_registration(pending, snapshot):
 
     pending.save(
         update_fields=(
+            "delivery_channel",
+            "challenge_token",
             "full_name",
             "phone",
             "password_hash",
@@ -130,6 +174,8 @@ def issue_registration_otp(validated_data):
 
     if pending:
         snapshot = {
+            "delivery_channel": pending.delivery_channel,
+            "challenge_token": pending.challenge_token,
             "full_name": pending.full_name,
             "phone": pending.phone,
             "password_hash": pending.password_hash,
@@ -144,6 +190,8 @@ def issue_registration_otp(validated_data):
     otp = _generate_otp(
         snapshot["otp_hash"] if snapshot else None,
     )
+    pending.delivery_channel = validated_data.get("channel", "email")
+    pending.challenge_token = uuid.uuid4()
     pending.full_name = validated_data["full_name"]
     pending.phone = validated_data.get("phone", "")
     pending.password_hash = make_password(validated_data["password"])
@@ -154,11 +202,9 @@ def issue_registration_otp(validated_data):
     pending.save()
 
     try:
-        _send_otp_email(
-            email=pending.email,
-            full_name=pending.full_name,
-            otp=otp,
-        )
+        _send_registration_code(pending=pending, otp=otp)
+    except serializers.ValidationError:
+        raise
     except Exception as error:
         _restore_pending_registration(pending, snapshot)
         raise RegistrationEmailDeliveryError from error
@@ -167,7 +213,7 @@ def issue_registration_otp(validated_data):
 
 
 @transaction.atomic
-def resend_registration_otp(email):
+def resend_registration_otp(email, *, channel=None, challenge_id=None):
     # Replaces the current OTP without changing the submitted account details.
     now = timezone.now()
     pending = (
@@ -185,6 +231,8 @@ def resend_registration_otp(email):
                 )
             }
         )
+
+    _check_challenge(pending, challenge_id, channel)
 
     if User.objects.filter(email__iexact=email).exists():
         pending.delete()
@@ -207,6 +255,8 @@ def resend_registration_otp(email):
         )
 
     snapshot = {
+        "delivery_channel": pending.delivery_channel,
+        "challenge_token": pending.challenge_token,
         "full_name": pending.full_name,
         "phone": pending.phone,
         "password_hash": pending.password_hash,
@@ -216,6 +266,8 @@ def resend_registration_otp(email):
         "failed_attempts": pending.failed_attempts,
     }
 
+    if channel is not None:
+        pending.delivery_channel = channel
     otp = _generate_otp(pending.otp_hash)
     pending.otp_hash = make_password(otp)
     pending.expires_at = _otp_expiry()
@@ -224,6 +276,7 @@ def resend_registration_otp(email):
     pending.save(
         update_fields=(
             "otp_hash",
+            "delivery_channel",
             "expires_at",
             "resend_available_at",
             "failed_attempts",
@@ -232,11 +285,9 @@ def resend_registration_otp(email):
     )
 
     try:
-        _send_otp_email(
-            email=pending.email,
-            full_name=pending.full_name,
-            otp=otp,
-        )
+        _send_registration_code(pending=pending, otp=otp)
+    except serializers.ValidationError:
+        raise
     except Exception as error:
         _restore_pending_registration(pending, snapshot)
         raise RegistrationEmailDeliveryError from error
@@ -244,7 +295,7 @@ def resend_registration_otp(email):
     return pending
 
 
-def verify_registration_otp(*, email, otp):
+def verify_registration_otp(*, email, otp, challenge_id=None):
     # Commits security counters and expiry cleanup before returning errors.
     validation_error = None
     tokens = None
@@ -258,6 +309,9 @@ def verify_registration_otp(*, email, otp):
             .filter(email=email)
             .first()
         )
+
+        if pending:
+            _check_challenge(pending, challenge_id)
 
         if not pending:
             validation_error = {"otp": invalid_message}
@@ -317,6 +371,9 @@ def verify_registration_otp(*, email, otp):
                 full_name=pending.full_name,
                 phone=pending.phone,
                 is_active=True,
+                email_verified_at=(timezone.now() if pending.delivery_channel == "email" else None),
+                registration_verified_channel=pending.delivery_channel,
+                registration_verified_contact=(pending.phone if pending.delivery_channel == "sms" else pending.email),
             )
             user.password = pending.password_hash
             user.save()
@@ -338,7 +395,7 @@ def verify_registration_otp(*, email, otp):
 def registration_token_response(tokens):
     # Produces the same safe account shape used by the existing frontend.
     return {
-        "message": "Email verified and account created successfully.",
+        "message": "Contact verified and account created successfully.",
         "user": UserSerializer(tokens.user).data,
         "access": tokens.access,
         "refresh": tokens.refresh,

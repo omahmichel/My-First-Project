@@ -39,6 +39,10 @@ function sanitizePendingRegistration(registration) {
     businessName: registration.businessName?.trim() ?? "",
     email: registration.email?.trim().toLowerCase() ?? "",
     phone: registration.phone?.trim() ?? "",
+    channel: registration.channel === "sms" ? "sms" : "email",
+    challengeId: registration.challengeId ?? "",
+    destination: registration.destination ?? registration.email ?? "",
+    resendAvailableAt: registration.resendAvailableAt ?? "",
   };
 }
 
@@ -300,18 +304,19 @@ export function AuthProvider({ children }) {
       email: payload.email.trim().toLowerCase(),
     };
 
-    await apiRequest("/auth/register/", {
+    const delivery = await apiRequest("/auth/register/", {
       method: "POST",
       body: JSON.stringify({
         email: registration.email,
         full_name: registration.name,
         phone: registration.phone?.trim() ?? "",
+        channel: registration.channel ?? "email",
         password: registration.password,
         password_confirm: registration.password,
       }),
     });
 
-    const safeRegistration = sanitizePendingRegistration(registration);
+    const safeRegistration = sanitizePendingRegistration({...registration, ...delivery});
     setPendingRegistration(safeRegistration);
     saveStoredValue("pending_registration", safeRegistration);
     return safeRegistration;
@@ -324,6 +329,7 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({
         email: email.trim().toLowerCase(),
         otp: otp.trim(),
+        ...(pendingRegistration?.challengeId ? {challengeId: pendingRegistration.challengeId} : {}),
       }),
     });
 
@@ -343,13 +349,16 @@ export function AuthProvider({ children }) {
   }
 
   // Requests a replacement code for the current pending registration.
-  async function resendRegistrationOtp(email) {
-    return apiRequest("/auth/register/resend/", {
+  async function resendRegistrationOtp(email, channel = pendingRegistration?.channel ?? "email") {
+    const delivery = await apiRequest("/auth/register/resend/", {
       method: "POST",
-      body: JSON.stringify({
-        email: email.trim().toLowerCase(),
-      }),
+      body: JSON.stringify({email: email.trim().toLowerCase(), channel,
+        ...(pendingRegistration?.challengeId ? {challengeId: pendingRegistration.challengeId} : {})}),
     });
+    const next = sanitizePendingRegistration({...pendingRegistration, ...delivery});
+    setPendingRegistration(next);
+    saveStoredValue("pending_registration", next);
+    return delivery;
   }
 
   // Finalizes the local onboarding state after Django creates the business.

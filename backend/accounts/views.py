@@ -18,6 +18,7 @@ from .login_otp_service import (
 )
 from .registration_otp_service import (
     RegistrationEmailDeliveryError,
+    registration_delivery_response,
     issue_registration_otp,
     registration_token_response,
     resend_registration_otp,
@@ -45,7 +46,7 @@ class RegisterAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            issue_registration_otp(serializer.validated_data)
+            pending = issue_registration_otp(serializer.validated_data)
         except RegistrationEmailDeliveryError:
             return Response(
                 {
@@ -58,12 +59,7 @@ class RegisterAPIView(APIView):
             )
 
         return Response(
-            {
-                "message": (
-                    "A six-digit verification code was sent to your email."
-                ),
-                "email": serializer.validated_data["email"],
-            },
+            registration_delivery_response(pending),
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -81,6 +77,7 @@ class RegistrationOTPVerifyAPIView(APIView):
         tokens = verify_registration_otp(
             email=serializer.validated_data["email"],
             otp=serializer.validated_data["otp"],
+            challenge_id=serializer.validated_data.get("challengeId"),
         )
 
         return Response(
@@ -100,8 +97,10 @@ class RegistrationOTPResendAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            resend_registration_otp(
+            pending = resend_registration_otp(
                 serializer.validated_data["email"],
+                channel=serializer.validated_data.get("channel"),
+                challenge_id=serializer.validated_data.get("challengeId"),
             )
         except RegistrationEmailDeliveryError:
             return Response(
@@ -115,7 +114,7 @@ class RegistrationOTPResendAPIView(APIView):
             )
 
         return Response(
-            {"message": "A new verification code was sent."},
+            registration_delivery_response(pending),
             status=status.HTTP_200_OK,
         )
 
