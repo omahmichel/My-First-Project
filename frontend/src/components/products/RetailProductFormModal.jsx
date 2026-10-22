@@ -1,7 +1,12 @@
+import { Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { dealerCatalogForBusinessType } from "../../data/dealerCatalog";
 import { retailInventoryConfig } from "../../data/retailInventoryConfig";
+import {
+  retailBrandSuggestions,
+  retailSpecificationFields,
+} from "../../data/retailProductProfiles";
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
 
@@ -19,6 +24,18 @@ const EMPTY_BASE = {
   retailDetails: {},
 };
 
+function normalizeAdditionalSpecifications(retailDetails) {
+  const rows = retailDetails?.additionalSpecifications;
+  if (!Array.isArray(rows)) return [];
+
+  return rows
+    .map((item) => ({
+      label: String(item?.label ?? ""),
+      value: String(item?.value ?? ""),
+    }))
+    .filter((item) => item.label || item.value);
+}
+
 function buildInitialForm(product, config) {
   const unit = config?.units?.[0] || "piece";
 
@@ -26,9 +43,14 @@ function buildInitialForm(product, config) {
     return {
       ...EMPTY_BASE,
       unit,
-      retailDetails: {},
+      retailDetails: { additionalSpecifications: [] },
     };
   }
+
+  const details =
+    product.retailDetails && typeof product.retailDetails === "object"
+      ? { ...product.retailDetails }
+      : {};
 
   return {
     ...EMPTY_BASE,
@@ -39,11 +61,36 @@ function buildInitialForm(product, config) {
     costPrice: String(product.costPrice ?? ""),
     sellingPrice: String(product.sellingPrice ?? ""),
     lowStockLevel: String(product.lowStockLevel ?? ""),
-    retailDetails:
-      product.retailDetails && typeof product.retailDetails === "object"
-        ? { ...product.retailDetails }
-        : {},
+    retailDetails: {
+      ...details,
+      additionalSpecifications: normalizeAdditionalSpecifications(details),
+    },
   };
+}
+
+function cleanRetailDetails(retailDetails) {
+  const source = retailDetails && typeof retailDetails === "object"
+    ? retailDetails
+    : {};
+  const cleaned = {};
+
+  Object.entries(source).forEach(([key, value]) => {
+    if (key === "additionalSpecifications") return;
+    if (String(value ?? "").trim() !== "") cleaned[key] = value;
+  });
+
+  const additionalSpecifications = normalizeAdditionalSpecifications(source)
+    .map((item) => ({
+      label: item.label.trim(),
+      value: item.value.trim(),
+    }))
+    .filter((item) => item.label && item.value);
+
+  if (additionalSpecifications.length) {
+    cleaned.additionalSpecifications = additionalSpecifications;
+  }
+
+  return cleaned;
 }
 
 export default function RetailProductFormModal({
@@ -58,9 +105,18 @@ export default function RetailProductFormModal({
     () => dealerCatalogForBusinessType(businessType),
     [businessType],
   );
+  const brandSuggestions = useMemo(
+    () => retailBrandSuggestions(businessType),
+    [businessType],
+  );
   const [form, setForm] = useState(() => buildInitialForm(product, config));
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const specificationFields = useMemo(
+    () => retailSpecificationFields(businessType, form.category),
+    [businessType, form.category],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -86,13 +142,65 @@ export default function RetailProductFormModal({
     }));
   }
 
+  function addSpecificationRow() {
+    setForm((current) => ({
+      ...current,
+      retailDetails: {
+        ...(current.retailDetails || {}),
+        additionalSpecifications: [
+          ...normalizeAdditionalSpecifications(current.retailDetails),
+          { label: "", value: "" },
+        ],
+      },
+    }));
+  }
+
+  function updateSpecificationRow(index, field, value) {
+    setForm((current) => {
+      const rows = normalizeAdditionalSpecifications(current.retailDetails);
+      const nextRows = rows.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [field]: value } : row,
+      );
+
+      return {
+        ...current,
+        retailDetails: {
+          ...(current.retailDetails || {}),
+          additionalSpecifications: nextRows,
+        },
+      };
+    });
+  }
+
+  function removeSpecificationRow(index) {
+    setForm((current) => {
+      const nextRows = normalizeAdditionalSpecifications(current.retailDetails)
+        .filter((_, rowIndex) => rowIndex !== index);
+
+      return {
+        ...current,
+        retailDetails: {
+          ...(current.retailDetails || {}),
+          additionalSpecifications: nextRows,
+        },
+      };
+    });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     if (isSaving) return;
 
     setError("");
-    if (!form.name.trim() || !form.category.trim() || !form.sku.trim()) {
-      setError("Product name, category and SKU / stock code are required.");
+    if (
+      !form.name.trim() ||
+      !form.category.trim() ||
+      !form.brand.trim() ||
+      !form.sku.trim()
+    ) {
+      setError(
+        "Product name, category, brand and SKU / stock code are required. Use Generic / Unbranded when a product has no formal brand.",
+      );
       return;
     }
 
@@ -101,11 +209,9 @@ export default function RetailProductFormModal({
       await onSave({
         ...form,
         productType: "standard",
-        retailDetails: Object.fromEntries(
-          Object.entries(form.retailDetails || {}).filter(
-            ([, value]) => String(value ?? "").trim() !== "",
-          ),
-        ),
+        brand: form.brand.trim(),
+        category: form.category.trim(),
+        retailDetails: cleanRetailDetails(form.retailDetails),
       });
       onClose();
     } catch (saveError) {
@@ -119,20 +225,22 @@ export default function RetailProductFormModal({
     if (!isSaving) onClose();
   }
 
+  const additionalRows = normalizeAdditionalSpecifications(form.retailDetails);
+
   return (
     <Modal
       open={open}
       onClose={handleClose}
       title={product ? `Edit ${config.recordLabel}` : config.addLabel}
-      description="Save the core stock fields StockFlow uses everywhere, plus the specialist references used by this business route."
+      description="Classify the item first, then record the specifications that distinguish this exact sellable item from other brands, models, sizes and variants."
       size="large"
     >
       {error ? <div className="form-alert form-alert-error">{error}</div> : null}
 
       <form className="product-form retail-product-form" onSubmit={handleSubmit}>
         <div className="form-section-heading">
-          <span>Product identity</span>
-          <p>Required fields keep inventory, sales and reporting consistent.</p>
+          <span>Product classification</span>
+          <p>Category and brand are used to keep different product families visibly separated throughout StockFlow.</p>
         </div>
 
         <div className="form-grid form-grid-three">
@@ -164,22 +272,31 @@ export default function RetailProductFormModal({
               value={form.category}
               onChange={handleBaseChange}
               placeholder="Choose or type a category"
+              autoComplete="off"
             />
             <datalist id={`retail-categories-${businessType}`}>
               {categories.map((category) => (
                 <option value={category} key={category} />
               ))}
             </datalist>
+            <small className="retail-field-help">Choose the closest category so StockFlow can show the correct specification fields.</small>
           </label>
 
           <label>
-            Brand
+            Brand / manufacturer *
             <input
               name="brand"
+              list={`retail-brands-${businessType}`}
               value={form.brand}
               onChange={handleBaseChange}
-              placeholder="Brand / manufacturer"
+              placeholder="Apple / Samsung / Generic / Unbranded"
+              autoComplete="off"
             />
+            <datalist id={`retail-brands-${businessType}`}>
+              {brandSuggestions.map((brand) => (
+                <option value={brand} key={brand} />
+              ))}
+            </datalist>
           </label>
 
           <label>
@@ -194,32 +311,98 @@ export default function RetailProductFormModal({
           </label>
         </div>
 
-        <div className="form-section-heading">
-          <span>{config.recordLabel} details</span>
-          <p>These references make searching and identification faster without changing the shared StockFlow product model.</p>
+        <div className="form-section-heading retail-specification-heading">
+          <span>{form.category ? `${form.category} specifications` : `${config.recordLabel} specifications`}</span>
+          <p>
+            {form.category
+              ? "These fields change with the selected category so phones, laptops, spare parts, provisions, electrical items and beauty products are described correctly."
+              : "Select a category first to load the most relevant specification fields."}
+          </p>
         </div>
 
-        <div className="form-grid form-grid-three">
-          {config.details.map((field) => (
-            <label key={field.key}>
-              {field.label}
-              <input
-                type={field.type || "text"}
-                step={field.step}
-                min={field.type === "number" ? "0" : undefined}
-                value={form.retailDetails?.[field.key] ?? ""}
-                onChange={(event) =>
-                  handleDetailChange(field.key, event.target.value)
-                }
-                placeholder={field.placeholder || ""}
-              />
-            </label>
-          ))}
+        {specificationFields.length ? (
+          <div className="form-grid form-grid-three retail-specification-grid">
+            {specificationFields.map((field) => (
+              <label key={field.key}>
+                {field.label}
+                {field.options ? (
+                  <select
+                    value={form.retailDetails?.[field.key] ?? ""}
+                    onChange={(event) =>
+                      handleDetailChange(field.key, event.target.value)
+                    }
+                  >
+                    <option value="">Select</option>
+                    {field.options.map((option) => (
+                      <option value={option} key={option}>{option}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={field.type || "text"}
+                    step={field.step}
+                    min={field.type === "number" ? "0" : undefined}
+                    value={form.retailDetails?.[field.key] ?? ""}
+                    onChange={(event) =>
+                      handleDetailChange(field.key, event.target.value)
+                    }
+                    placeholder={field.placeholder || ""}
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+        ) : (
+          <div className="retail-category-prompt">
+            Select or enter a category above to load detailed product specifications.
+          </div>
+        )}
+
+        <div className="retail-additional-specifications">
+          <div className="retail-additional-specifications-heading">
+            <div>
+              <strong>Additional specifications</strong>
+              <p>Add any important specification that is not already covered. This keeps StockFlow flexible for new products and models.</p>
+            </div>
+            <button type="button" onClick={addSpecificationRow}>
+              <Plus size={15} /> Add specification
+            </button>
+          </div>
+
+          {additionalRows.length ? (
+            <div className="retail-additional-specification-list">
+              {additionalRows.map((row, index) => (
+                <div className="retail-additional-specification-row" key={`additional-${index}`}>
+                  <input
+                    value={row.label}
+                    onChange={(event) => updateSpecificationRow(index, "label", event.target.value)}
+                    placeholder="Specification name e.g. Face ID"
+                    aria-label={`Additional specification ${index + 1} name`}
+                  />
+                  <input
+                    value={row.value}
+                    onChange={(event) => updateSpecificationRow(index, "value", event.target.value)}
+                    placeholder="Value e.g. Supported"
+                    aria-label={`Additional specification ${index + 1} value`}
+                  />
+                  <button
+                    type="button"
+                    className="retail-remove-specification"
+                    onClick={() => removeSpecificationRow(index)}
+                    aria-label={`Remove additional specification ${index + 1}`}
+                    title="Remove specification"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="form-section-heading">
           <span>Stock and pricing</span>
-          <p>Cost price supports margin reporting. Existing stock is changed through Adjust stock so movement history remains complete.</p>
+          <p>Each distinct model, size, capacity, shade or sellable variant remains its own stock record and therefore keeps its own price and quantity.</p>
         </div>
 
         <div className="form-grid form-grid-three">

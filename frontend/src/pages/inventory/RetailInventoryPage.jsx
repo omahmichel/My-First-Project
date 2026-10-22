@@ -24,6 +24,11 @@ import StickyTableScroll from "../../components/ui/StickyTableScroll";
 import { useStore } from "../../context/StoreContext";
 import { businessTypeLabel } from "../../data/businessTypes";
 import { retailInventoryConfig } from "../../data/retailInventoryConfig";
+import {
+  retailDetailEntries,
+  retailProductGroupLabel,
+  retailSearchValues,
+} from "../../data/retailProductProfiles";
 import { formatCurrency, formatNumber } from "../../utils/formatters";
 
 import "../../styles/retail-inventory.css";
@@ -35,13 +40,6 @@ const ROUTE_ICONS = {
   auto_spare_parts: Car,
   cosmetics_beauty: Sparkles,
 };
-
-function detailValue(product, key) {
-  const value = product.retailDetails?.[key];
-  return value === null || value === undefined || value === ""
-    ? ""
-    : String(value);
-}
 
 export default function RetailInventoryPage() {
   const {
@@ -60,6 +58,7 @@ export default function RetailInventoryPage() {
   const RouteIcon = ROUTE_ICONS[business.type] || Boxes;
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [brand, setBrand] = useState("all");
   const [status, setStatus] = useState("all");
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -91,18 +90,24 @@ export default function RetailInventoryPage() {
     [retailProducts],
   );
 
+  const brands = useMemo(
+    () =>
+      [...new Set(retailProducts.map((product) => product.brand).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b)),
+    [retailProducts],
+  );
+
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return retailProducts.filter((product) => {
-      const retailValues = Object.values(product.retailDetails || {});
       const searchable = [
         product.name,
         product.sku,
         product.category,
         product.brand,
         product.unit,
-        ...retailValues,
+        ...retailSearchValues(product),
       ]
         .filter(Boolean)
         .map((value) => String(value).toLowerCase());
@@ -111,6 +116,8 @@ export default function RetailInventoryPage() {
         !query || searchable.some((value) => value.includes(query));
       const matchesCategory =
         category === "all" || product.category === category;
+      const matchesBrand =
+        brand === "all" || product.brand === brand;
       const available = Number(product.availableStock ?? product.stock ?? 0);
       const matchesStatus =
         status === "all" ||
@@ -119,9 +126,24 @@ export default function RetailInventoryPage() {
             available <= Number(product.lowStockLevel || 0)
           : product.status === status);
 
-      return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesCategory && matchesBrand && matchesStatus;
+    }).sort((first, second) => {
+      const firstKey = [
+        first.category || "",
+        retailProductGroupLabel(first, business.type),
+        first.name || "",
+      ].join("|");
+      const secondKey = [
+        second.category || "",
+        retailProductGroupLabel(second, business.type),
+        second.name || "",
+      ].join("|");
+      return firstKey.localeCompare(secondKey, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
     });
-  }, [category, retailProducts, search, status]);
+  }, [brand, business.type, category, retailProducts, search, status]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -132,7 +154,7 @@ export default function RetailInventoryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, category, status, pageSize]);
+  }, [search, category, brand, status, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -163,7 +185,8 @@ export default function RetailInventoryPage() {
   const lastVisible = filteredProducts.length
     ? firstVisible + paginatedProducts.length - 1
     : 0;
-  const hasActiveFilters = search || category !== "all" || status !== "all";
+  const hasActiveFilters =
+    search || category !== "all" || brand !== "all" || status !== "all";
 
   function openNewProduct() {
     setEditingProduct(null);
@@ -236,6 +259,7 @@ export default function RetailInventoryPage() {
   function clearFilters() {
     setSearch("");
     setCategory("all");
+    setBrand("all");
     setStatus("all");
   }
 
@@ -320,6 +344,10 @@ export default function RetailInventoryPage() {
               <option value="all">All categories</option>
               {categories.map((item) => <option key={item}>{item}</option>)}
             </select>
+            <select value={brand} onChange={(event) => setBrand(event.target.value)}>
+              <option value="all">All brands</option>
+              {brands.map((item) => <option key={item}>{item}</option>)}
+            </select>
             <select value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="all">All statuses</option>
               <option value="active">Active</option>
@@ -345,14 +373,10 @@ export default function RetailInventoryPage() {
               {paginatedProducts.map((product) => {
                 const available = Number(product.availableStock ?? product.stock ?? 0);
                 const lowStock = available <= Number(product.lowStockLevel || 0);
-                const detailEntries = config.highlights
-                  .map((key) => {
-                    const field = config.details.find((item) => item.key === key);
-                    const value = detailValue(product, key);
-                    return field && value ? { label: field.label, value } : null;
-                  })
-                  .filter(Boolean)
-                  .slice(0, 3);
+                const detailEntries = retailDetailEntries(
+                  product,
+                  business.type,
+                ).slice(0, 6);
                 const statusLabel =
                   product.status === "active"
                     ? lowStock ? "Low stock" : "Available"

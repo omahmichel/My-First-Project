@@ -18,6 +18,12 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
+import { RETAIL_BUSINESS_TYPES } from "../../data/businessTypes";
+import {
+  retailProductGroupLabel,
+  retailProductVariantSummary,
+  retailSearchValues,
+} from "../../data/retailProductProfiles";
 import { formatCurrency } from "../../utils/formatters";
 import PaymentFeeBreakdown from "../../components/ui/PaymentFeeBreakdown";
 
@@ -52,9 +58,10 @@ function resolvePendingMobileMoneySale(sale) {
   };
 }
 
-// StockFlow sales product navigator v3.
-// Builds dynamic cashier sections from the inventory fields already stored.
-function buildProductSections(products) {
+// StockFlow sales product navigator v4.
+// Building materials keep size grouping, while the five retail routes are
+// grouped by category -> brand/model -> individual sellable variant cards.
+function buildProductSections(products, businessType) {
   const categoryMap = new Map();
 
   products.forEach((product) => {
@@ -68,6 +75,8 @@ function buildProductSections(products) {
     categoryMap.get(categoryName).push(product);
   });
 
+  const isRetailBusiness = RETAIL_BUSINESS_TYPES.includes(businessType);
+
   return [...categoryMap.entries()]
     .sort(([first], [second]) =>
       first.localeCompare(second, undefined, {
@@ -80,73 +89,112 @@ function buildProductSections(products) {
         (product) => product.productType === "tile",
       );
 
-      if (!containsTiles) {
+      if (containsTiles) {
+        const sizeMap = new Map();
+
+        categoryProducts.forEach((product) => {
+          const sizeLabel =
+            product.productType === "tile"
+              ? String(product.size ?? "").trim() || "Unspecified size"
+              : "Other products";
+
+          if (!sizeMap.has(sizeLabel)) {
+            sizeMap.set(sizeLabel, []);
+          }
+
+          sizeMap.get(sizeLabel).push(product);
+        });
+
         return {
           categoryName,
           productCount: categoryProducts.length,
-          groups: [
-            {
-              key: `${categoryName}-products`,
-              label: "",
-              showHeading: false,
-              products: categoryProducts,
-            },
-          ],
+          groups: [...sizeMap.entries()]
+            .sort(([first], [second]) =>
+              first.localeCompare(second, undefined, {
+                numeric: true,
+                sensitivity: "base",
+              }),
+            )
+            .map(([label, groupProducts]) => ({
+              key: `${categoryName}-${label}`,
+              label,
+              headingLabel: "Size",
+              showHeading: true,
+              products: groupProducts,
+            })),
         };
       }
 
-      const sizeMap = new Map();
+      if (isRetailBusiness) {
+        const retailGroupMap = new Map();
 
-      categoryProducts.forEach((product) => {
-        const sizeLabel =
-          product.productType === "tile"
-            ? String(product.size ?? "").trim() || "Unspecified size"
-            : "Other products";
+        categoryProducts.forEach((product) => {
+          const label = retailProductGroupLabel(product, businessType);
+          if (!retailGroupMap.has(label)) retailGroupMap.set(label, []);
+          retailGroupMap.get(label).push(product);
+        });
 
-        if (!sizeMap.has(sizeLabel)) {
-          sizeMap.set(sizeLabel, []);
-        }
-
-        sizeMap.get(sizeLabel).push(product);
-      });
+        return {
+          categoryName,
+          productCount: categoryProducts.length,
+          groups: [...retailGroupMap.entries()]
+            .sort(([first], [second]) =>
+              first.localeCompare(second, undefined, {
+                numeric: true,
+                sensitivity: "base",
+              }),
+            )
+            .map(([label, groupProducts]) => ({
+              key: `${categoryName}-${label}`,
+              label,
+              headingLabel: "Brand / model",
+              showHeading: true,
+              products: groupProducts.sort((first, second) =>
+                retailProductVariantSummary(first, businessType).localeCompare(
+                  retailProductVariantSummary(second, businessType),
+                  undefined,
+                  { numeric: true, sensitivity: "base" },
+                ),
+              ),
+            })),
+        };
+      }
 
       return {
         categoryName,
         productCount: categoryProducts.length,
-        groups: [...sizeMap.entries()]
-          .sort(([first], [second]) =>
-            first.localeCompare(second, undefined, {
-              numeric: true,
-              sensitivity: "base",
-            }),
-          )
-          .map(([label, groupProducts]) => ({
-            key: `${categoryName}-${label}`,
-            label,
-            showHeading: true,
-            products: groupProducts,
-          })),
+        groups: [
+          {
+            key: `${categoryName}-products`,
+            label: "",
+            headingLabel: "",
+            showHeading: false,
+            products: categoryProducts,
+          },
+        ],
       };
     });
 }
 
-
 // Shows the exact variant details a cashier needs before adding an item.
-function productVariantSummary(product) {
+function productVariantSummary(product, businessType) {
+  if (
+    product.productType === "standard" &&
+    RETAIL_BUSINESS_TYPES.includes(businessType)
+  ) {
+    return retailProductVariantSummary(product, businessType);
+  }
+
   const parts = [];
 
   if (product.productType === "tile") {
-    if (product.designCode) {
-      parts.push(`Design ${product.designCode}`);
-    }
+    if (product.designCode) parts.push(`Design ${product.designCode}`);
     if (product.color) parts.push(product.color);
     if (product.finish) parts.push(product.finish);
   } else if (product.productType === "fashion") {
     if (product.size) parts.push(`Size ${product.size}`);
     if (product.color) parts.push(product.color);
-    if (product.styleCode) {
-      parts.push(`Style ${product.styleCode}`);
-    }
+    if (product.styleCode) parts.push(`Style ${product.styleCode}`);
   } else {
     if (product.brand) parts.push(product.brand);
     if (product.size) parts.push(product.size);
@@ -297,6 +345,7 @@ export default function NewSalePage() {
         product.size,
         product.color,
         product.finish,
+        ...retailSearchValues(product),
       ]
         .filter(Boolean)
         .some((value) =>
@@ -307,8 +356,8 @@ export default function NewSalePage() {
       (category === "all" || product.category === category);
   });
 
-  // Separates tiles by size and boutique products by category/variant.
-  const productSections = buildProductSections(filteredProducts);
+  // Separates tiles by size and the five retail routes by brand/model/variant.
+  const productSections = buildProductSections(filteredProducts, business.type);
 
   const subtotal = useMemo(
     () =>
@@ -787,7 +836,7 @@ export default function NewSalePage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search product, SKU or tile design..."
+                placeholder="Search product, SKU, brand, model, size or specification..."
                 disabled={saleSaving}
               />
             </label>
@@ -809,8 +858,8 @@ export default function NewSalePage() {
                 <Search size={24} />
                 <strong>No matching products</strong>
                 <span>
-                  Try another product name, SKU, category, size,
-                  colour or design code.
+                  Try another product name, SKU, category, brand, model, size,
+                  colour or specification.
                 </span>
               </div>
             ) : (
@@ -838,7 +887,7 @@ export default function NewSalePage() {
                       {group.showHeading ? (
                         <div className="sale-product-variant-heading">
                           <div>
-                            <span>Size</span>
+                            <span>{group.headingLabel || "Group"}</span>
                             <strong>{group.label}</strong>
                           </div>
                           <small>
@@ -851,7 +900,7 @@ export default function NewSalePage() {
                       <div className="pos-product-grid">
                         {group.products.map((product) => {
                           const variantSummary =
-                            productVariantSummary(product);
+                            productVariantSummary(product, business.type);
 
                           return (
                             <div className="sf-photo-product" key={product.id}>
