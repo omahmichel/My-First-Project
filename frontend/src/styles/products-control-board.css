@@ -565,3 +565,92 @@
   }
 }
 /* BUILDING MATERIALS ALL PRODUCTS TABLE SPACING V1 END */
+
+/* STOCKFLOW RETAIL ALL PRODUCTS ROUTE ISOLATION V2 — START
+   Keeps the original All Products visual system while giving the five shared
+   retail routes enough room for brand/variant data and four safe actions. */
+.retail-all-products-page .retail-brand-variant-cell strong,
+.retail-all-products-page .retail-brand-variant-cell small {
+  display: block;
+  min-width: 0;
+}
+
+.retail-all-products-page .retail-brand-variant-cell strong {
+  overflow: hidden;
+  color: #25372e;
+  font-size: 0.69rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retail-all-products-page .retail-brand-variant-cell small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.57rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 761px) {
+  .retail-all-products-page .products-table {
+    width: 100%;
+    min-width: 1040px;
+    table-layout: fixed;
+  }
+
+  .retail-all-products-page .products-table th,
+  .retail-all-products-page .products-table td,
+  .app-shell:not(.stockflow-boutique-app)
+    .retail-all-products-page
+    .products-table.stockflow-premium-table th,
+  .app-shell:not(.stockflow-boutique-app)
+    .retail-all-products-page
+    .products-table.stockflow-premium-table td {
+    min-width: 0;
+    padding: 9px 10px !important;
+    vertical-align: middle;
+  }
+
+  .retail-all-products-page .products-table th:nth-child(1) { width: 18%; }
+  .retail-all-products-page .products-table th:nth-child(2) { width: 12%; }
+  .retail-all-products-page .products-table th:nth-child(3) { width: 18%; }
+  .retail-all-products-page .products-table th:nth-child(4) { width: 10%; }
+  .retail-all-products-page .products-table th:nth-child(5) { width: 9%; }
+  .retail-all-products-page .products-table th:nth-child(6) { width: 10%; }
+  .retail-all-products-page .products-table th:nth-child(7) { width: 9%; }
+  .retail-all-products-page .products-table th:nth-child(8) { width: 14%; }
+
+  .retail-all-products-page .products-table td:nth-child(2),
+  .retail-all-products-page .products-table td:nth-child(4),
+  .retail-all-products-page .products-table td:nth-child(5),
+  .retail-all-products-page .products-table td:nth-child(6),
+  .retail-all-products-page .products-table td:nth-child(7) {
+    overflow-wrap: anywhere;
+  }
+
+  .retail-all-products-page .products-table td:last-child {
+    min-width: 142px;
+  }
+
+  .retail-all-products-page .table-action-group.stockflow-icon-actions {
+    display: grid !important;
+    grid-template-columns: repeat(4, 30px) !important;
+    width: max-content !important;
+    min-width: 138px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    margin: 0 auto !important;
+  }
+
+  .retail-all-products-page .table-action-group.stockflow-icon-actions button {
+    width: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+  }
+}
+/* STOCKFLOW RETAIL ALL PRODUCTS ROUTE ISOLATION V2 — END */

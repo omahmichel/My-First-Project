@@ -26,10 +26,33 @@ const emptyForm = {
   styleCode: "",
 };
 
-export default function ProductFormModal({ open, onClose, onSave, product = null, defaultType = "standard" }) {
+function productTypesForBusiness(businessType) {
+  if (businessType === "boutique") {
+    return [{ value: "fashion", label: "Boutique product" }];
+  }
+
+  return [
+    { value: "standard", label: "Standard product" },
+    { value: "tile", label: "Tile product" },
+  ];
+}
+
+export default function ProductFormModal({
+  open,
+  onClose,
+  onSave,
+  product = null,
+  defaultType = "standard",
+  businessType = null,
+}) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const resolvedBusinessType =
+    businessType || (defaultType === "fashion" ? "boutique" : "building_materials");
+  const allowedProductTypes = productTypesForBusiness(resolvedBusinessType);
+  const workspaceDefaultType =
+    resolvedBusinessType === "boutique" ? "fashion" : defaultType;
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +61,7 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
         ? {
             ...emptyForm,
             ...product,
+            businessType: resolvedBusinessType,
             stock: String(product.stock ?? ""),
             costPrice: String(product.costPrice ?? ""),
             sellingPrice: String(product.sellingPrice ?? ""),
@@ -46,11 +70,16 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
             piecesPerBox: String(product.piecesPerBox ?? ""),
             sqmPerBox: String(product.sqmPerBox ?? ""),
           }
-        : { ...emptyForm, productType: defaultType, businessType: defaultType === "fashion" ? "boutique" : "building_materials", unit: defaultType === "tile" ? "box" : "piece" },
+        : {
+            ...emptyForm,
+            productType: workspaceDefaultType,
+            businessType: resolvedBusinessType,
+            unit: workspaceDefaultType === "tile" ? "box" : "piece",
+          },
     );
     setError("");
     setIsSaving(false);
-  }, [defaultType, open, product]);
+  }, [open, product, resolvedBusinessType, workspaceDefaultType]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -58,7 +87,7 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
       ...current,
       [name]: value,
       ...(name === "productType"
-        ? { businessType: value === "fashion" ? "boutique" : "building_materials", unit: value === "tile" ? "box" : value === "fashion" ? "piece" : current.unit }
+        ? { businessType: resolvedBusinessType, unit: value === "tile" ? "box" : value === "fashion" ? "piece" : current.unit }
         : {}),
     }));
   }
@@ -117,9 +146,11 @@ export default function ProductFormModal({ open, onClose, onSave, product = null
           <label>
             Product type
             <select name="productType" value={form.productType} onChange={handleChange}>
-              <option value="standard">Standard product</option>
-              <option value="tile">Tile product</option>
-              <option value="fashion">Boutique product</option>
+              {allowedProductTypes.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="form-column-span-two">

@@ -5,11 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import StickyTableScroll from "../../components/ui/StickyTableScroll";
 import ProductFormModal from "../../components/products/ProductFormModal";
+import RetailProductFormModal from "../../components/products/RetailProductFormModal";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useStore } from "../../context/StoreContext";
+import { retailInventoryConfig } from "../../data/retailInventoryConfig";
+import { retailProductVariantSummary, retailSearchValues } from "../../data/retailProductProfiles";
 import { formatCurrency } from "../../utils/formatters";
 
 import "../../styles/products-control-board.css";
@@ -28,6 +31,7 @@ export default function ProductsPage() {
   } = useStore();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [brand, setBrand] = useState("all");
   const [status, setStatus] = useState("all");
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -45,19 +49,49 @@ export default function ProductsPage() {
 
   const currentRole = business?.currentUserRole;
   const canViewCostPrice = currentRole === "owner" || currentRole === "manager";
+  const retailConfig = retailInventoryConfig(business?.type);
+  const isRetailWorkspace = Boolean(retailConfig);
 
-  const categories = [...new Set(products.map((product) => product.category))].sort();
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort();
+  const brands = [...new Set(products.map((product) => product.brand).filter(Boolean))].sort();
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return products.filter((product) => {
-      const matchesSearch = !query || [product.name, product.sku, product.designCode, product.styleCode, product.brand]
+    const matches = products.filter((product) => {
+      const searchValues = [
+        product.name,
+        product.sku,
+        product.designCode,
+        product.styleCode,
+        product.brand,
+        ...(isRetailWorkspace ? retailSearchValues(product) : []),
+      ];
+      const matchesSearch = !query || searchValues
         .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query));
+        .some((value) => String(value).toLowerCase().includes(query));
       const matchesCategory = category === "all" || product.category === category;
+      const matchesBrand = !isRetailWorkspace || brand === "all" || product.brand === brand;
       const matchesStatus = status === "all" || product.status === status;
-      return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesCategory && matchesBrand && matchesStatus;
     });
-  }, [category, products, search, status]);
+
+    if (!isRetailWorkspace) return matches;
+
+    return matches.sort((first, second) => {
+      const firstKey = [
+        first.category || "",
+        first.brand || "",
+        first.name || "",
+        retailProductVariantSummary(first, business.type),
+      ].join("|");
+      const secondKey = [
+        second.category || "",
+        second.brand || "",
+        second.name || "",
+        retailProductVariantSummary(second, business.type),
+      ].join("|");
+      return firstKey.localeCompare(secondKey, undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [brand, business.type, category, isRetailWorkspace, products, search, status]);
 
   const totalPages = Math.max(
     1,
@@ -83,7 +117,7 @@ export default function ProductsPage() {
   // Returns to page one whenever search, filters or page size change.
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, category, status, pageSize]);
+  }, [search, category, brand, status, pageSize]);
 
   // Keeps the selected page inside the available page range.
   useEffect(() => {
@@ -163,14 +197,14 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="page-stack stockflow-inventory-page products-control-page">
+    <div className={`page-stack stockflow-inventory-page products-control-page${isRetailWorkspace ? " retail-all-products-page" : ""}`}>
       <PageHeader
         eyebrow="Inventory"
-        title="Products"
-        description="Manage every product, price, unit and stock level from one controlled list."
+        title={isRetailWorkspace ? retailConfig.title : "Products"}
+        description={isRetailWorkspace ? retailConfig.description : "Manage every product, price, unit and stock level from one controlled list."}
         actions={<Button onClick={() => { setEditingProduct(null); setProductModalOpen(true); }}><PackagePlus size={18} />
 
- Add product</Button>}
+ {isRetailWorkspace ? retailConfig.addLabel : "Add product"}</Button>}
       />
 
       {inventoryLoading ? (
@@ -191,16 +225,19 @@ export default function ProductsPage() {
 
       <section className="panel-card stockflow-inventory-panel">
         <div className="table-toolbar stockflow-inventory-toolbar">
-          <label className="table-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, SKU, design or brand..." /></label>
+          <label className="table-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isRetailWorkspace ? retailConfig.searchPlaceholder : "Search name, SKU, design or brand..."} /></label>
           <div className="table-filter-group">
             <select value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select>
+            {isRetailWorkspace ? (
+              <select value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">All brands</option>{brands.map((item) => <option key={item}>{item}</option>)}</select>
+            ) : null}
             <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
           </div>
         </div>
 
         <StickyTableScroll>
 <InventoryTable className="products-table">
-            <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th>Stock</th><th><span className="stockflow-table-heading-stack"><span>Cost</span><span>price</span></span></th><th><span className="stockflow-table-heading-stack"><span>Selling</span><span>price</span></span></th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Product</th><th>Category</th><th>{isRetailWorkspace ? "Brand / variant" : "Unit"}</th><th>Stock</th><th><span className="stockflow-table-heading-stack"><span>Cost</span><span>price</span></span></th><th><span className="stockflow-table-heading-stack"><span>Selling</span><span>price</span></span></th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {paginatedProducts.map((product) => {
                 const availableStock = Number(
@@ -208,6 +245,9 @@ export default function ProductsPage() {
                 );
                 const lowStock =
                   availableStock <= Number(product.lowStockLevel || 0);
+                const variantSummary = isRetailWorkspace
+                  ? retailProductVariantSummary(product, business.type)
+                  : "";
                 return (
                   <tr key={product.id}>
                     <td>
@@ -217,7 +257,14 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td>{product.category}</td>
-                    <td className="capitalize-text">{product.unit}</td>
+                    {isRetailWorkspace ? (
+                      <td className="retail-brand-variant-cell">
+                        <strong>{product.brand || "Unbranded"}</strong>
+                        <small>{variantSummary || `Unit: ${product.unit}`}</small>
+                      </td>
+                    ) : (
+                      <td className="capitalize-text">{product.unit}</td>
+                    )}
                     <td>
                       <strong className={lowStock ? "danger-text" : ""}>
                         {availableStock} {product.unit}(s)
@@ -349,7 +396,24 @@ export default function ProductsPage() {
         </div>
       </section>
 
-      <ProductFormModal open={productModalOpen} onClose={() => setProductModalOpen(false)} onSave={saveProduct} product={editingProduct} />
+      {isRetailWorkspace ? (
+        <RetailProductFormModal
+          open={productModalOpen}
+          onClose={() => setProductModalOpen(false)}
+          onSave={saveProduct}
+          product={editingProduct}
+          businessType={business.type}
+        />
+      ) : (
+        <ProductFormModal
+          open={productModalOpen}
+          onClose={() => setProductModalOpen(false)}
+          onSave={saveProduct}
+          product={editingProduct}
+          defaultType={business.type === "boutique" ? "fashion" : "standard"}
+          businessType={business.type}
+        />
+      )}
 
       <Modal
         open={Boolean(deleteProductTarget)}
