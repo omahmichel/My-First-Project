@@ -64,3 +64,19 @@
     font-weight: 800 !important;
   }
 }
+
+/* STOCKFLOW_LOW_STOCK_RED_V1 */
+@media screen {
+  #root .status-badge[data-stock-alert="low"],
+  #root td[data-label="Status"] .badge[data-stock-alert="low"],
+  body > .modal-backdrop .status-badge[data-stock-alert="low"] {
+    color: #b91c1c !important;
+    background: #fef2f2 !important;
+    border: 1px solid #fecaca !important;
+    --tw-ring-color: #fecaca !important;
+    font-weight: 800 !important;
+  }
+  #root td[data-label="Status"] .badge[data-stock-alert="low"] > span[aria-hidden="true"] {
+    background: #dc2626 !important;
+  }
+}

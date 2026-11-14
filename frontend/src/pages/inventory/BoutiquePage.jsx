@@ -560,7 +560,7 @@ export default function BoutiquePage() {
                     </td>
 
                     <td data-label="Status" className="px-3 py-2 align-middle">
-                      <span className={`badge inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-bold ring-1 ring-inset ${statusClassName}`}>
+                      <span data-stock-alert={product.status === "active" && lowStock ? "low" : undefined} className={`badge inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-bold ring-1 ring-inset ${statusClassName}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${statusDotClassName}`} aria-hidden="true" />
                         {statusLabel}
                       </span>
