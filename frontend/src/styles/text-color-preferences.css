@@ -1,0 +1,66 @@
+/* StockFlow text appearance requested by the owner. */
+@media screen {
+  :root {
+    --stockflow-heading-color: #000000;
+    --stockflow-product-color: #14532d;
+    --stockflow-quantity-color: #b45309;
+    --stockflow-status-color: #14532d;
+  }
+
+  /* Light page surfaces, forms, tables, and dialogs. */
+  #root :is(.page-header, .panel-card-header, .auth-heading, .settings-section,
+    .onboarding-card, .pa-content, .sf-shop-card, .sf-shop-cart) :is(h1, h2, h3, h4),
+  #root .modal-header :is(h2, h3),
+  body > .modal-backdrop .modal-header :is(h2, h3),
+  #root table th,
+  body > .modal-backdrop table th {
+    color: var(--stockflow-heading-color) !important;
+    font-weight: 800 !important;
+  }
+
+  #root table :is(th, td, strong, small, span, a, button),
+  body > .modal-backdrop table :is(th, td, strong, small, span, a, button) {
+    font-weight: 700 !important;
+  }
+
+  /* Product titles in inventory, sales, public catalogue, and invoices. */
+  #root .table-product-cell strong,
+  #root td[data-label="Product"] strong,
+  #root .pos-product-card strong,
+  #root .cart-item-heading strong,
+  #root .sf-shop-card h2,
+  #root .sf-shop-cart-line strong,
+  #root .stock-value-list > div > div strong,
+  #root .invoice-items-table tbody td:first-child,
+  body > .modal-backdrop .invoice-items-table tbody td:first-child {
+    color: var(--stockflow-product-color) !important;
+    font-weight: 800 !important;
+  }
+
+  /* Quantities use a dark orange that remains legible on light surfaces. */
+  #root td[data-label="Stock"],
+  #root td[data-label="Stock"] :is(strong, small),
+  #root td[data-label="Stock"] small span,
+  #root .products-table tbody td:nth-child(4),
+  #root .products-table tbody td:nth-child(4) :is(strong, small),
+  #root .movement-quantity,
+  #root .quantity-control input,
+  #root .tile-stock-summary strong,
+  #root .sf-shop-cart-actions input,
+  #root .invoice-items-table tbody td:nth-child(2),
+  body > .modal-backdrop .invoice-items-table tbody td:nth-child(2) {
+    color: var(--stockflow-quantity-color) !important;
+    font-weight: 800 !important;
+  }
+
+  /* The text label continues to identify each status. */
+  #root .status-badge,
+  #root td[data-label="Status"] .badge,
+  #root .pa-badge,
+  body > .modal-backdrop .status-badge {
+    color: var(--stockflow-status-color) !important;
+    background: #e8f5ec !important;
+    border-color: #a7cfb4 !important;
+    font-weight: 800 !important;
+  }
+}

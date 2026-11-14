@@ -14,6 +14,7 @@ import "./styles/design-system.css";
 import "./styles/premium-data-table.css";
 import "./styles/stockflow-inventory-system.css";
 import "./styles/tailwind.css";
+import "./styles/text-color-preferences.css";
 
 const removeErrorReporting = installPlatformErrorReporting();
 if (import.meta.hot) import.meta.hot.dispose(removeErrorReporting);
