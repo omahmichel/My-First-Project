@@ -221,3 +221,11 @@
   }
 }
 /* STOCKFLOW_TILE_TABLE_ALIGNMENT_V1_END */
+
+/* STOCKFLOW_TILE_AVAILABLE_ORANGE_V1 */
+@media screen {
+  #root .tile-records-page .tile-records-table .tile-premium-stock-main > span {
+    color: var(--stockflow-quantity-color, #b45309) !important;
+  }
+}
+/* STOCKFLOW_TILE_AVAILABLE_ORANGE_V1_END */
