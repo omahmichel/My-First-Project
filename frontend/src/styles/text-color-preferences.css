@@ -80,3 +80,144 @@
     background: #dc2626 !important;
   }
 }
+
+/* STOCKFLOW_TILE_TABLE_ALIGNMENT_V1 */
+@media screen {
+  #root .tile-records-page .tile-records-table :is(
+    .tile-premium-product, .tile-premium-stack, .tile-premium-size,
+    .tile-premium-stock, .tile-premium-price
+  ) {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    align-content: center;
+  }
+
+  #root .tile-records-page .tile-records-table :is(
+    .tile-premium-product, .tile-premium-stack, .tile-premium-size,
+    .tile-premium-stock, .tile-premium-price
+  ) strong {
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    line-height: 1.45 !important;
+  }
+
+  #root .tile-records-page .tile-records-table :is(
+    .tile-premium-product, .tile-premium-stack,
+    .tile-premium-stock, .tile-premium-price
+  ) :is(small, span) {
+    font-size: 0.8125rem !important;
+    font-weight: 700 !important;
+    line-height: 1.45 !important;
+  }
+
+  #root .tile-records-page .tile-records-table .tile-premium-size,
+  #root .tile-records-page .tile-records-table .tile-premium-size strong {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  #root .tile-records-page .tile-records-table .tile-premium-size strong {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  #root .tile-records-page .tile-records-table .tile-premium-stock-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  #root .tile-records-page .tile-records-table td[data-label="Status"] :is(.badge, .status-badge) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 0;
+    max-width: none;
+    min-height: 32px;
+    margin: 0;
+    padding: 5px 10px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 700 !important;
+    line-height: 1.45 !important;
+    white-space: nowrap;
+  }
+
+  #root .tile-records-page .tile-records-pagination,
+  #root .tile-records-page .tile-pagination-summary,
+  #root .tile-records-page .tile-pagination-controls {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+@media screen and (min-width: 701px) {
+  #root .tile-records-page .tile-records-table-wrapper {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  #root .tile-records-page .tile-records-table {
+    width: 100% !important;
+    min-width: 1160px !important;
+    max-width: none !important;
+    table-layout: fixed !important;
+  }
+
+  #root .tile-records-page .tile-records-table th:nth-child(1) { width: 19% !important; }
+  #root .tile-records-page .tile-records-table th:nth-child(2) { width: 13% !important; }
+  #root .tile-records-page .tile-records-table th:nth-child(3) { width: 12% !important; }
+  #root .tile-records-page .tile-records-table th:nth-child(4) { width: 20% !important; }
+  #root .tile-records-page .tile-records-table th:nth-child(5) { width: 11% !important; }
+  #root .tile-records-page .tile-records-table th:nth-child(6) { width: 12% !important; }
+  #root .tile-records-page .tile-records-table th:nth-child(7) { width: 13% !important; }
+
+  #root .tile-records-page .tile-records-table :is(th, td) {
+    padding: 14px 16px !important;
+    vertical-align: middle !important;
+    line-height: 1.45 !important;
+  }
+
+  #root .tile-records-page .tile-records-table th {
+    white-space: nowrap;
+  }
+
+  #root .tile-records-page .tile-records-table td[data-label="Status"],
+  #root .tile-records-page .tile-records-table td[data-label="Actions"] {
+    text-align: center;
+  }
+
+  #root .tile-records-page .tile-records-table .tile-record-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-wrap: wrap;
+    gap: 6px !important;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  #root .tile-records-page .tile-records-table .tile-record-actions button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 34px;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    margin: 0;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+}
+/* STOCKFLOW_TILE_TABLE_ALIGNMENT_V1_END */
