@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "StockFlow Ghana",
+  "short_name": "StockFlow",
+  "description": "Manage inventory, sales and invoices with StockFlow.",
+  "lang": "en",
+  "start_url": "/app/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f6b4f",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/stockflow-install/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/stockflow-install/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
